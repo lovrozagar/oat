@@ -2,7 +2,7 @@ import type { OperationModel } from "../../../spec/graph/types.ts"
 import type { ReadClient } from "../../../client/client.ts"
 import type { Exchange } from "../../exchange.ts"
 import { fillPath } from "../../fill-path.ts"
-import { idOf, type Record_ } from "../../world/records.ts"
+import { idOf, type Record_, recordsFromList, type RowsAt } from "../../world/records.ts"
 import type { CheckContext } from "../core/context.ts"
 import { conv, type Query } from "../query/capabilities.ts"
 
@@ -74,7 +74,7 @@ export async function list(
 		query,
 	})
 	const body = exchange.responseBody
-	const items = extractItems(body, op === ctx.listOp ? ctx.collectionKey : (op.collection?.key ?? null))
+	const items = recordsFromList(body, op === ctx.listOp ? rowsAt(ctx) : op.collection)
 	return { envelope: (body ?? {}) as Record<string, unknown>, exchange, items }
 }
 
@@ -91,18 +91,9 @@ export function forList<C extends ReadClient>(ctx: CheckContext<C>, op: Operatio
 	}
 }
 
-/**
- * The records a list body holds: a bare array, or the array under the collection key. A row that
- * is not an object is no record; the response-schema checks report it, and no check reads a field
- * off it.
- */
-export function extractItems(body: unknown, key: string | null): Record_[] {
-	const rows = Array.isArray(body) ? body : key === null || !isObject(body) ? undefined : body[key]
-	return Array.isArray(rows) ? rows.filter(isObject) : []
-}
-
-function isObject(value: unknown): value is Record_ {
-	return typeof value === "object" && value !== null && !Array.isArray(value)
+/** Where the context's own list keeps its records: under its collection key, each read at `within`. */
+export function rowsAt(ctx: CheckContext): RowsAt {
+	return { key: ctx.collectionKey, within: ctx.listOp.collection?.within ?? [] }
 }
 
 export function ids(records: Record_[], identity: string): string[] {

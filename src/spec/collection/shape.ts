@@ -15,6 +15,11 @@ export interface CollectionShape {
 	itemSchema: JsonSchema | null
 	/** Sibling properties of the collection — `count`, `hasMore`, `nextCursor`, `page`. */
 	envelopeKeys: string[]
+	/**
+	 * Where each row keeps its record, one property name per step: `["document"]` for
+	 * `$.hits[*].document`. Empty when the row is the record.
+	 */
+	within: string[]
 	pagination: {
 		countKey?: string
 		hasMoreKey?: string
@@ -62,12 +67,12 @@ function propertyEntries(schema: JsonSchema): Entry[] | null {
  * beside a `fields` sidecar) leave the rows unnamed: taking the first compares the wrong records,
  * so the list's `x-entity.recordPath` names them.
  */
-function chooseRows(entries: Entry[], rowsKey: string | null | undefined): Candidate | undefined {
+function chooseRows(entries: Entry[], rowsKey: string | undefined): Candidate | undefined {
 	const candidates = entries
 		.filter(([name, value]) => value?.type === "array" && !SIDECAR.test(name))
 		.map(([name, value]) => ({ item: effective(asSchema((value as JsonSchema).items)), name }))
 		.filter((c): c is Candidate => c.item !== null)
-	if (rowsKey !== undefined && rowsKey !== null) return candidates.find((c) => c.name === rowsKey)
+	if (rowsKey !== undefined) return candidates.find((c) => c.name === rowsKey)
 	const objectRows = candidates.filter((c) => holdsObjects(c.item))
 	return objectRows.length > 1 ? undefined : (objectRows[0] ?? candidates[0])
 }
@@ -93,22 +98,41 @@ function hasSubstantiveSibling(entries: Entry[], chosen: string): boolean {
 	)
 }
 
-export function deriveCollectionShape(raw: JsonSchema | null, rowsKey?: string | null): CollectionShape | null {
+/* The schema `within` names inside a row's, or null where the row's schema does not say. */
+function schemaWithin(row: JsonSchema, within: readonly string[]): JsonSchema | null {
+	let schema: JsonSchema | null = row
+	for (const name of within) schema = effective(asSchema(asSchema(schema?.properties)?.[name]))
+	return schema
+}
+
+/**
+ * The list a response holds, read from its schema. A declared `recordPath` names the rows and
+ * where each keeps its record; without one the rows are inferred, and a body with substantive
+ * siblings beside its array is read as a document that holds a list, not a list. A declaration
+ * is the author saying otherwise: Typesense answers `request_params` beside its `hits`.
+ */
+export function deriveCollectionShape(
+	raw: JsonSchema | null,
+	recordPath: string | null = null,
+): CollectionShape | null {
 	const schema = effective(raw)
 	if (schema === null) return null
 	if (schema.type === "array") {
-		return { envelopeKeys: [], itemSchema: effective(asSchema(schema.items)), key: null, pagination: {} }
+		return { envelopeKeys: [], itemSchema: effective(asSchema(schema.items)), key: null, pagination: {}, within: [] }
 	}
 	const entries = propertyEntries(schema)
 	if (entries === null) return null
-	const chosen = chooseRows(entries, rowsKey)
-	if (chosen === undefined || hasSubstantiveSibling(entries, chosen.name)) return null
+	const declared = rowsOf(recordPath)
+	const chosen = chooseRows(entries, declared?.key)
+	if (chosen === undefined || (declared === null && hasSubstantiveSibling(entries, chosen.name))) return null
 	const siblingNames = entries.map(([name]) => name).filter((name) => name !== chosen.name)
+	const within = declared?.within ?? []
 	return {
 		envelopeKeys: siblingNames,
-		itemSchema: chosen.item,
+		itemSchema: schemaWithin(chosen.item, within),
 		key: chosen.name,
 		pagination: paginationOf(siblingNames),
+		within,
 	}
 }
 
@@ -129,9 +153,19 @@ export function ambiguousRows(raw: JsonSchema | null): string[] {
 	return rows.length > 1 ? rows : []
 }
 
-/** The top-level key a list's `recordPath` names (`$.data` or `$.data[*]`), or null. */
-export function rowsKeyOf(recordPath: string | null): string | null {
-	if (recordPath === null) return null
-	const match = /^\$\.([A-Za-z0-9_-]+)(?:\[\*\])?$/.exec(recordPath)
-	return match?.[1] ?? null
+/** Where a list's `recordPath` says its records are: the rows' top-level key, and each record within a row. */
+export interface Rows {
+	key: string
+	within: string[]
+}
+
+/* `$.data`, `$.data[*]`, or `$.hits[*].document` and deeper: rows under one top-level key. A
+ * name is anything but a separator, a bracket or a space. */
+const ROWS_PATH = /^\$\.([^.[\]\s]+)(?:\[\*\]((?:\.[^.[\]\s]+)*))?$/
+
+/** The rows a list's `recordPath` names (`$.data`, `$.data[*]`, `$.hits[*].document`), or null. */
+export function rowsOf(recordPath: string | null): Rows | null {
+	const match = recordPath === null ? null : ROWS_PATH.exec(recordPath)
+	if (match === null) return null
+	return { key: match[1] as string, within: (match[2] ?? "").split(".").filter(Boolean) }
 }

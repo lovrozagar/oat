@@ -1,13 +1,19 @@
 import { describe, expect, it } from "vitest"
 import type { JsonSchema } from "../types.ts"
-import { ambiguousRows, deriveCollectionShape, rowsKeyOf } from "./shape.ts"
+import { ambiguousRows, deriveCollectionShape, rowsOf } from "./shape.ts"
 
 const item = { properties: { id: { type: "string" } }, type: "object" }
 const list = (items: unknown = item) => ({ items, type: "array" })
 
 describe("deriveCollectionShape", () => {
 	it("reads a bare array", () => {
-		expect(deriveCollectionShape(list())).toEqual({ envelopeKeys: [], itemSchema: item, key: null, pagination: {} })
+		expect(deriveCollectionShape(list())).toEqual({
+			envelopeKeys: [],
+			itemSchema: item,
+			key: null,
+			pagination: {},
+			within: [],
+		})
 		expect(deriveCollectionShape({ type: "array" })?.itemSchema).toBeNull()
 		expect(deriveCollectionShape({ anyOf: [list(), { type: "null" }] })?.key).toBeNull()
 	})
@@ -54,6 +60,7 @@ describe("deriveCollectionShape: envelopes", () => {
 				limitKey: "page_size",
 				pageKey: "pageNumber",
 			},
+			within: [],
 		})
 	})
 
@@ -80,8 +87,9 @@ describe("deriveCollectionShape: choosing the rows", () => {
 	it("leaves two arrays of objects unnamed unless recordPath names one", () => {
 		const two = { properties: { fields: list(), rows: list() }, type: "object" }
 		expect(deriveCollectionShape(two)).toBeNull()
-		expect(deriveCollectionShape(two, "rows")?.key).toBe("rows")
-		expect(deriveCollectionShape(two, "nope")).toBeNull()
+		expect(deriveCollectionShape(two, "$.rows")?.key).toBe("rows")
+		expect(deriveCollectionShape(two, "$.rows[*]")?.key).toBe("rows")
+		expect(deriveCollectionShape(two, "$.nope")).toBeNull()
 		expect(deriveCollectionShape(two, null)).toBeNull()
 	})
 
@@ -118,11 +126,59 @@ describe("ambiguousRows", () => {
 	})
 })
 
-describe("rowsKeyOf", () => {
-	it("reads the top-level key a recordPath names", () => {
-		expect(rowsKeyOf("$.data")).toBe("data")
-		expect(rowsKeyOf("$.data[*]")).toBe("data")
-		expect(rowsKeyOf("$.data.rows")).toBeNull()
-		expect(rowsKeyOf(null)).toBeNull()
+describe("deriveCollectionShape: rows that wrap their record", () => {
+	const document = { properties: { title: { type: "string" } }, type: "object" }
+	const hit = { properties: { document, highlights: list() }, type: "object" }
+	/* Typesense's search answer: the record under each hit's `document`, beside object sidecars. */
+	const search = {
+		properties: {
+			facet_counts: list(),
+			found: { type: "integer" },
+			hits: list(hit),
+			page: { type: "integer" },
+			request_params: { properties: { q: { type: "string" } }, type: "object" },
+		},
+		type: "object",
+	} as JsonSchema
+
+	it("reads each row's record at the declared path inside it", () => {
+		expect(deriveCollectionShape(search, "$.hits[*].document")).toEqual({
+			envelopeKeys: ["facet_counts", "found", "page", "request_params"],
+			itemSchema: document,
+			key: "hits",
+			pagination: { pageKey: "page" },
+			within: ["document"],
+		})
+	})
+
+	it("walks a deeper path, and has no item schema where the row's schema stops", () => {
+		const deep = { properties: { rows: list({ properties: { a: hit } }) }, type: "object" }
+		expect(deriveCollectionShape(deep, "$.rows[*].a.document")?.itemSchema).toEqual(document)
+		expect(deriveCollectionShape(deep, "$.rows[*].a.missing")).toMatchObject({ itemSchema: null, key: "rows" })
+		expect(deriveCollectionShape(deep, "$.rows[*].a.document.title.x")?.itemSchema).toBeNull()
+	})
+
+	it("takes declared rows beside object siblings that would otherwise read as a document", () => {
+		expect(deriveCollectionShape(search)).toBeNull()
+		expect(deriveCollectionShape(search, "$.hits")?.key).toBe("hits")
+	})
+})
+
+describe("rowsOf", () => {
+	it("reads the top-level key a recordPath names, and the path inside each row", () => {
+		expect(rowsOf("$.data")).toEqual({ key: "data", within: [] })
+		expect(rowsOf("$.data[*]")).toEqual({ key: "data", within: [] })
+		expect(rowsOf("$.hits[*].document")).toEqual({ key: "hits", within: ["document"] })
+		expect(rowsOf("$.hits[*].a.b")).toEqual({ key: "hits", within: ["a", "b"] })
+		expect(rowsOf(null)).toBeNull()
+	})
+
+	it("is null for a path that names no top-level rows", () => {
+		expect(rowsOf("$.data.rows")).toBeNull()
+		expect(rowsOf("$.a.b[*].c")).toBeNull()
+		expect(rowsOf("$.hits[*]document")).toBeNull()
+		expect(rowsOf("$.hits[*].")).toBeNull()
+		expect(rowsOf("$[*].document")).toBeNull()
+		expect(rowsOf("/data")).toBeNull()
 	})
 })

@@ -138,13 +138,31 @@ function collectionKey(entity: EntityDef, dialect: Dialect): string {
 	return dialect.envelope?.collection ?? entity.plural
 }
 
+/* Under `wrappedRows`: a listed row, its record under `document` beside the search's highlights. */
+function wrappedRow(ctx: SpecContext, entity: EntityDef): JsonSchema {
+	const highlight = { properties: { field: { type: "string" }, snippet: { type: "string" } }, type: "object" }
+	return {
+		additionalProperties: false,
+		properties: { document: itemSchemaRef(ctx, entity), highlights: { items: highlight, type: "array" } },
+		required: ["document", "highlights"],
+		type: "object",
+	}
+}
+
+/** Where the list says its records are: inside each row under `wrappedRows`, an envelope's `data` under `recordEnvelope`. */
+export function listLocated(ctx: SpecContext, entity: EntityDef, dialect: Dialect): Json {
+	if (ctx.shape.wrappedRows !== true) return located(ctx, entity, "list")
+	return dialect.envelope === null ? {} : { recordPath: `$.${collectionKey(entity, dialect)}[*].document` }
+}
+
 export function listSchema(ctx: SpecContext, entity: EntityDef, dialect: Dialect): JsonSchema {
 	const env = dialect.envelope
 	/* No envelope: the response *is* the array. A document that says so is the only place oat can
 	 * learn it, so the schema has to say it rather than describe a wrapper that does not exist. */
 	if (env === null) return { items: itemSchemaRef(ctx, entity), type: "array" }
 	const key = collectionKey(entity, dialect)
-	const properties: Json = { [key]: { items: itemSchemaRef(ctx, entity), type: "array" } }
+	const row = ctx.shape.wrappedRows === true ? wrappedRow(ctx, entity) : itemSchemaRef(ctx, entity)
+	const properties: Json = { [key]: { items: row, type: "array" } }
 	const required = [key]
 	const declare = (name: string | undefined, schema: JsonSchema): void => {
 		if (name === undefined) return

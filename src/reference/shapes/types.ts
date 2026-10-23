@@ -52,6 +52,11 @@ export interface ReferenceShape {
 	 * record is (`x-entity.recordPath`) and where a create's id is (`createdIdFrom`).
 	 */
 	recordEnvelope?: boolean
+	/**
+	 * Each listed row wraps its record, `{ document, highlights }`, as a search engine answers. The
+	 * document says so with a per-row `x-entity.recordPath` (`$.tables[*].document`).
+	 */
+	wrappedRows?: boolean
 	/** Each record carries a read-only related record with an id of its own: `Status: { ID, Name }`. */
 	relatedRecord?: boolean
 	/**

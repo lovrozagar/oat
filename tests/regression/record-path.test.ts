@@ -86,7 +86,7 @@ describe("recordOf", () => {
 describe("a list with two arrays of objects", () => {
 	it("is no collection until something says which array holds the rows", () => {
 		expect(deriveCollectionShape(LIST as never)).toBeNull()
-		expect(deriveCollectionShape(LIST as never, "data")?.key).toBe("data")
+		expect(deriveCollectionShape(LIST as never, "$.data")?.key).toBe("data")
 	})
 
 	it("takes the rows from the list operation's recordPath, and reports the ambiguity without it", () => {
@@ -97,11 +97,49 @@ describe("a list with two arrays of objects", () => {
 	})
 })
 
+/* Typesense's search: each hit wraps the record under `document`, beside object sidecars. */
+const BOOK = { properties: { id: { type: "string" }, title: { type: "string" } }, type: "object" }
+const SEARCH = {
+	properties: {
+		found: { type: "integer" },
+		hits: {
+			items: { properties: { document: BOOK, highlights: { items: { type: "object" }, type: "array" } } },
+			type: "array",
+		},
+		request_params: { properties: { q: { type: "string" } }, type: "object" },
+	},
+	type: "object",
+}
+
+function searchDocument(recordPath: string): OpenApiDocument {
+	return {
+		info: { title: "search", version: "1" },
+		openapi: "3.1.0",
+		paths: {
+			"/books": {
+				get: { operationId: "book.search", responses: { "200": json(SEARCH) }, "x-entity": { recordPath } },
+			},
+		},
+	} as unknown as OpenApiDocument
+}
+
+describe("a list whose rows wrap their record", () => {
+	it("reads each row's record where the list's recordPath points inside it", () => {
+		const collection = buildModel(searchDocument("$.hits[*].document")).byOperationId.get("book.search")?.collection
+		expect(collection).toMatchObject({ itemSchema: BOOK, key: "hits", within: ["document"] })
+	})
+})
+
 describe("doctor", () => {
 	it("prints where each operation keeps its record and its created id", () => {
 		const text = report.doctor(buildModel(document({ recordPath: "$.data" }))).text
 		expect(text).toContain("note.create")
 		expect(text).toMatch(/note\.create\s+record \$\.data\s+created id \$\.id/)
 		expect(text).toMatch(/note\.read\s+record \$\.data/)
+	})
+
+	it("prints a per-row record path as declared", () => {
+		const text = report.doctor(buildModel(searchDocument("$.hits[*].document"))).text
+		expect(text).toMatch(/book\.search\s+record \$\.hits\[\*\]\.document/)
 	})
 })

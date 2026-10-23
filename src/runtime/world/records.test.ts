@@ -35,12 +35,35 @@ describe("reading records", () => {
 		expect(idOf({ ID: { nested: 1 } }, "ID")).toBeUndefined()
 		expect(idOf(undefined, "ID")).toBeUndefined()
 	})
+})
 
+describe("recordsFromList", () => {
 	it("reads a list's rows from a bare array or under its collection key", () => {
+		const items = { key: "items", within: [] }
 		expect(recordsFromList([{ id: 1 }], null)).toEqual([{ id: 1 }])
-		expect(recordsFromList({ items: [{ id: 2 }] }, "items")).toEqual([{ id: 2 }])
-		expect(recordsFromList({ items: "x" }, "items")).toEqual([])
+		expect(recordsFromList({ items: [{ id: 2 }] }, items)).toEqual([{ id: 2 }])
+		expect(recordsFromList([{ id: 1 }], { key: null, within: [] })).toEqual([{ id: 1 }])
+	})
+
+	it("reads each row's record inside it when the rows wrap their record", () => {
+		const hits = { key: "hits", within: ["document"] }
+		const body = { hits: [{ document: { id: "a" }, highlights: [] }, { document: { id: "b" } }], found: 2 }
+		expect(recordsFromList(body, hits)).toEqual([{ id: "a" }, { id: "b" }])
+		expect(recordsFromList([{ a: { b: { id: 3 } } }], { key: null, within: ["a", "b"] })).toEqual([{ id: 3 }])
+	})
+
+	it("keeps only the rows that hold a record", () => {
+		expect(recordsFromList([null, { id: "1" }, 7, [{ id: "2" }], "x"], null)).toEqual([{ id: "1" }])
+		const hits = { key: "hits", within: ["document"] }
+		const body = { hits: [{ document: null }, { other: 1 }, 7, { document: [1] }, { document: { id: "a" } }] }
+		expect(recordsFromList(body, hits)).toEqual([{ id: "a" }])
+	})
+
+	it("finds nothing in anything else", () => {
+		const items = { key: "items", within: [] }
+		expect(recordsFromList({ items: "x" }, items)).toEqual([])
 		expect(recordsFromList({ items: [{ id: 2 }] }, null)).toEqual([])
-		expect(recordsFromList(null, "items")).toEqual([])
+		expect(recordsFromList(null, items)).toEqual([])
+		expect(recordsFromList("text", items)).toEqual([])
 	})
 })

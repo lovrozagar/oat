@@ -6,6 +6,7 @@
  * and malformed is a gap naming the tag and what is wrong with it, so `doctor` shows it.
  */
 
+import { rowsOf } from "../collection/shape.ts"
 import type { AsyncSpec, WaitSpec } from "../extensions/async.ts"
 import { ENTITY_ACTIONS, type EntityTag } from "../extensions/entity.ts"
 import type { RateLimitTag } from "../extensions/flags.ts"
@@ -37,12 +38,20 @@ const ASYNC = {
 	until: text,
 } satisfies FieldsOf<AsyncSpec>
 
+/* A record's path is any path oat reads; `[*]` fans out over a list's rows, so it may stand only
+ * where rows are: right after a top-level key (`$.hits[*].document`). */
+const recordPath: Check = (value) => {
+	const problem = text(value)
+	if (problem !== null || !(value as string).includes("[*]") || rowsOf(value as string) !== null) return problem
+	return 'may hold [*] only right after a top-level key, as in "$.hits[*].document"'
+}
+
 const ENTITY = {
 	action: (value) => oneOf(value, ENTITY_ACTIONS),
 	createdIdFrom: text,
 	identity: text,
 	name: text,
-	recordPath: text,
+	recordPath,
 } satisfies FieldsOf<EntityTag>
 
 const INVITE = {

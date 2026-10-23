@@ -4,11 +4,12 @@ import { toCanonicalFilter } from "../../dialect/canonical.ts"
 import type { ListingRequest } from "../../listing/types.ts"
 import { runListing } from "../../listing/run.ts"
 import { fieldsWhere } from "../../model/fields.ts"
+import type { EntityDef } from "../../model/types.ts"
 import { type Row, SqlError } from "../../store-api.ts"
 import { equalityFilter, paginated, selectParam, staleWindow, toCanonicalOrder } from "../listing-query.ts"
 import { fieldList, present, skewForList, snapshotKey, wraps } from "../records.ts"
 import type { ReferenceState } from "../state.ts"
-import { type ReferenceRequest, type ReferenceResponse, respond } from "../wire.ts"
+import { type Json, type ReferenceRequest, type ReferenceResponse, respond } from "../wire.ts"
 import type { EntityCall } from "./entity.ts"
 
 export async function list(
@@ -46,10 +47,23 @@ export async function list(
 			? { ...result, count: 0, hasMore: false, items: [], nextCursor: null }
 			: result
 	const listing = paginated({ dialect: state.dialect, entity, url: request.url }, served)
-	/* Under `recordEnvelope` the rows travel beside a second array of objects. */
-	const body =
-		wraps(state, entity) && !Array.isArray(listing.body) ? { ...listing.body, fields: fieldList(entity) } : listing.body
-	return respond(200, body, listing.headers)
+	return respond(200, shaped(state, entity, listing.body), listing.headers)
+}
+
+/*
+ * A listing's envelope as the shape answers it: under `recordEnvelope` the rows travel beside a
+ * second array of objects, and under `wrappedRows` each row wraps its record. A root array, which
+ * no document could point inside, stays as it is.
+ */
+function shaped(state: ReferenceState, entity: EntityDef, body: Json | Row[]): Json | Row[] {
+	if (Array.isArray(body)) return body
+	const key = state.dialect.envelope?.collection ?? entity.plural
+	const rows = body[key] as Row[]
+	return {
+		...body,
+		...(state.shape.wrappedRows === true ? { [key]: rows.map((row) => ({ document: row, highlights: [] })) } : {}),
+		...(wraps(state, entity) ? { fields: fieldList(entity) } : {}),
+	}
 }
 
 /*
@@ -80,7 +94,7 @@ function staleListing(state: ReferenceState, url: URL, call: EntityCall): Refere
 			page: window.page,
 		},
 	)
-	return respond(200, page.body, page.headers)
+	return respond(200, shaped(state, call.entity, page.body), page.headers)
 }
 
 function listingRequest(state: ReferenceState, url: URL, call: EntityCall): ListingRequest {

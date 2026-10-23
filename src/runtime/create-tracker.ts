@@ -96,7 +96,7 @@ function sight(tracker: Tracker, exchange: Exchange, principal: string): void {
 	}
 	const list = routes.lists.get(operationId)
 	if (list === undefined) return
-	for (const row of recordsFromList(exchange.responseBody, list.op.collection?.key ?? null)) {
+	for (const row of recordsFromList(exchange.responseBody, list.op.collection)) {
 		const id = idOf(row, list.identity)
 		if (id !== undefined) input.ledger.sighted(list.entity, id, principal)
 	}

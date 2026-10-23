@@ -25,7 +25,7 @@ export async function listExisting(route: ListRoute, client: Client, principal: 
 			query: largestPageQuery(model, listOp),
 		})
 		if (exchange.status >= 300) return []
-		return recordsFromList(exchange.responseBody, listOp.collection?.key ?? null)
+		return recordsFromList(exchange.responseBody, listOp.collection)
 	} catch (error) {
 		/* A fenced read is not an empty collection. */
 		if (error instanceof FencedError) throw error

@@ -13,6 +13,7 @@ import {
 	fieldSchema,
 	itemSchema,
 	itemSchemaRef,
+	listLocated,
 	listSchema,
 	located,
 	readSchema,
@@ -179,5 +180,26 @@ describe("listSchema", () => {
 	it("carries the fields sidecar beside wrapped rows", () => {
 		const schema = listSchema(context({ recordEnvelope: true }), TABLE, POSTGREST)
 		expect((schema.required as string[]).at(-1)).toBe("fields")
+	})
+})
+
+describe("wrapped rows", () => {
+	const ctx = context({ wrappedRows: true })
+
+	it("lists each record under its row's document, beside its highlights, and says where", () => {
+		const rows = (listSchema(ctx, TABLE, POSTGREST).properties as Record<string, { items: unknown }>)["tables"]?.items
+		expect(rows).toMatchObject({
+			properties: { document: itemSchemaRef(ctx, TABLE), highlights: { type: "array" } },
+			required: ["document", "highlights"],
+		})
+		expect(listLocated(ctx, TABLE, POSTGREST)).toEqual({ recordPath: "$.tables[*].document" })
+		expect(listLocated(ctx, TABLE, CLASSIC)).toEqual({ recordPath: `$.${CLASSIC.envelope?.collection}[*].document` })
+	})
+
+	it("leaves a root array's rows as they are, and every list plain without the shape", () => {
+		expect(listSchema(ctx, TABLE, LINKED)).toEqual({ items: itemSchemaRef(ctx, TABLE), type: "array" })
+		expect(listLocated(ctx, TABLE, LINKED)).toEqual({})
+		expect(listLocated(context({}), TABLE, POSTGREST)).toEqual({})
+		expect(listLocated(context({ recordEnvelope: true }), TABLE, POSTGREST)).toEqual({ recordPath: "$.data" })
 	})
 })

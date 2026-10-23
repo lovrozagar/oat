@@ -4,13 +4,13 @@ import { sortTerm } from "../../../../spec/conventions/sort.ts"
 import type { SortValue } from "../../../../spec/render/sort.ts"
 import type { Exchange } from "../../../exchange.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
-import { idOf, type Record_ } from "../../../world/records.ts"
+import { idOf, type Record_, recordsFromList } from "../../../world/records.ts"
 import type { CheckContext } from "../../core/context.ts"
 import { when } from "../../core/plan.ts"
 import { NO_KEY, subjectsOf } from "../../planning/subjects.ts"
 import { conv, pageable } from "../../query/capabilities.ts"
 import { duplicates } from "../../sets/compare.ts"
-import { extractItems, ids, type Walk } from "../../sets/list.ts"
+import { ids, rowsAt, type Walk } from "../../sets/list.ts"
 import { readSet } from "../../sets/read.ts"
 import { MAX_WALK_PAGES, walkPages } from "./walk.ts"
 
@@ -55,7 +55,7 @@ function repeatEvidence(ctx: CheckContext, cursorWalk: Walk, repeated: string[])
 			2,
 			1 +
 				cursorWalk.exchanges.findLastIndex((exchange) =>
-					extractItems(exchange.responseBody, ctx.collectionKey).some((item) =>
+					recordsFromList(exchange.responseBody, rowsAt(ctx)).some((item) =>
 						repeated.includes(idOf(item, ctx.identity) ?? NO_KEY),
 					),
 				),

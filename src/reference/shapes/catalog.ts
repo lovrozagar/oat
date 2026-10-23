@@ -77,6 +77,11 @@ export const SHAPES: readonly NamedShape[] = [
 		why: "an upper-case integer ID, records wrapped on create and read, writes answered without the record, rows beside a fields sidecar, a related record nested in each, and several sort keys as the parameter repeated",
 	},
 	{
+		name: "wrapped-rows",
+		shape: { wrappedRows: true },
+		why: "each listed row wraps its record under document beside its highlights, as a search engine answers",
+	},
+	{
 		/* It clamps a page size rather than refusing it, and its document says so. */
 		cannotRun: {
 			"pagination.limit-bounds-enforced": "the page size is clamped, as the document declares, not refused",

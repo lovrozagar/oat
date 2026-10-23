@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { exchange } from "../__fixtures__/harness.ts"
 import { notesContext, notesModel, withConventions } from "../query/__fixtures__/notes.ts"
-import { envelopeValue, extractItems, forList, ids, list, type ListResult } from "./list.ts"
+import { envelopeValue, forList, ids, list, type ListResult } from "./list.ts"
 import { op } from "../__fixtures__/harness.ts"
 
 /*
@@ -101,6 +101,16 @@ describe("list", () => {
 		expect(result.envelope).toEqual({ items: [{ id: "1" }], total: 1 })
 	})
 
+	it("reads each row's record inside it where the list's recordPath points", async () => {
+		const body = { found: 1, hits: [{ document: { id: "1" }, highlights: [] }] }
+		const { ctx } = notesContext(() => ({ body, status: 200 }))
+		const collection = { ...ctx.listOp.collection, key: "hits", within: ["document"] } as typeof ctx.listOp.collection
+		const wrapped = { ...ctx, collectionKey: "hits", listOp: { ...ctx.listOp, collection } }
+		expect((await list(wrapped)).items).toEqual([{ id: "1" }])
+		const other = { ...ctx.listOp, collection, operationId: "search.list" }
+		expect((await list(ctx, {}, { op: other })).items).toEqual([{ id: "1" }])
+	})
+
 	it("reads another list under that list's own key, as the principal and in the scope given", async () => {
 		const model = notesModel(TAGS)
 		const { ctx, sent } = notesContext(() => ({ body: { data: [{ slug: "s" }] }, status: 200 }), {}, model)
@@ -109,6 +119,13 @@ describe("list", () => {
 		expect(sent[0]).toMatchObject({ options: { as: { principal: "b" }, operationId: "tag.list" }, path: "/tags" })
 	})
 
+	it("takes an empty answer as an empty envelope", async () => {
+		const { ctx } = notesContext(() => ({ status: 204 }))
+		expect(await list(ctx)).toMatchObject({ envelope: {}, items: [] })
+	})
+})
+
+describe("list without a collection shape", () => {
 	it("reads a bare array from a list whose document gives no collection shape", async () => {
 		const { ctx } = notesContext(() => ({ body: [{ id: "9" }], status: 200 }))
 		const orphan = { ...ctx.listOp, collection: null, operationId: "orphan.list" }
@@ -117,9 +134,10 @@ describe("list", () => {
 		])
 	})
 
-	it("takes an empty answer as an empty envelope", async () => {
-		const { ctx } = notesContext(() => ({ status: 204 }))
-		expect(await list(ctx)).toMatchObject({ envelope: {}, items: [] })
+	it("reads the context's own list as a bare array when its document gives no collection shape", async () => {
+		const { ctx } = notesContext(() => ({ body: [{ id: "7" }], status: 200 }))
+		const bare = { ...ctx, collectionKey: null, listOp: { ...ctx.listOp, collection: null } }
+		expect((await list(bare)).items).toEqual([{ id: "7" }])
 	})
 })
 
@@ -145,25 +163,6 @@ describe("forList", () => {
 		const { ctx } = notesContext()
 		const orphan = { ...ctx.listOp, collection: null, entity: null, operationId: "orphan.list" }
 		expect(forList(ctx, orphan)).toMatchObject({ collectionKey: null, identity: "id" })
-	})
-})
-
-describe("extractItems", () => {
-	it("reads a bare array, or the array under the key", () => {
-		expect(extractItems([{ id: "1" }], null)).toEqual([{ id: "1" }])
-		expect(extractItems({ rows: [{ id: "1" }] }, "rows")).toEqual([{ id: "1" }])
-	})
-
-	it("keeps only the rows that are records", () => {
-		expect(extractItems([null, { id: "1" }, 7, [{ id: "2" }], "x"], null)).toEqual([{ id: "1" }])
-		expect(extractItems({ rows: [null, { id: "1" }] }, "rows")).toEqual([{ id: "1" }])
-	})
-
-	it("finds nothing in anything else", () => {
-		expect(extractItems(null, "rows")).toEqual([])
-		expect(extractItems("text", "rows")).toEqual([])
-		expect(extractItems({ rows: "x" }, "rows")).toEqual([])
-		expect(extractItems({ rows: [{ id: "1" }] }, null)).toEqual([])
 	})
 })
 

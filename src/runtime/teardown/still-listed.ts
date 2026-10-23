@@ -96,7 +96,7 @@ function pageQuery(
  */
 function takePage(walk: Walk, group: ListGroup, exchange: Exchange): boolean {
 	const paging = group.listOp.conventions
-	const rows = recordsFromList(exchange.responseBody, group.listOp.collection?.key ?? null)
+	const rows = recordsFromList(exchange.responseBody, group.listOp.collection)
 	walk.served += rows.length
 	const ids = rows.flatMap((row) => idOf(row, group.identity) ?? [])
 	const fresh = ids.filter((id) => !walk.seen.has(id))

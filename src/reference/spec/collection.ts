@@ -7,7 +7,7 @@ import { errorResponses } from "./errors.ts"
 import { declaredIdentity, entityTag, jsonResponse, listResponseHeaders, ok } from "./operation.ts"
 import { listQueryParams, pathParams, tenantParam } from "./params.ts"
 import { queryDeclaration } from "./query.ts"
-import { bodySchema, createdSchema, listSchema, located } from "./schemas.ts"
+import { bodySchema, createdSchema, listLocated, listSchema, located } from "./schemas.ts"
 import type { Json, SpecContext } from "./types.ts"
 
 /**
@@ -61,7 +61,7 @@ function listOperation(ctx: SpecContext, entity: EntityDef, dialect: Dialect): J
 			action: "list",
 			identity: declaredIdentity(ctx, entity),
 			name: entity.name,
-			...located(ctx, entity, "list"),
+			...listLocated(ctx, entity, dialect),
 		},
 		"x-query": queryDeclaration(ctx, entity, dialect),
 		/* Generous enough never to slow a run; declared so a stricter real limit is testable. */

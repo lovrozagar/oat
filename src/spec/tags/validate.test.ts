@@ -112,6 +112,21 @@ describe("validateTags x-entity and x-root", () => {
 		])
 	})
 
+	it("takes a recordPath oat can read, and names one it cannot", () => {
+		for (const recordPath of ["$.data", "data.item", "/data", "$.data[*]", "$.hits[*].document", "$.hits[*].a.b"]) {
+			expect(gapsOf({ "x-entity": { recordPath } })).toEqual([])
+		}
+		const cannot =
+			'x-entity: x-entity "recordPath" may hold [*] only right after a top-level key, as in ' +
+			'"$.hits[*].document"; oat cannot use it'
+		for (const recordPath of ["$.a.b[*].c", "$.hits[*]document", "$.hits[*].", "$[*].document", "$.a[*][*]"]) {
+			expect(gapsOf({ "x-entity": { recordPath } })).toEqual([cannot])
+		}
+		expect(gapsOf({ "x-entity": { recordPath: "" } })).toEqual([
+			'x-entity: x-entity "recordPath" must be a non-empty string; oat cannot use it',
+		])
+	})
+
 	it("records a parameter's x-root that is not a boolean", () => {
 		expect(gapsOf({ parameters: [{ in: "path", name: "org", "x-root": "yes" }] })).toEqual([
 			'x-root: x-root on "org" must be true or false; oat cannot use it',

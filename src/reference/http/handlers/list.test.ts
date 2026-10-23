@@ -40,6 +40,16 @@ describe("a listing", () => {
 		expect((await linked.call("GET", TABLES)).items).toHaveLength(1)
 	})
 
+	it("wraps each row's record under document beside its highlights under wrappedRows, not on a root array", async () => {
+		const { call, table } = await api({ shape: { wrappedRows: true } })
+		await table("a")
+		const { body } = await call("GET", TABLES)
+		expect(body).toMatchObject({ count: 1, tables: [{ document: { name: "a" }, highlights: [] }] })
+		const linked = await api({ dialect: "linked", shape: { wrappedRows: true } })
+		await linked.table("a")
+		expect((await linked.call("GET", TABLES)).items).toEqual([expect.objectContaining({ name: "a" })])
+	})
+
 	it("skews the listed name under LIST_DETAIL_DISAGREE", async () => {
 		const { call, table } = await api({ defects: ["LIST_DETAIL_DISAGREE"] })
 		await table("a")
@@ -48,6 +58,14 @@ describe("a listing", () => {
 })
 
 describe("a stale listing", () => {
+	it("wraps its rows as the live listing does", async () => {
+		const { call } = await api({ defects: ["STALE_LIST"], shape: { prepopulate: 2, wrappedRows: true } })
+		expect((await call("GET", TABLES)).body["tables"]).toEqual([
+			{ document: expect.any(Object), highlights: [] },
+			{ document: expect.any(Object), highlights: [] },
+		])
+	})
+
 	it("replays the collection as it was before the first write, paged as asked", async () => {
 		const { call, table } = await api({ defects: ["STALE_LIST"], shape: { prepopulate: 3 } })
 		expect((await call("GET", TABLES)).body["count"]).toBe(3)

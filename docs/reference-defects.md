@@ -150,6 +150,8 @@ oat run --config labs/local.config.ts --base-url <url>
 
 The `offset-total` shape pages by rows skipped and taken (`skip` / `take`, bounded by each entity's maximum) and answers `{ data, totalCount }` with no more-pages flag; its baseline must be clean and its recall pass runs every common defect.
 
+The `wrapped-rows` shape answers each listed row as `{ document, highlights }`, the record under `document` as a search engine answers it, and its document declares `x-entity.recordPath: $.<rows>[*].document` on every list; its baseline must be clean and its recall pass runs every common defect.
+
 The `template` dialect (`oat serve --dialect template`) speaks a grammar oat knows only from its declaration: `where=and_status_eq_active`, repeated once per term, `ne` for not-equal, `and_x_is_null` / `and_x_isn_null`, comma-joined `in` lists, `_` in a value written `~`, `like` as a bare substring, and sort keys `name_ascending` / `name_descending`. Its document declares both grammars as templates on `x-query`; the reference parses them with its own expressions, never oat's renderer.
 
 `CLIENT_ID_IGNORED` and `CLIENT_ID_OVERWRITES` exist only behind the `client-ids` shape, where the client picks a table's integer id (1–999), the create answers `{ "success": true }`, and tables are already present before oat arrives. The shape is a correct backend; its recall pass runs these two on top of the common defects.

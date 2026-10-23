@@ -1,6 +1,6 @@
 /** One operation read into the model: its tags, its contract, and what its query parameters mean. */
 
-import { ambiguousRows, type CollectionShape, deriveCollectionShape, rowsKeyOf } from "../collection/shape.ts"
+import { ambiguousRows, type CollectionShape, deriveCollectionShape } from "../collection/shape.ts"
 import { documentsEventStream, successSchema } from "../collection/responses.ts"
 import { hasRequestBody, requestSchema } from "../collection/request.ts"
 import { deriveQueryConventions } from "../conventions/derive.ts"
@@ -81,7 +81,7 @@ function readOperation(endpoint: Endpoint, doc: OpenApiDocument, gaps: GapCollec
 	const { op, path, operationId } = endpoint
 	const responseSchema = successSchema(op)
 	const recordPath = readRecordPath(endpoint)
-	const collection = deriveCollectionShape(responseSchema, rowsKeyOf(recordPath))
+	const collection = deriveCollectionShape(responseSchema, recordPath)
 	reportAmbiguousRows(endpoint, { recordPath, schema: responseSchema }, gaps)
 	const bodySchema = requestSchema(op)
 	validateTags(op, operationId, gaps)
