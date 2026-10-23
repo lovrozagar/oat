@@ -235,6 +235,11 @@ describe("unwind edge cases", () => {
 				summary: "teardown stopped on an unexpected error with 0 record(s) ledgered",
 			}),
 		])
+		/* None of what it took is shown gone, so each is a leftover. */
+		expect(ctx.state.teardown?.failed).toEqual([
+			expect.objectContaining({ reason: expect.stringMatching(/^teardown stopped on an unexpected error: /) }),
+		])
+		expect(ctx.state.teardown?.records).toEqual([expect.objectContaining({ removed: false })])
 	})
 })
 

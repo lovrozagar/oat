@@ -1,13 +1,20 @@
+import { writeFile } from "node:fs/promises"
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
-import { afterEach, describe, expect, it } from "vitest"
+import { join } from "node:path"
+import { afterAll, afterEach, describe, expect, it, vi } from "vitest"
+import { EXIT, exitCode } from "../../src/runtime/exit.ts"
 import { run } from "../../src/runtime/run/index.ts"
+import { Ledger } from "../../src/runtime/teardown/ledger.ts"
+import type { Disposable } from "../../src/runtime/teardown/types.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
+import { latestReport, oat, tempDirs } from "../support/cli-run.ts"
 
 /*
  * The run result names every record oat ledgered for teardown and whether it is gone. Counts alone
  * cannot say which id oat meant to remove, and the conformance suite needs exactly that to prove
- * every recorded id is one the backend created.
+ * every recorded id is one the backend created. A record teardown could not show gone fails the run
+ * with exit 4, whatever else it found.
  */
 
 type Note = { id: string; name: string }
@@ -17,6 +24,8 @@ afterEach(async () => {
 	for (const server of open) await server.close()
 	open = []
 })
+const dirs = tempDirs("oat-teardown-records-")
+afterAll(dirs.removeAll)
 
 const REFUSED = "note-1"
 
@@ -140,5 +149,54 @@ describe("teardown records", () => {
 		expect(records.find((record) => record.id === REFUSED)?.removed).toBe(false)
 		expect(records.filter((record) => record.id !== REFUSED).every((record) => record.removed)).toBe(true)
 		expect(records.filter((record) => record.removed).every((record) => !notes.has(record.id))).toBe(true)
+	})
+})
+
+describe("a record teardown could not remove", () => {
+	it("exits 4 on the CLI, naming the record in the console and the report", async () => {
+		const url = await serve(new Map())
+		const dir = await dirs.make()
+		const config = join(dir, "oat.config.json")
+		await writeFile(
+			config,
+			JSON.stringify({ baseUrl: url, cohortSize: 3, principals: { alpha: {} }, seed: 1, spec: `${url}/openapi.json` }),
+		)
+		const runs = join(dir, "runs")
+		const { code, out } = await oat(["run", "--config", config, "--out", runs, "--quiet"])
+		expect(code).toBe(EXIT.leftovers)
+		expect(out).toMatch(/cleanup: removed (\d+)\/\d+ created record\(s\)/)
+		expect(out).toContain(`note ${REFUSED} (as alpha)`)
+		const report = await latestReport(runs)
+		expect(report.outcome).toEqual({
+			exitCode: EXIT.leftovers,
+			reason: "records may remain: 1 teardown could not show gone",
+			result: "leftovers",
+		})
+		expect(report.teardown?.failed).toEqual([expect.objectContaining({ entity: "note", id: REFUSED })])
+		expect(report.teardown?.records.find((record) => record.id === REFUSED)?.removed).toBe(false)
+	})
+
+	it("exits 4 when teardown stops on an error, listing every record it was to remove", async () => {
+		const url = await serve(new Map())
+		/* Takes what is ledgered, as the real unwind does, then fails before removing any of it. */
+		const unwind = vi.spyOn(Ledger.prototype, "unwind").mockImplementation(function (this: Ledger) {
+			;(this.entries() as Disposable[]).splice(0)
+			return Promise.reject(new Error("delete exploded"))
+		})
+		try {
+			const result = await run({
+				baseUrl: url,
+				cohortSize: 3,
+				principals: { alpha: {} },
+				seed: 1,
+				spec: `${url}/openapi.json`,
+			})
+			expect(result.findings.some((finding) => finding.check === "world.teardown")).toBe(true)
+			expect(result.teardown?.failed.length).toBe(result.created)
+			expect(result.teardown?.records.every((record) => !record.removed)).toBe(true)
+			expect(exitCode(result)).toBe(EXIT.leftovers)
+		} finally {
+			unwind.mockRestore()
+		}
 	})
 })

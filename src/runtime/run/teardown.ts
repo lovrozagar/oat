@@ -1,5 +1,5 @@
 import { createTracker } from "../create-tracker.ts"
-import type { TeardownReport } from "../teardown/types.ts"
+import type { Disposable, TeardownReport } from "../teardown/types.ts"
 import type { RunContext } from "./context.ts"
 import { errorText } from "./errors.ts"
 import { messageOf } from "../../errors/message.ts"
@@ -41,6 +41,8 @@ export async function unwind(ctx: RunContext): Promise<void> {
 	progress.check = undefined
 	progress.tick({ message: `${ledger.size} record(s)`, phase: "teardown", requests: progress.requests })
 	if (options.keepFixtures === true || ledger.size === 0) return
+	/* What this unwind takes: when it throws, none of it is shown gone. */
+	const pending = [...ledger.entries()]
 	try {
 		const report = await ledger.unwind(ctx.model, ctx.client.view({ purpose: "teardown" }), {
 			fallbacks: ctx.principals.fallbackDeleters,
@@ -65,6 +67,19 @@ export async function unwind(ctx: RunContext): Promise<void> {
 			summary: `teardown stopped on an unexpected error with ${ledger.size} record(s) ledgered`,
 			cause: errorText(error),
 		})
+		ctx.state.teardown = merged(ctx.state.teardown, unshown(pending, messageOf(error)))
+	}
+}
+
+/* Records an unwind that threw was to remove: each may remain, so each is a leftover. */
+function unshown(pending: readonly Disposable[], why: string): TeardownReport {
+	const reason = `teardown stopped on an unexpected error: ${why}`
+	return {
+		failed: pending.map(({ entity, id, owner }) => ({ entity, id, principal: owner.id, reason })),
+		records: pending.map(({ entity, id, owner }) => ({ entity, id, principal: owner.id, removed: false })),
+		removed: 0,
+		unidentified: [],
+		unsupported: [],
 	}
 }
 
