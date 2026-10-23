@@ -36,6 +36,18 @@ function formDecoded(raw: string): string {
 	}
 }
 
+/* `value` percent-encoded, RFC 3986 strict and loose, and form-encoded; none for a lone surrogate. */
+function urlForms(value: string): string[] {
+	let percent: string
+	try {
+		percent = encodeURIComponent(value)
+	} catch {
+		return []
+	}
+	const strict = percent.replace(/[!'()*]/g, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`)
+	return [percent, strict, new URLSearchParams([["", value]]).toString().slice(1)]
+}
+
 export class Redactor {
 	readonly #headers = new Set<string>()
 	readonly #secrets = new Set<string>()
@@ -71,10 +83,15 @@ export class Redactor {
 	registerSecret(value: string | undefined): void {
 		const trimmed = value?.trim() ?? ""
 		if (trimmed.length < 6) return
-		this.#secrets.add(trimmed)
+		this.#addSecret(trimmed)
 		/* A bearer token is also sent bare: register the token itself as well as the header value. */
 		const bare = /^\w+\s+(\S{6,})$/.exec(trimmed)?.[1]
-		if (bare !== undefined) this.#secrets.add(bare)
+		if (bare !== undefined) this.#addSecret(bare)
+	}
+
+	/* A value as issued and as a URL or a form writes it: a base64 token's `+/=` reach the wire encoded. */
+	#addSecret(value: string): void {
+		for (const written of [value, ...urlForms(value)]) this.#secrets.add(written)
 	}
 
 	/** Whether `value` carries a registered credential value, whole or inside it: never one to send elsewhere. */

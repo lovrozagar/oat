@@ -57,6 +57,37 @@ describe("Redactor", () => {
 	})
 })
 
+describe("Redactor, encoded values", () => {
+	it("scrubs a registered value percent-encoded or form-encoded, as a URL or a rewrite writes it", () => {
+		const redactor = new Redactor()
+		redactor.registerSecret("dXNl/cjpwYXNz==")
+		const params = new URL(redactor.url("https://x.test/a?api_key=k&echo=dXNl/cjpwYXNz==")).searchParams
+		expect([...params]).toEqual([
+			["api_key", REDACTED],
+			["echo", REDACTED],
+		])
+		expect(redactor.url("https://x.test/t/dXNl%2FcjpwYXNz%3D%3D?next=dXNl%2FcjpwYXNz%3D%3D")).toBe(
+			`https://x.test/t/${REDACTED}?next=${REDACTED}`,
+		)
+		expect(redactor.holdsSecret("dXNl%2FcjpwYXNz%3D%3D")).toBe(true)
+	})
+
+	it("scrubs a value with marks RFC 3986 reserves in the strict percent form a URL writes them in", () => {
+		const redactor = new Redactor()
+		redactor.registerSecret("p(a)ss*w'd!")
+		expect(redactor.text("sent=p%28a%29ss%2Aw%27d%21 and loose=p(a)ss*w'd!")).toBe(
+			`sent=${REDACTED} and loose=${REDACTED}`,
+		)
+	})
+
+	it("scrubs a value holding a lone surrogate as issued, since no URL can encode it", () => {
+		const redactor = new Redactor()
+		const broken = "secret-\ud800-tail"
+		redactor.registerSecret(broken)
+		expect(redactor.text(`echo ${broken}`)).toBe(`echo ${REDACTED}`)
+	})
+})
+
 describe("Redactor.holdsSecret", () => {
 	it("tells whether a value carries a registered credential, whole or inside it", () => {
 		const redactor = new Redactor()
