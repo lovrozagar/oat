@@ -20,6 +20,10 @@ const SIGNUP = {
 export interface AccountsDoc {
 	deleteSelf?: boolean
 	adminDelete?: boolean
+	/** The delete-self takes an API key, not the bearer token every other operation takes. */
+	selfByApiKey?: boolean
+	/** The delete-self takes no credential at all. */
+	selfOpen?: boolean
 }
 
 export function accountsDoc(parts: AccountsDoc = {}): OpenApiDocument {
@@ -36,9 +40,11 @@ export function accountsDoc(parts: AccountsDoc = {}): OpenApiDocument {
 			responses: { "204": { description: "gone" } },
 			"x-destructive": true,
 			"x-entity": { action: "delete", identity: "self", name: "me" },
+			...(parts.selfByApiKey === true ? { security: [{ apiKey: [] }] } : {}),
+			...(parts.selfOpen === true ? { security: [] } : {}),
 		}
 	}
-	return notesDoc({
+	const doc = notesDoc({
 		"/login": { post: { operationId: "auth.login", responses: { "200": { description: "ok" } }, security: [] } },
 		"/me": me,
 		...(parts.adminDelete === true
@@ -64,6 +70,9 @@ export function accountsDoc(parts: AccountsDoc = {}): OpenApiDocument {
 			},
 		},
 	})
+	if (parts.selfByApiKey !== true) return doc
+	const schemes = { ...doc.components?.securitySchemes, apiKey: { in: "header", name: "x-api-key", type: "apiKey" } }
+	return { ...doc, components: { ...doc.components, securitySchemes: schemes } } as OpenApiDocument
 }
 
 /** The accounts the API holds, by the token each signs in with, and how its removals answer. */

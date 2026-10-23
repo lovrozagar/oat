@@ -17,6 +17,7 @@ import { type AccountOps, accountOps } from "../accounts/ops.ts"
 import { fillPath } from "../fill-path.ts"
 import type { TeardownReport } from "../teardown/types.ts"
 import { messageOf } from "../../errors/message.ts"
+import { effectiveRecipe } from "../../credentials/effective.ts"
 import { recipeKind } from "../../credentials/recipes/acquire.ts"
 import { signsUp, signupOf } from "../../credentials/signup.ts"
 import type { RunContext } from "./context.ts"
@@ -114,9 +115,9 @@ async function removeAccount(ctx: RunContext, ops: AccountOps, entry: AccountEnt
 	if (op !== undefined && principal === undefined) {
 		tried.push(`${op.operationId} needs the account signed in, and the run holds no credential for it`)
 	} else if (op !== undefined && principal !== undefined) {
-		const borrowed = await borrowedCredential(ctx, principal)
-		if (borrowed !== undefined) {
-			tried.push(`${op.operationId} was not sent: ${borrowed}, so it would delete that account instead`)
+		const why = await borrowedFor(ctx, principal, op)
+		if (why !== undefined) {
+			tried.push(`${op.operationId} was not sent as the account: ${why}`)
 		} else {
 			const sent = await sendAs(ctx, { as: principal, op, path: op.path, tried, who: "the account" })
 			if (sent !== undefined && gone(sent)) {
@@ -133,18 +134,44 @@ async function removeAccount(ctx: RunContext, ops: AccountOps, entry: AccountEnt
 }
 
 /*
- * Why `principal`'s credential is not its own account's, if it is not: a delete-self sent with it
- * would remove whoever the credential belongs to. Every recipe static gives every principal the
- * configured caller's value; a held value another principal holds too is that principal's.
+ * Why what `principal` would send on `op` is not its own account's credential, if it is not: a
+ * delete-self sent with it would remove whoever the credential belongs to. Judged on the schemes the
+ * client picks for `op`, not on every credential the principal holds.
  */
-async function borrowedCredential(ctx: RunContext, principal: string): Promise<string | undefined> {
-	const recipes = Object.values(ctx.options.security ?? {})
-	if (recipes.length > 0 && recipes.every((recipe) => recipeKind(recipe) === "static")) {
-		return "every scheme's recipe is static, so its credential is the configured principals'"
+async function borrowedFor(ctx: RunContext, principal: string, op: OperationModel): Promise<string | undefined> {
+	const route = `${op.method.toUpperCase()} ${op.path}`
+	const resolution = await ctx.client.credentialFor({ actor: { principal }, operationId: op.operationId, route })
+	if (resolution.kind === "unsatisfied" || resolution.kind === "blocked") {
+		return `it holds no credential of its own for ${op.operationId}`
 	}
-	const held = await ctx.store.snapshot()
-	const own = new Set(held.filter((one) => one.principal === principal).map((one) => one.credential.value))
-	const shared = held.find((one) => one.principal !== principal && own.has(one.credential.value))
+	if (resolution.kind !== "sends") return `${op.operationId} would carry no credential of the account's`
+	return borrowed(
+		ctx,
+		principal,
+		resolution.schemes.map((scheme) => ({ scheme, value: resolution.sentValues[scheme] as string })),
+	)
+}
+
+/*
+ * Why these values `principal` sends are not its own account's, if they are not: one from a static
+ * recipe is the configured principals' own, and one another principal holds too is that principal's.
+ */
+async function borrowed(
+	ctx: RunContext,
+	principal: string,
+	sent: ReadonlyArray<{ scheme: string; value: string }>,
+): Promise<string | undefined> {
+	const entry = ctx.store.principals[principal]
+	for (const { scheme } of sent) {
+		const recipe = effectiveRecipe(ctx.options.security?.[scheme], entry?.security?.[scheme])
+		if (recipe !== undefined && recipeKind(recipe) === "static") {
+			return `its ${scheme} credential comes from a static recipe, the configured principals' own`
+		}
+	}
+	const values = new Set(sent.map((one) => one.value))
+	const shared = (await ctx.store.snapshot()).find(
+		(one) => one.principal !== principal && values.has(one.credential.value),
+	)
 	return shared === undefined ? undefined : `its credential is ${shared.principal}'s`
 }
 
@@ -232,12 +259,18 @@ async function hookRemoves(
 	const teardown = ctx.hooks.teardownPrincipal
 	if (teardown === undefined) return undefined
 	const address = accountLabel(entry.identity)
-	const held = await ctx.store.snapshot()
-	const credential = held.find((one) => principal !== undefined && one.principal === principal)?.credential
-	if (address === undefined || principal === undefined || credential === undefined) {
+	const held = (await ctx.store.snapshot()).find((one) => principal !== undefined && one.principal === principal)
+	const credential = held?.credential
+	if (address === undefined || principal === undefined || held === undefined || credential === undefined) {
 		tried.push(
 			`hooks.teardownPrincipal needs ${address === undefined ? "an address to name it by" : "a credential the run holds for it"}`,
 		)
+		return undefined
+	}
+	/* A hook handed another principal's credential as this account's would remove that account. */
+	const why = await borrowed(ctx, principal, [{ scheme: held.scheme, value: credential.value }])
+	if (why !== undefined) {
+		tried.push(`hooks.teardownPrincipal was not called: ${why}, and it is handed the account's own credential`)
 		return undefined
 	}
 	try {

@@ -122,7 +122,9 @@ describe("closeOut", () => {
 			if (path === "/signup") return { status: 201 }
 			if (path === "/login" && request.headers?.["authorization" as never] !== undefined)
 				events.push("revoke alpha's session")
-			if (path === "/login") return { body: { access_token: "session" }, status: 200 }
+			/* Each principal's own session: one shared would be no account's own to remove it with. */
+			const email = String((request.body as { email?: unknown } | undefined)?.email)
+			if (path === "/login") return { body: { access_token: `session-${email}` }, status: 200 }
 			if (method === "DELETE") events.push(`revoke ${path}`)
 			return keys(method, path, request)
 		}

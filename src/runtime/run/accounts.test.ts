@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import { UnsatisfiedSecurity } from "../../client/credential-source.ts"
 import type { AuthStep } from "../../config/types/steps.ts"
 import { accountsApi, accountsDoc, type AccountsState, accountsState } from "./__fixtures__/accounts.ts"
 import { contextOf, EMAIL_LOGIN, notesApi, optionsFor, withLogin, withSignup } from "./__fixtures__/api.ts"
@@ -75,6 +76,64 @@ describe("teardownAccounts never deletes as someone else", () => {
 	})
 })
 
+describe("teardownAccounts never deletes as someone else, by what the delete-self sends", () => {
+	it("sends no delete-self that takes a scheme whose recipe is static, though the account signs in by its own", async () => {
+		const state = accountsState()
+		const ctx = await contextOf(
+			optionsFor(accountsApi(state, accountsDoc({ adminDelete: true, selfByApiKey: true })), {
+				principals: { alpha: { email: "alpha@x.test" } },
+				security: { ...EMAIL_LOGIN, apiKey: { static: "alpha-key" } },
+			}),
+		)
+		const body = { email: "made@x.test", password: "pw-123456" }
+		await ctx.client.request("POST", "/signup", { as: { anonymous: true }, body, operationId: "auth.signup" })
+		await teardownAccounts(ctx)
+		expect(ctx.client.transcript.filter((exchange) => exchange.operationId === "me.delete")).toEqual([])
+		expect(ctx.accounts.entries()[0]?.note).toBe("deleted by member.delete as alpha (204)")
+	})
+
+	it("sends no delete-self that would carry no credential at all", async () => {
+		const state = accountsState()
+		const ctx = await freshRun(accountsApi(state, accountsDoc({ selfOpen: true })))
+		const { entry } = await torn(ctx)
+		expect(entry?.note).toBe(
+			"me.delete was not sent as the account: me.delete would carry no credential of the account's",
+		)
+		expect(state.removed).toEqual([])
+	})
+
+	it("hands the hook no credential another principal holds too, and says why it did not call it", async () => {
+		const removed: string[] = []
+		const signup = withSignup(() => ({ status: 201 }))
+		/* A login that answers everyone with alpha's token. */
+		const sameToken: typeof signup = (method, path, request) =>
+			path === "/login" ? { body: { access_token: "login-alpha@x.test" }, status: 200 } : signup(method, path, request)
+		const ctx = await freshRun(sameToken, {
+			hooks: { teardownPrincipal: async (address) => void removed.push(address) },
+		})
+		const { entry } = await torn(ctx)
+		expect(removed).toEqual([])
+		expect(entry?.note).toBe(
+			"hooks.teardownPrincipal was not called: its credential is alpha's, and it is handed the account's own credential",
+		)
+	})
+})
+
+describe("a principal with no credential for an operation", () => {
+	it("is refused by the client before anything is sent, never sent as another caller or as nobody", async () => {
+		const ctx = await contextOf(
+			optionsFor(accountsApi(accountsState()), { principals: { alpha: { email: "alpha@x.test" } }, security: {} }),
+		)
+		ctx.store.enroll("account-9", {})
+		const request = { actor: { principal: "account-9" }, operationId: "me.delete", route: "DELETE /me" }
+		expect(await ctx.client.credentialFor(request)).toMatchObject({ kind: "unsatisfied" })
+		await expect(
+			ctx.client.request("DELETE", "/me", { as: { principal: "account-9" }, operationId: "me.delete" }),
+		).rejects.toThrow(UnsatisfiedSecurity)
+		expect(ctx.client.transcript).toEqual([])
+	})
+})
+
 describe("teardownAccounts never deletes as someone else, by its credential", () => {
 	it("sends no delete-self when the account's credential is another principal's too", async () => {
 		const state = accountsState()
@@ -94,9 +153,7 @@ describe("teardownAccounts never deletes as someone else, by its credential", ()
 		})
 		await teardownAccounts(ctx)
 		expect(ctx.client.transcript.filter((exchange) => exchange.operationId === "me.delete")).toEqual([])
-		expect(ctx.accounts.entries()[0]?.note).toBe(
-			"me.delete was not sent: its credential is alpha's, so it would delete that account instead",
-		)
+		expect(ctx.accounts.entries()[0]?.note).toBe("me.delete was not sent as the account: its credential is alpha's")
 	})
 })
 
@@ -384,7 +441,9 @@ describe("teardownAccounts on an account it cannot sign in as", () => {
 		const body = { email: "open@x.test", password: "pw-123456" }
 		const { ctx, state } = await sentUp([body], { security: {} }, QUIET)
 		expect(ctx.accounts.entries()[0]).toMatchObject({ principal: "account-1", status: "left" })
-		expect(ctx.accounts.entries()[0]?.note).toMatch(/^me\.delete as the account was not sent: /)
+		expect(ctx.accounts.entries()[0]?.note).toBe(
+			"me.delete was not sent as the account: it holds no credential of its own for me.delete",
+		)
 		expect(state.removed).toEqual([])
 	})
 })

@@ -8,9 +8,11 @@ import { createControls } from "./control.ts"
 import { Journal } from "./journal.ts"
 import { afterUnauthorized } from "./refresh.ts"
 import type { Wire } from "./attempt.ts"
+import { resolveWith } from "./placing.ts"
 import { prepare, sendAttempt } from "./request.ts"
 import { DEFAULT_DEADLINE_MS, resilient, untilAnswered } from "./retry.ts"
 import { Slots } from "./slots.ts"
+import type { CredentialRequest, Resolution } from "./credential-source.ts"
 import type { ClientOptions, ExchangeContext, RequestOptions, SafeMethod } from "./types.ts"
 
 /** A request about to go out, as `setBeforeSend` sees it. */
@@ -89,6 +91,15 @@ export class Client {
 	 */
 	setBeforeSend(fn: BeforeSend): void {
 		this.beforeSend = fn
+	}
+
+	/**
+	 * What a request as `request.actor` would send, resolved without sending it: the alternative its
+	 * operation's security picks for the actor, and each scheme's value; or why it would be refused.
+	 * Acquiring a credential may sign the actor in.
+	 */
+	credentialFor(request: Omit<CredentialRequest, "probe">): Promise<Resolution> {
+		return resolveWith(this.wire.credentials, { ...request, probe: false })
 	}
 
 	/** The path below the base URL — what a documented path template describes. */

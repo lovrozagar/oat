@@ -89,7 +89,8 @@ export function requestCredential(
 	}
 }
 
-function resolveWith(
+/** What `request` would send, resolved by `source`, with nothing sent; a client without one has nothing to place. */
+export function resolveWith(
 	source: CredentialSource | undefined,
 	request: { actor: Actor; route: string; operationId?: string; probe: boolean },
 ): Promise<Resolution> {
