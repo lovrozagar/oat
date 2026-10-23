@@ -24,6 +24,8 @@ export interface EncodeOptions {
 	variant: string
 	index: number
 	uploads: UploadContext
+	/** Fields left out on purpose, such as a probe's missing required field: no file part is filled for one. */
+	omit?: ReadonlySet<string>
 }
 
 /** Where a body is encoded for: the uploads it may draw on, and the variant and record it is. */

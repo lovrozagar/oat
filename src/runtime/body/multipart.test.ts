@@ -57,6 +57,18 @@ describe("encodeMultipart, file properties", () => {
 		expect(partsOf(await encodeMultipart(options))).toEqual([["doc", { name: "given.pdf", type: "application/pdf" }]])
 		expect(asking.asked.map((request) => request.field)).toEqual(["doc"])
 	})
+
+	it("fills no file part the caller omits on purpose, and asks no hook for it", async () => {
+		const asking = hook(PDF)
+		const uploads = { resolveUpload: asking.resolveUpload, seed: 1 }
+		const options = optionsOf({ fields: FIELDS, omit: new Set(["doc"]), schema: SCHEMA, uploads })
+		expect(partsOf(await encodeMultipart(options))).toEqual([
+			["name", "n"],
+			["tags", "a"],
+			["tags", "b"],
+		])
+		expect(asking.asked).toEqual([])
+	})
 })
 
 describe("encodeMultipart, field overrides", () => {

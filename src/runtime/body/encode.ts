@@ -15,6 +15,8 @@ import type { EncodedBody, EncodeOptions, EncodePlacement } from "./types.ts"
 /** The fields to encode as an operation's body, and where that body is placed. */
 export interface OperationFields extends EncodePlacement {
 	fields: Record<string, unknown>
+	/** See `EncodeOptions.omit`. */
+	omit?: ReadonlySet<string> | undefined
 }
 
 export function requestContentOf(op: OperationModel, model: SpecModel): ReturnType<typeof requestContent> {
@@ -42,7 +44,7 @@ export async function encodeRequest(options: EncodeOptions): Promise<EncodedBody
 export async function encodeForOperation(
 	op: OperationModel,
 	model: SpecModel,
-	{ fields, uploads, variant = "baseline", index = 0 }: OperationFields,
+	{ fields, uploads, variant = "baseline", index = 0, omit }: OperationFields,
 ): Promise<EncodedBody> {
 	const content = requestContentOf(op, model)
 	if (content === null) return { body: fields, contentType: undefined }
@@ -56,5 +58,6 @@ export async function encodeForOperation(
 		variant,
 	}
 	if (content.encoding !== undefined) options.encoding = content.encoding
+	if (omit !== undefined) options.omit = omit
 	return encodeRequest(options)
 }

@@ -24,7 +24,7 @@ async function appendAdditionalFile(
 	if (additional === undefined || !isFilePart(additional, undefined)) return
 	const already = [...form.keys()].some((name) => form.get(name) instanceof File)
 	if (already) return
-	const name = parts.required.find((item) => !parts.sent.has(item))
+	const name = parts.required.find((item) => !parts.sent.has(item) && options.omit?.has(item) !== true)
 	if (name === undefined) return
 	const hit = parts.hookHits.get(name)
 	appendFile(form, name, isUploadFile(hit) ? hit : await fileForPart(name, additional, options))
@@ -41,7 +41,7 @@ export async function encodeMultipart(options: EncodeOptions): Promise<FormData>
 	const form = new FormData()
 	const properties = propertiesOf(options.schema)
 	const required = requiredOf(options.schema)
-	const names = filePartNames(properties, required, options)
+	const names = filePartNames(properties, required, options).filter((name) => options.omit?.has(name) !== true)
 	const hookHits = new Map<string, UploadResolution>()
 	const overlays: Array<Record<string, string | UploadFile>> = []
 	for (const name of names) {
@@ -71,6 +71,7 @@ export async function encodeMultipart(options: EncodeOptions): Promise<FormData>
 			appendProperty(form, name, options)
 			continue
 		}
+		if (options.omit?.has(name) === true) continue
 		const hit = hookHits.get(name)
 		const file = isUploadFile(hit) ? hit : await fileForPart(name, schema, options)
 		appendFile(form, name, file)

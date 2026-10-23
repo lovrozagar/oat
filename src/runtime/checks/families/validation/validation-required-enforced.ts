@@ -22,7 +22,7 @@ export const requiredValidated = defineCheck<CreateBody & { field: string }>({
 	async run(ctx, { createOp, field, schema }): Promise<Outcome> {
 		const { [field]: _omitted, ...body } = validBody(ctx, schema)
 		const exchange = await asProbe(ctx).client.request("POST", fillPath(createOp.path, ctx.scope), {
-			...(await encodeOpBody(ctx, createOp, body)),
+			...(await encodeOpBody(ctx, createOp, body, { omit: new Set([field]) })),
 			as: { principal: ctx.actor.id },
 		})
 		if (standDownForFeatureGate(ctx, createOp, exchange, this.id))

@@ -106,17 +106,21 @@ export function requestSchemaOf(ctx: Pick<CheckContext, "model">, op: OperationM
 	return picked === null ? null : picked.schema
 }
 
+/** Where an operation body is encoded for, and the fields it leaves out on purpose. */
+interface OpBodyPlacement {
+	variant?: string | undefined
+	index?: number | undefined
+	uploads?: UploadContext | undefined
+	omit?: ReadonlySet<string> | undefined
+}
+
 export async function encodeOpBody(
 	ctx: CheckContext,
 	op: OperationModel,
 	fields: Record<string, unknown>,
-	{
-		variant = "baseline",
-		index = 0,
-		uploads = ctx.uploads,
-	}: { variant?: string | undefined; index?: number | undefined; uploads?: UploadContext | undefined } = {},
+	{ variant = "baseline", index = 0, uploads = ctx.uploads, omit }: OpBodyPlacement = {},
 ): Promise<Pick<RequestOptions, "body" | "contentType">> {
-	const encoded = await encodeForOperation(op, ctx.model, { fields, index, uploads, variant })
+	const encoded = await encodeForOperation(op, ctx.model, { fields, index, omit, uploads, variant })
 	return encoded.contentType === undefined
 		? { body: encoded.body }
 		: { body: encoded.body, contentType: encoded.contentType }
