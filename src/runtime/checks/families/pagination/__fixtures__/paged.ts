@@ -2,7 +2,7 @@ import type { RequestOptions } from "../../../../../client/types.ts"
 import type { OpenApiDocument } from "../../../../../spec/types.ts"
 import type { Record_ } from "../../../../world/records.ts"
 import { type Answer, contextFor, modelOf, op, type Responder } from "../../../__fixtures__/harness.ts"
-import type { CheckContext } from "../../../core/context.ts"
+import type { Listed } from "../../../core/context.ts"
 
 /*
  * A list endpoint for the pagination checks: a document whose query parameters and envelope a
@@ -137,7 +137,7 @@ export function pagedBackend(
 export function stage(doc: OpenApiDocument, respond: Responder, records: Record_[]) {
 	const model = modelOf(doc)
 	const listOp = op(model, "listWidgets")
-	const fields: Partial<CheckContext> = {
+	const fields: Partial<Listed> = {
 		collectionKey: listOp.collection?.key ?? null,
 		query: listOp.query,
 		records,

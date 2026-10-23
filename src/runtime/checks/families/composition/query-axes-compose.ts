@@ -41,6 +41,7 @@ export const queryAxesCompose: Check<Subset & { sortField: string }> = defineChe
 		"pagination.page-walk-covers-set",
 	],
 	id: "query.axes-compose",
+	lists: true,
 	needs: "a filterable field, a sortable field, and more than two records",
 	subjects: subjectsOf.list,
 	async run(ctx, { field, sortField, term }): Promise<Outcome> {

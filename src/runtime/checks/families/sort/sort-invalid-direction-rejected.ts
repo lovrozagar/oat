@@ -31,6 +31,7 @@ export const sortInvalidDirectionRejected: Check<{ control: string; order: strin
 	},
 	dependsOn: ["sort.order-is-applied"],
 	id: "sort.invalid-direction-rejected",
+	lists: true,
 	needs: "a declared sort grammar with a token for each direction",
 	subjects: subjectsOf.list,
 	async run(ctx, { control, order }): Promise<Outcome> {

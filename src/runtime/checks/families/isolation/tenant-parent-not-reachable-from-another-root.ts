@@ -1,3 +1,4 @@
+import type { Client } from "../../../../client/client.ts"
 import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { owningEntityOf } from "../../../../spec/graph/roots.ts"
@@ -6,7 +7,7 @@ import { canFillPath } from "../../../effects/scope.ts"
 import { fillPath } from "../../../fill-path.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { idOf } from "../../../world/records.ts"
-import type { WriteContext } from "../../core/context.ts"
+import type { Listed } from "../../core/context.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { encodeOpBody, requestSchemaOf, validBody } from "../../payloads/body.ts"
 import { declared, itemParamFor } from "../../planning/subjects.ts"
@@ -54,6 +55,7 @@ export const foreignParentRejected: Check<{
 	},
 	dependsOn: ["list.read-after-write", "tenant.item-not-readable-cross-tenant"],
 	id: "tenant.parent-not-reachable-from-another-root",
+	lists: true,
 	mutates: true,
 	needs: "a second tenant, and a collection nested under a parent below the tenant",
 	subjects: (entity) => declared(entity.list, entity.read, entity.create),
@@ -127,7 +129,7 @@ export const foreignParentRejected: Check<{
  * boundary. A path whose every parent the other tenant also holds tests none.
  */
 async function ownParentOfTheOther(
-	ctx: WriteContext,
+	ctx: Listed<Client>,
 	peer: string,
 	mixed: Record<string, string>,
 	parents: readonly string[],

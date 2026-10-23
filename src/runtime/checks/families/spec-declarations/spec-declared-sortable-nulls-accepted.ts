@@ -22,6 +22,7 @@ export const declaredSortableNullsAccepted: Check = defineCheck({
 		),
 	dependsOn: ["sort.order-is-applied"],
 	id: "spec.declared-sortable-nulls-accepted",
+	lists: true,
 	needs: "a declared nulls token on a sortable field",
 	subjects: subjectsOf.list,
 	async run(ctx): Promise<Outcome> {

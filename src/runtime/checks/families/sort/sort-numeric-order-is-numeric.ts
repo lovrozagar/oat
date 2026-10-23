@@ -3,14 +3,14 @@ import { defineCheck } from "../../core/define.ts"
 import { sortTerm } from "../../../../spec/conventions/sort.ts"
 import type { EffectiveFilterField } from "../../../../spec/query/effective.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
-import type { CheckContext } from "../../core/context.ts"
+import type { CheckContext, Listed } from "../../core/context.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, resolvedCaps } from "../../query/capabilities.ts"
 import { cohortFact } from "../../sets/compare.ts"
 import { readSet } from "../../sets/read.ts"
 
-function numericLexicalDisagrees(ctx: CheckContext, field: string): boolean {
+function numericLexicalDisagrees(ctx: Listed, field: string): boolean {
 	return cohortFact(ctx, `numeric-lexical:${field}`, () => computeNumericLexicalDisagrees(ctx, field))
 }
 
@@ -32,6 +32,7 @@ export const sortNumericOrderIsNumeric: Check<{ field: EffectiveFilterField }> =
 	},
 	dependsOn: ["sort.order-is-applied", "pagination.page-walk-covers-set"],
 	id: "sort.numeric-order-is-numeric",
+	lists: true,
 	needs: "a numeric sortable field whose lexical order disagrees with numeric order",
 	subjects: subjectsOf.list,
 	async run(ctx, { field }): Promise<Outcome> {

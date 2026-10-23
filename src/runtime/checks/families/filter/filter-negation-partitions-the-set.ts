@@ -55,6 +55,7 @@ export const negationPartitions: Check<{
 		"pagination.page-walk-covers-set",
 	],
 	id: "filter.negation-partitions-the-set",
+	lists: true,
 	needs: "a `filter` parameter supporting eq and neq",
 	subjects: subjectsOf.list,
 	async run(ctx, { eqTerm, field, neqTerm }): Promise<Outcome> {

@@ -1,4 +1,5 @@
-import { type CheckContext, checkMemo } from "../../src/runtime/checks/core/context.ts"
+import type { OperationModel } from "../../src/spec/graph/types.ts"
+import { type CheckContext, checkMemo, type Listed } from "../../src/runtime/checks/core/context.ts"
 import { SchemaValidator } from "../../src/runtime/validate.ts"
 
 /*
@@ -7,11 +8,12 @@ import { SchemaValidator } from "../../src/runtime/validate.ts"
  * every hand-written fake — and those fakes are type-checked, so they cannot silently fall behind.
  */
 
-type Required_ = "client" | "entityName" | "findings" | "listOp" | "model"
+type Required_ = "client" | "entityName" | "findings" | "model"
 
+/** A context on an entity with a list: `listOp` is required, and so is every listing helper's premise. */
 export function checkContext<C extends CheckContext["client"]>(
-	fields: Pick<CheckContext<C>, Required_> & Partial<CheckContext<C>>,
-): CheckContext<C> {
+	fields: Pick<CheckContext<C>, Required_> & { listOp: OperationModel } & Partial<Listed<C>>,
+): Listed<C> {
 	return {
 		actor: { id: "alpha", inviteAs: undefined, rank: 0, scope: {}, tenant: undefined },
 		actors: [],

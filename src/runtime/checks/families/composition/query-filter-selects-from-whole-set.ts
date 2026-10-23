@@ -3,7 +3,7 @@ import { defineCheck } from "../../core/define.ts"
 import { sortTerm } from "../../../../spec/conventions/sort.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { idOf, type Record_ } from "../../../world/records.ts"
-import type { CheckContext } from "../../core/context.ts"
+import type { Listed } from "../../core/context.ts"
 import { andThen, ready, when } from "../../core/plan.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, filterable } from "../../query/capabilities.ts"
@@ -19,7 +19,7 @@ const ROWS_PER_PAGE = 1
 
 /** The collection walked unfiltered and walked with the filter pushed to the server. */
 async function walkBothWays(
-	ctx: CheckContext,
+	ctx: Listed,
 	term: Record<string, string>,
 	matches: (row: Record_) => boolean,
 ): Promise<{ everything: SetRead | null; serverSide: SetRead | null }> {
@@ -70,6 +70,7 @@ export const filterAndPagingCompose: Check<Subset & { value: unknown }> = define
 		"pagination.page-walk-covers-set",
 	],
 	id: "query.filter-selects-from-whole-set",
+	lists: true,
 	needs: "a filterable field and more than two records",
 	subjects: subjectsOf.list,
 	async run(ctx, { field, term, value }): Promise<Outcome> {

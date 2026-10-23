@@ -27,6 +27,7 @@ export const selectUnknownFieldRejected: Check<{
 	},
 	dependsOn: ["select.projection-honoured", "error.malformed-filter-not-5xx"],
 	id: "select.unknown-field-rejected",
+	lists: true,
 	needs: "`select.unknown` declared",
 	subjects: subjectsOf.list,
 	async run(ctx, { policy, projection }): Promise<Outcome> {

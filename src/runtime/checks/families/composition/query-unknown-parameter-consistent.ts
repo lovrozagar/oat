@@ -25,6 +25,7 @@ export const unknownParameterConsistent: Check<{ names: string[] }> = defineChec
 	},
 	dependsOn: ["list.read-after-write", "pagination.page-walk-covers-set"],
 	id: "query.unknown-parameter-consistent",
+	lists: true,
 	needs: "a listing and at least one record",
 	subjects: subjectsOf.list,
 	async run(ctx, { names }): Promise<Outcome> {

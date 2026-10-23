@@ -7,7 +7,7 @@
         "was": 0
       },
       "reason": {
-        "now": "records may remain: 85 teardown could not show gone",
+        "now": "records may remain: 108 teardown could not show gone",
         "was": "no defects found in what was graded"
       },
       "result": {
@@ -33,6 +33,11 @@
           "needs": "table.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (profile.get))"
         },
         {
+          "check": "auth.alternative-accepted",
+          "entity": "webhook.get",
+          "needs": "webhook.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (profile.get))"
+        },
+        {
           "check": "auth.invalid-credential-refused",
           "entity": "job.delete",
           "needs": "a throwaway job for job.delete: signed in again, and the new credential is refused where the old one was accepted (profile.get)"
@@ -83,6 +88,21 @@
           "needs": "table.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (profile.get))"
         },
         {
+          "check": "auth.invalid-credential-refused",
+          "entity": "webhook.delete",
+          "needs": "a throwaway webhook for webhook.delete: signed in again, and the new credential is refused where the old one was accepted (profile.get)"
+        },
+        {
+          "check": "auth.invalid-credential-refused",
+          "entity": "webhook.get",
+          "needs": "webhook.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (profile.get))"
+        },
+        {
+          "check": "auth.invalid-credential-refused",
+          "entity": "webhook.update",
+          "needs": "webhook.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (profile.get))"
+        },
+        {
           "check": "auth.missing-credential-refused",
           "entity": "job.delete",
           "needs": "a throwaway job for job.delete: signed in again, and the new credential is refused where the old one was accepted (profile.get)"
@@ -131,6 +151,21 @@
           "check": "auth.missing-credential-refused",
           "entity": "table.update",
           "needs": "table.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (profile.get))"
+        },
+        {
+          "check": "auth.missing-credential-refused",
+          "entity": "webhook.delete",
+          "needs": "a throwaway webhook for webhook.delete: signed in again, and the new credential is refused where the old one was accepted (profile.get)"
+        },
+        {
+          "check": "auth.missing-credential-refused",
+          "entity": "webhook.get",
+          "needs": "webhook.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (profile.get))"
+        },
+        {
+          "check": "auth.missing-credential-refused",
+          "entity": "webhook.update",
+          "needs": "webhook.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (profile.get))"
         },
         {
           "check": "auth.privileged-field-ignored",
@@ -188,6 +223,16 @@
           "needs": "table.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (profile.get))"
         },
         {
+          "check": "auth.role-enforced",
+          "entity": "webhook.delete",
+          "needs": "a throwaway webhook for webhook.delete: signed in again, and the new credential is refused where the old one was accepted (profile.get)"
+        },
+        {
+          "check": "auth.role-enforced",
+          "entity": "webhook.update",
+          "needs": "webhook.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (profile.get))"
+        },
+        {
           "check": "auth.scope-enforced",
           "entity": "job.delete",
           "needs": "a throwaway job for job.delete: signed in again, and the new credential is refused where the old one was accepted (profile.get)"
@@ -233,6 +278,21 @@
           "needs": "table.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (profile.get))"
         },
         {
+          "check": "auth.scope-enforced",
+          "entity": "webhook.delete",
+          "needs": "a throwaway webhook for webhook.delete: signed in again, and the new credential is refused where the old one was accepted (profile.get)"
+        },
+        {
+          "check": "auth.scope-enforced",
+          "entity": "webhook.get",
+          "needs": "webhook.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (profile.get))"
+        },
+        {
+          "check": "auth.scope-enforced",
+          "entity": "webhook.update",
+          "needs": "webhook.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (profile.get))"
+        },
+        {
           "check": "auth.wrong-scheme-refused",
           "entity": "table.invite",
           "needs": "table.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (profile.get))"
@@ -256,6 +316,11 @@
           "check": "request.invalid-body-refused",
           "entity": "table.update",
           "needs": "table.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (profile.get))"
+        },
+        {
+          "check": "request.invalid-body-refused",
+          "entity": "webhook.update",
+          "needs": "webhook.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (profile.get))"
         }
       ]
     },
@@ -344,6 +409,33 @@
               ],
               "inconclusive": [],
               "passed": [
+                "auth.rank-is-monotonic",
+                "concurrency.if-match-enforced",
+                "response.status-is-documented",
+                "schema.error-response-matches-document",
+                "tenant.denial-does-not-reveal-existence",
+                "tenant.item-not-readable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "webhook",
+            "findings": 0,
+            "operationId": "webhook.get",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [
+                "payload.string-survives"
+              ],
+              "inconclusive": [],
+              "passed": [
                 "auth.rank-is-monotonic-on-writes",
                 "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
@@ -388,6 +480,35 @@
             "entity": "row",
             "findings": 0,
             "operationId": "row.update",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [
+                "payload.string-survives"
+              ],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "concurrency.if-match-enforced",
+                "concurrency.no-lost-update",
+                "patch.immutable-field-rejected",
+                "patch.minimality",
+                "response.status-is-documented",
+                "schema.problem-json-shape",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "webhook",
+            "findings": 0,
+            "operationId": "webhook.update",
             "reason": null,
             "status": "passed",
             "evidence": {},
@@ -546,6 +667,29 @@
               "failed": [],
               "gaps": [],
               "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "delete.absent-record-returns-404",
+                "response.status-is-documented",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "webhook",
+            "findings": 0,
+            "operationId": "webhook.delete",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "unproven",
+            "tier": "contract",
+            "why": "met its contract, but no later read observed what it changed"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
               "passed": [],
               "suppressed": []
             },
@@ -692,6 +836,37 @@
               ],
               "inconclusive": [],
               "passed": [
+                "auth.alternative-accepted",
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic",
+                "auth.scope-enforced",
+                "concurrency.if-match-enforced",
+                "response.status-is-documented",
+                "schema.error-response-matches-document",
+                "tenant.denial-does-not-reveal-existence",
+                "tenant.item-not-readable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "webhook",
+            "findings": 0,
+            "operationId": "webhook.get",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [
+                "payload.string-survives"
+              ],
+              "inconclusive": [],
+              "passed": [
                 "auth.invalid-credential-refused",
                 "auth.missing-credential-refused",
                 "auth.privileged-field-ignored",
@@ -747,6 +922,40 @@
             "entity": "row",
             "findings": 0,
             "operationId": "row.update",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [
+                "payload.string-survives"
+              ],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
+                "concurrency.if-match-enforced",
+                "concurrency.no-lost-update",
+                "patch.immutable-field-rejected",
+                "patch.minimality",
+                "request.invalid-body-refused",
+                "response.status-is-documented",
+                "schema.problem-json-shape",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "webhook",
+            "findings": 0,
+            "operationId": "webhook.update",
             "reason": null,
             "status": "passed",
             "evidence": {},
@@ -962,6 +1171,33 @@
             "entity": "row",
             "findings": 0,
             "operationId": "row.delete",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
+                "delete.absent-record-returns-404",
+                "response.status-is-documented",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "webhook",
+            "findings": 0,
+            "operationId": "webhook.delete",
             "reason": null,
             "status": "passed",
             "evidence": {},
@@ -1560,6 +1796,144 @@
             "id": "table_ID",
             "principal": "beta",
             "reason": "DELETE /v1/projects/proj_beta/tables/table_ID returned beta: 401"
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/projects/proj_alpha/webhooks/webhook_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/projects/proj_alpha/webhooks/webhook_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/projects/proj_alpha/webhooks/webhook_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/projects/proj_alpha/webhooks/webhook_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/projects/proj_alpha/webhooks/webhook_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/projects/proj_alpha/webhooks/webhook_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/projects/proj_alpha/webhooks/webhook_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/projects/proj_alpha/webhooks/webhook_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/projects/proj_alpha/webhooks/webhook_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/projects/proj_alpha/webhooks/webhook_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/projects/proj_alpha/webhooks/webhook_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/projects/proj_alpha/webhooks/webhook_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/projects/proj_alpha/webhooks/webhook_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/projects/proj_alpha/webhooks/webhook_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/projects/proj_alpha/webhooks/webhook_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/projects/proj_alpha/webhooks/webhook_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/projects/proj_alpha/webhooks/webhook_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/projects/proj_alpha/webhooks/webhook_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/projects/proj_alpha/webhooks/webhook_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/projects/proj_alpha/webhooks/webhook_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/projects/proj_alpha/webhooks/webhook_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/projects/proj_alpha/webhooks/webhook_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha_member",
+            "reason": "DELETE /v1/projects/proj_alpha/webhooks/webhook_ID returned alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
           }
         ]
       },
@@ -2044,6 +2418,144 @@
             "id": "table_ID",
             "principal": "beta",
             "removed": false
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha_member",
+            "removed": false
           }
         ],
         "removed": [
@@ -2082,12 +2594,18 @@
             "id": "table_ID",
             "principal": "beta",
             "removed": true
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha_member",
+            "removed": true
           }
         ]
       },
       "removed": {
-        "now": 5,
-        "was": 88
+        "now": 6,
+        "was": 113
       }
     },
     "findings": {
@@ -2098,6 +2616,17 @@
           "entity": "row",
           "operations": [
             "row.delete"
+          ],
+          "evidence": [],
+          "summary": "delete.absent-record-returns-404 needed a credential that is BLOCKED",
+          "verdict": "BLOCKED"
+        },
+        {
+          "check": "auth.blocked",
+          "detail": "blocked by signed in again, and the new credential is refused where the old one was accepted (profile.get). webhook.get was not sent to read /v1/projects/proj_alpha/webhooks/webhook_ID back after webhook.delete.",
+          "entity": "webhook",
+          "operations": [
+            "webhook.delete"
           ],
           "evidence": [],
           "summary": "delete.absent-record-returns-404 needed a credential that is BLOCKED",
@@ -2149,7 +2678,7 @@
         "was": null
       },
       "BLOCKED": {
-        "now": 1,
+        "now": 2,
         "was": null
       }
     },
@@ -2167,84 +2696,84 @@
           {
             "check": "auth.alternative-accepted",
             "ran": 0,
-            "skipped": 39
+            "skipped": 43
           },
           {
             "check": "auth.invalid-credential-refused",
             "ran": 0,
-            "skipped": 35
+            "skipped": 39
           },
           {
             "check": "auth.missing-credential-refused",
             "ran": 0,
-            "skipped": 35
+            "skipped": 39
           },
           {
             "check": "auth.scope-enforced",
             "ran": 0,
-            "skipped": 39
+            "skipped": 43
           },
           {
             "check": "auth.wrong-scheme-refused",
             "ran": 0,
-            "skipped": 37
+            "skipped": 41
           },
           {
             "check": "request.invalid-body-refused",
             "ran": 0,
-            "skipped": 40
+            "skipped": 44
           }
         ],
         "removed": [
           {
             "check": "auth.alternative-accepted",
             "ran": 0,
-            "skipped": 36
+            "skipped": 39
           },
           {
             "check": "auth.invalid-credential-refused",
             "ran": 0,
-            "skipped": 25
+            "skipped": 26
           },
           {
             "check": "auth.missing-credential-refused",
             "ran": 0,
-            "skipped": 25
+            "skipped": 26
           },
           {
             "check": "auth.privileged-field-ignored",
             "ran": 0,
-            "skipped": 40
+            "skipped": 44
           },
           {
             "check": "auth.refresh-reuse-refused",
             "ran": 0,
-            "skipped": 40
+            "skipped": 44
           },
           {
             "check": "auth.revoked-credential-refused",
             "ran": 0,
-            "skipped": 39
+            "skipped": 43
           },
           {
             "check": "auth.role-enforced",
             "ran": 0,
-            "skipped": 34
+            "skipped": 36
           },
           {
             "check": "auth.scope-enforced",
             "ran": 0,
-            "skipped": 30
+            "skipped": 31
           },
           {
             "check": "auth.wrong-scheme-refused",
             "ran": 0,
-            "skipped": 36
+            "skipped": 40
           },
           {
             "check": "request.invalid-body-refused",
             "ran": 0,
-            "skipped": 36
+            "skipped": 39
           }
         ]
       }

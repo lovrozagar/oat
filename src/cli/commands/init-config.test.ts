@@ -325,7 +325,7 @@ describe("renderInitConfig and the roots a run cannot create", () => {
 				"\t\talpha: {",
 				"\t\t\t// no create operation makes these path parameters; set each to one this principal can reach:",
 				'\t\t\t// scope: { project_id: "" },',
-				"\t\t\t// project_id unlocks table.list, table.create, table.get, table.delete and 16 more",
+				"\t\t\t// project_id unlocks table.list, table.create, table.get, table.delete and 20 more",
 				"\t\t},",
 			].join("\n"),
 		)

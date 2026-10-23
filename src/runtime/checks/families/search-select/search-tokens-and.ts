@@ -26,6 +26,7 @@ export const searchTokensAnd: Check<{ a: string; b: string }> = defineCheck<{ a:
 	},
 	dependsOn: ["pagination.page-walk-covers-set", "search.q-narrows-result"],
 	id: "search.tokens-and",
+	lists: true,
 	needs: "searchable fields and two tokens that split the cohort",
 	subjects: subjectsOf.list,
 	async run(ctx, { a, b }): Promise<Outcome> {

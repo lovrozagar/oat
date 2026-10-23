@@ -20,6 +20,7 @@ export const softDeleteHidden: Check<{ deleteOp: OperationModel }> = defineCheck
 	 * whose listing already omits records it should contain, "absent" proves nothing. */
 	dependsOn: ["pagination.page-walk-covers-set", "list.read-after-write"],
 	id: "softdelete.absent-from-default-list",
+	lists: true,
 	needs: "a create, a delete operation and x-soft-delete",
 	subjects: subjectsOf.deleteAndList,
 	async run(ctx, { deleteOp }): Promise<Outcome> {

@@ -25,6 +25,7 @@ export const selectProjection: Check<{
 		return projection === null || ctx.records.length === 0 ? cannot() : ready({ projection, requested })
 	},
 	id: "select.projection-honoured",
+	lists: true,
 	needs: "a `select` sparse-fieldset parameter",
 	subjects: subjectsOf.list,
 	async run(ctx, { projection, requested }): Promise<Outcome> {

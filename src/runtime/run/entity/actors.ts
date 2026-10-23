@@ -20,15 +20,15 @@ export function peerOf(actors: readonly [Actor, ...Actor[]]): Actor | undefined 
 }
 
 /**
- * A principal in a scope of its own: the parents the list path names, created as this principal
+ * A principal in a scope of its own: the parents the collection path names, created as this principal
  * so they are removed as it. A principal that cannot make them acts within its own scope alone.
  */
 async function scopedActor(run: EntityRun, principal: RunPrincipal, offset: number): Promise<Actor> {
-	const { ctx, listOp, seeding, ancestors } = run
+	const { ctx, collectionOp, seeding, ancestors } = run
 	const { principals, exclusion, nonce, seed, uploads } = ctx
 	const roots = { ...principal.scope }
 	try {
-		const next = await resolvePathScope(listOp, {
+		const next = await resolvePathScope(collectionOp, {
 			client: seeding,
 			model: ctx.model,
 			options: {

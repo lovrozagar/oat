@@ -2,7 +2,7 @@ import { MissingValueError } from "../../../errors/missing-value.ts"
 import type { WriteContext } from "../../checks/core/context.ts"
 import type { Check } from "../../checks/core/check.ts"
 import { entityChecks } from "../../checks/core/registry.ts"
-import { checkSalts } from "../../checks/core/run.ts"
+import { checkSalts, runOn } from "../../checks/core/run.ts"
 import { CHECKS } from "../../checks/registry.ts"
 import type { Client } from "../../../client/client.ts"
 import { UnsatisfiedSecurity } from "../../../client/credential-source.ts"
@@ -113,7 +113,7 @@ async function outcomeOf(
 	view: WriteContext,
 ): Promise<Outcome | undefined> {
 	try {
-		return await check.run(view, loop.plans.get(check.id))
+		return await runOn(check, view, loop.plans.get(check.id))
 	} catch (error) {
 		const unresolved = await unresolvedBy(
 			{ attributed, checkId: check.id, ctx: loop.run.ctx, entity: loop.run.entity.name },

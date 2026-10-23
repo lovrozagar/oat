@@ -38,6 +38,7 @@ export const filterIsNullSelectsNulls: Check<{
 	},
 	dependsOn: ["query.filter-selects-from-whole-set", ...FOUNDATIONS],
 	id: "filter.is-null-selects-nulls",
+	lists: true,
 	needs: "a field that allows `is` and a cohort that contains a null",
 	subjects: subjectsOf.list,
 	async run(ctx, { field, notNullTerm, nullTerm }): Promise<Outcome> {

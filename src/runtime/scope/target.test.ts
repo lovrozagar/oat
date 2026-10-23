@@ -9,7 +9,7 @@ describe("operation scope", () => {
 	it("is full when nothing is requested", () => {
 		const scope = resolveTargetScope(referenceModel(), { ops: [" "], only: [] })
 		expect(scope.mode).toBe("full")
-		expect(names(scope)).toEqual(["job", "notice", "overview", "profile", "row", "table"])
+		expect(names(scope)).toEqual(["api-key", "job", "notice", "overview", "profile", "row", "table", "webhook"])
 		expect(scope.inScope("table.get")).toBe(true)
 		expect(scope.untestable.size).toBe(0)
 		expect(resolveTargetScope(referenceModel(), {}).requested).toEqual({ only: [], ops: [] })

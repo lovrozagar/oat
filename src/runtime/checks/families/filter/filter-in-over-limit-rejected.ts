@@ -30,6 +30,7 @@ export const filterInOverLimitRejected: Check<{
 	},
 	dependsOn: [...FOUNDATIONS, "error.malformed-filter-not-5xx"],
 	id: "filter.in-over-limit-rejected",
+	lists: true,
 	needs: "`maxInValues` declared and a field that allows `in`",
 	subjects: subjectsOf.list,
 	async run(ctx, { field, max, term }): Promise<Outcome> {

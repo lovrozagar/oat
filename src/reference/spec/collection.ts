@@ -131,12 +131,18 @@ function createOperation(ctx: SpecContext, entity: EntityDef): Json {
 		 * carries a derived value — the parent's routes as well. Declaring it is what makes
 		 * the cross-entity consistency testable rather than assumed.
 		 */
-		"x-invalidate": [`GET ${entity.collectionPath}`, ...parentReadRoutes(ctx, entity)],
+		"x-invalidate": [...listRoute(entity), ...parentReadRoutes(ctx, entity)],
 		"x-tenant": tenantParam(entity),
 	}
 }
 
-/** The path item at an entity's collection route. */
+/** The entity's listing, as a route its writes change; none for an entity with no list. */
+export function listRoute(entity: EntityDef): string[] {
+	return entity.unlisted === true ? [] : [`GET ${entity.collectionPath}`]
+}
+
+/** The path item at an entity's collection route: its listing, unless it has none, and its create. */
 export function collectionPathItem(ctx: SpecContext, entity: EntityDef, dialect: Dialect): Json {
-	return { get: listOperation(ctx, entity, dialect), post: createOperation(ctx, entity) }
+	const create = { post: createOperation(ctx, entity) }
+	return entity.unlisted === true ? create : { get: listOperation(ctx, entity, dialect), ...create }
 }

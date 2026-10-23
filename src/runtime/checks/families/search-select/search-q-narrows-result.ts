@@ -15,6 +15,7 @@ export const searchNarrowsResult: Check<{ field: string }> = defineCheck<{ field
 	},
 	dependsOn: ["list.read-after-write"],
 	id: "search.q-narrows-result",
+	lists: true,
 	needs: "a free-text `q` parameter and declared searchable fields",
 	subjects: subjectsOf.list,
 	async run(ctx): Promise<Outcome> {

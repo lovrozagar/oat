@@ -28,6 +28,7 @@ export const unknownFilterRejected: Check<{ unknownField: Record<string, string>
 		return unknownField === null ? cannot() : ready({ unknownField })
 	},
 	id: "filter.unknown-field-rejected",
+	lists: true,
 	needs: "a way to express a filter — a filter expression parameter, or filterable fields",
 	subjects: subjectsOf.list,
 	async run(ctx, { unknownField }): Promise<Outcome> {

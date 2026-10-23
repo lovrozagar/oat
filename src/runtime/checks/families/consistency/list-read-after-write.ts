@@ -4,7 +4,7 @@ import type { Exchange } from "../../../exchange.ts"
 import { fillPath } from "../../../fill-path.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { idOf } from "../../../world/records.ts"
-import type { CheckContext } from "../../core/context.ts"
+import type { CheckContext, Listed } from "../../core/context.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { itemParamFor, NO_IDENTITY, subjectsOf } from "../../planning/subjects.ts"
 import { pageSize } from "../../query/capabilities.ts"
@@ -22,6 +22,7 @@ export const readAfterWrite: Check<{ id: string }> = defineCheck<{ id: string }>
 	/* A record stored under an id the client was never told cannot be found by it: that is the cause. */
 	dependsOn: ["create.keeps-submitted-identity"],
 	id: "list.read-after-write",
+	lists: true,
 	needs: "a create operation and at least one seeded record",
 	subjects: subjectsOf.createAndList,
 	async run(ctx, { id }): Promise<Outcome> {
@@ -59,7 +60,7 @@ type Located = { status: "found" | "missing"; last: ListResult } | { status: "un
  * record for one walk; a repeat that finds it was never a lost write.
  */
 async function locate(
-	ctx: CheckContext,
+	ctx: Listed,
 	id: string,
 	walkSize: number,
 	/* A repeat walk reads the list again; an earlier walk's memoized pages would hide it. */
@@ -83,7 +84,7 @@ async function locate(
  * elsewhere: a record it finds was lost to paging, which the pagination checks own, not to
  * the write.
  */
-async function foundAtOtherPageSize(ctx: CheckContext, id: string, walkSize: number): Promise<boolean> {
+async function foundAtOtherPageSize(ctx: Listed, id: string, walkSize: number): Promise<boolean> {
 	/* The walk already uses the largest documented size (`pageSize`), so one smaller moves the
 	 * boundaries; a walk of single records has no smaller size to move them to. */
 	if (walkSize <= 1) return false

@@ -100,8 +100,8 @@
     "teardown": {
       "records": {},
       "removed": {
-        "now": 86,
-        "was": 88
+        "now": 111,
+        "was": 113
       }
     },
     "findings": {
@@ -160,8 +160,8 @@
     },
     "summary": {
       "COVERAGE_GAP": {
-        "now": 3,
-        "was": 2
+        "now": 4,
+        "was": 3
       },
       "BACKEND_BUG": {
         "now": 1,

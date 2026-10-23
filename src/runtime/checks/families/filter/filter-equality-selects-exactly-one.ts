@@ -30,6 +30,7 @@ export const equalityFilterSelectsOne: Check<{
 	},
 	dependsOn: ["query.filter-selects-from-whole-set", "list.read-after-write"],
 	id: "filter.equality-selects-exactly-one",
+	lists: true,
 	needs: "a `filter` parameter that accepts the identity field",
 	subjects: subjectsOf.list,
 	async run(ctx, { field, id, term }): Promise<Outcome> {

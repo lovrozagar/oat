@@ -44,6 +44,7 @@ export const listedRowIsTheGet: Check<{ id: string; listed: Record<string, unkno
 		return ready({ id: String(id), listed })
 	},
 	id: "list.item-matches-listed-row",
+	lists: true,
 	needs: "a list with no create and one listed row",
 	subjects: (entity) => (entity.read === undefined ? [] : [entity.read]),
 	async run(ctx, { id, listed }): Promise<Outcome> {
@@ -67,7 +68,7 @@ export const listedRowIsTheGet: Check<{ id: string; listed: Record<string, unkno
 			return ctx.findings.backend(this.id, ctx.entityName, {
 				summary: "the get body is not the listed row",
 				detail:
-					`${op.operationId} returned a body that does not contain the row ${ctx.listOp?.operationId ?? "the list"} already returned for ${id}` +
+					`${op.operationId} returned a body that does not contain the row ${ctx.listOp.operationId} already returned for ${id}` +
 					(named === "" ? "" : `: ${named}`),
 				evidence: [item],
 			})

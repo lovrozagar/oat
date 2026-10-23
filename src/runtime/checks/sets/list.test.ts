@@ -159,6 +159,13 @@ describe("forList", () => {
 		})
 	})
 
+	it("reads another entity's list from a context whose entity has none of its own", () => {
+		const model = notesModel(TAGS)
+		const { ctx } = notesContext(undefined, {}, model)
+		const tags = op(model, "tag.list")
+		expect(forList({ ...ctx, listOp: undefined }, tags)).toMatchObject({ identity: "slug", listOp: tags })
+	})
+
 	it("falls back to `id` and no key for a list no entity owns", () => {
 		const { ctx } = notesContext()
 		const orphan = { ...ctx.listOp, collection: null, entity: null, operationId: "orphan.list" }

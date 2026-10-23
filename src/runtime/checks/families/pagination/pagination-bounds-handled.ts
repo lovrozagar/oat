@@ -30,6 +30,7 @@ export const paginationBoundsHandled: Check<{
 	},
 	dependsOn: ["list.read-after-write", "pagination.page-walk-covers-set"],
 	id: "pagination.bounds-handled",
+	lists: true,
 	needs: "a page-size or page-number parameter, and at least one record",
 	subjects: subjectsOf.list,
 	async run(ctx, { limit, page }): Promise<Outcome> {

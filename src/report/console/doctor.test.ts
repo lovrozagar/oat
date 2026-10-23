@@ -9,7 +9,7 @@ describe("doctor as text", () => {
 		const { text, blocking } = doctor(model, { externalRefs })
 		expect(blocking).toBe(1)
 		const sections = [
-			"  trackable",
+			"  testable",
 			"  2 check(s) cannot run",
 			"  roots required in config",
 			"  unique constraints",
@@ -64,19 +64,21 @@ describe("doctor as JSON", () => {
 			"security",
 			"testableEntities",
 			"trackableEntities",
+			"untestableEntities",
 			"unknownEntities",
 		])
-		/* The reference reads its API keys back (apiKey.get), so api-key is a trackable entity of its own. */
+		/* With no recipe minting API keys, api-key is an entity of its own, tested through its creates. */
 		expect(json).toMatchObject({
 			allowRemoved: ["a.b"],
 			blocking,
 			danglingRefs: ["#/missing"],
-			entities: 7,
+			entities: 8,
 			externalRefs: ["x.yaml"],
 			invites: [{ accept: "invite.accept", acceptFrom: "token", entity: "table" }],
 			listableEntities: 4,
-			testableEntities: 7,
-			trackableEntities: 7,
+			testableEntities: 8,
+			trackableEntities: 8,
+			untestableEntities: [],
 			unknownEntities: ["ghost"],
 		})
 		expect(text.endsWith("}\n")).toBe(true)

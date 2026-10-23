@@ -7,7 +7,7 @@
         "was": 0
       },
       "reason": {
-        "now": "3 root-cause findings",
+        "now": "4 root-cause findings",
         "was": "no defects found in what was graded"
       },
       "result": {
@@ -79,6 +79,37 @@
             "entity": "row",
             "findings": 1,
             "operationId": "row.update",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "response.status-is-documented"
+              ],
+              "gaps": [
+                "payload.string-survives"
+              ],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
+                "concurrency.if-match-enforced",
+                "concurrency.no-lost-update",
+                "patch.immutable-field-rejected",
+                "patch.minimality",
+                "request.invalid-body-refused",
+                "schema.problem-json-shape",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "webhook",
+            "findings": 1,
+            "operationId": "webhook.update",
             "reason": null,
             "status": "failed"
           },
@@ -187,6 +218,40 @@
           {
             "checks": {
               "failed": [],
+              "gaps": [
+                "payload.string-survives"
+              ],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
+                "concurrency.if-match-enforced",
+                "concurrency.no-lost-update",
+                "patch.immutable-field-rejected",
+                "patch.minimality",
+                "request.invalid-body-refused",
+                "response.status-is-documented",
+                "schema.problem-json-shape",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "webhook",
+            "findings": 0,
+            "operationId": "webhook.update",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
               "gaps": [],
               "inconclusive": [],
               "passed": [
@@ -272,12 +337,29 @@
           ],
           "summary": "an operation returned a status the document does not declare",
           "verdict": "SPEC_BUG"
+        },
+        {
+          "check": "response.status-is-documented",
+          "detail": "webhook.update returned 201; the document declares 200, 400, 401, 403, 404, 409, 412, 415. Clients generated from this document will not recognise the response.",
+          "entity": "webhook",
+          "operations": [
+            "webhook.update"
+          ],
+          "evidence": [
+            {
+              "method": "PATCH",
+              "status": 201,
+              "url": "http://reference.test/v1/projects/proj_alpha/webhooks/webhook_ID"
+            }
+          ],
+          "summary": "an operation returned a status the document does not declare",
+          "verdict": "SPEC_BUG"
         }
       ]
     },
     "summary": {
       "SPEC_BUG": {
-        "now": 3,
+        "now": 4,
         "was": null
       }
     }

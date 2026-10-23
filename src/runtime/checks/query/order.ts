@@ -1,4 +1,4 @@
-import type { CheckContext } from "../core/context.ts"
+import type { CheckContext, Listed } from "../core/context.ts"
 import { cohortFact } from "../sets/compare.ts"
 import { memoTable } from "../sets/read.ts"
 import { resolvedCaps } from "./capabilities.ts"
@@ -7,7 +7,7 @@ import { resolvedCaps } from "./capabilities.ts"
  * A sortable field whose values repeat across the cohort. Ties are what expose an unstable sort:
  * with distinct keys every implementation looks correct, because there is only one valid order.
  */
-export function tiedSortField(ctx: CheckContext): string | null {
+export function tiedSortField(ctx: Listed): string | null {
 	return cohortFact(ctx, "tied-sort", () => computeTiedSortField(ctx))
 }
 
@@ -28,7 +28,7 @@ function computeTiedSortField(ctx: CheckContext): string | null {
  * nullsfirst/nullslast is easy to get backwards. A check that only ever probes the identity
  * column, which is never null, cannot see any of it.
  */
-export function nullableField(ctx: CheckContext, candidates: readonly string[]): string | null {
+export function nullableField(ctx: Listed, candidates: readonly string[]): string | null {
 	return cohortFact(ctx, `nullable:${candidates.join(",")}`, () => computeNullableField(ctx, candidates))
 }
 
@@ -85,7 +85,7 @@ const isNull = (value: unknown): boolean => value === null || value === undefine
  * order, nulls must sit together at one end, and ties may come in any order. Text is held to the
  * order the backend already showed for this field when there is one, else to any of them.
  */
-export function sortedUnder(ctx: CheckContext, field: string, values: readonly unknown[]): TextOrder | null {
+export function sortedUnder(ctx: Listed, field: string, values: readonly unknown[]): TextOrder | null {
 	const present = values.filter((value) => !isNull(value))
 	const { candidates, known } = orderInForce(ctx, field)
 	if (!nullsPlaced(values, present.length, known?.nulls)) return null
@@ -96,7 +96,7 @@ export function sortedUnder(ctx: CheckContext, field: string, values: readonly u
  * What is known of how `field` is ordered — declared by the document, else shown by the backend —
  * and the text orders an order may still be judged under.
  */
-function orderInForce(ctx: CheckContext, field: string): { candidates: TextOrder[]; known?: ObservedOrder } {
+function orderInForce(ctx: Listed, field: string): { candidates: TextOrder[]; known?: ObservedOrder } {
 	const sortCaps = resolvedCaps(ctx).sort
 	const observed = memoTable<ObservedOrder>(ctx.memo.entity, "textOrders").get(field)
 	const known: ObservedOrder | undefined =

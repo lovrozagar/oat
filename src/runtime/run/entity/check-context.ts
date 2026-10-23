@@ -33,7 +33,7 @@ export async function checkContext(run: EntityRun, world: World, actors: [Actor,
 		capabilities,
 		credentials: ctx.store,
 		client: ctx.client.view({ purpose: "assertion", subject: entity.name }),
-		collectionKey: listOp.collection?.key ?? null,
+		collectionKey: listOp?.collection?.key ?? null,
 		createAcknowledged: world.createAcknowledged,
 		entityName: entity.name,
 		findings: ctx.findings,
@@ -127,6 +127,7 @@ function declaredOps({ ctx, entity }: EntityRun): Pick<WriteContext, "asyncOps" 
 function softDeleteOf({ ctx, entity, listOp }: EntityRun): string | null {
 	return (
 		ctx.model.operations.find((op) => op.entity === entity.name && op.softDelete !== null)?.softDelete ??
-		listOp.softDelete
+		listOp?.softDelete ??
+		null
 	)
 }

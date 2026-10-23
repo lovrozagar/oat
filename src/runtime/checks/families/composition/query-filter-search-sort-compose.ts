@@ -44,6 +44,7 @@ export const filterSearchSortCompose: Check<Subset & { token: string; sortField:
 		"query.filter-selects-from-whole-set",
 	],
 	id: "query.filter-search-sort-compose",
+	lists: true,
 	needs: "a filterable field, a search parameter, a sortable field, and more than two records",
 	subjects: subjectsOf.list,
 	async run(ctx, { field, sortField, term, token }): Promise<Outcome> {

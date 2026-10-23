@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { documentOf, listOp, modelOf, referenceModel } from "./__fixtures__/models.ts"
+import { testableEntities, untestableEntityReason } from "../../runtime/scope/entities.ts"
+import { documentOf, listOp, modelOf, readOp, referenceModel } from "./__fixtures__/models.ts"
 import { doctorFacts } from "./doctor-facts.ts"
 
 describe("doctorFacts and the operations a recipe names", () => {
@@ -7,7 +8,7 @@ describe("doctorFacts and the operations a recipe names", () => {
 		const { model } = await referenceModel()
 		const facts = doctorFacts(model, { authCreates: new Set(["apiKey.create", "apiKey.revoke"]) })
 		expect(facts.entities.map((entity) => entity.name)).not.toContain("api-key")
-		expect([facts.entities.length, facts.trackable.length, facts.blocking]).toEqual([6, 6, 1])
+		expect([facts.entities.length, facts.testable.length, facts.blocking]).toEqual([7, 7, 1])
 	})
 })
 
@@ -34,8 +35,10 @@ describe("doctorFacts", () => {
 			"profile",
 			"row",
 			"table",
+			"webhook",
 		])
-		expect(facts.trackable).toHaveLength(7)
+		expect(facts.trackable).toHaveLength(8)
+		expect(facts.testable).toHaveLength(8)
 		expect(facts.listable.map((entity) => entity.name)).toEqual(["job", "notice", "row", "table"])
 		expect(facts.blocking).toBe(1)
 		expect(facts.uniqueConstraints).toEqual([{ entity: "table", unique: [["name"]] }])
@@ -67,8 +70,8 @@ describe("doctorFacts", () => {
 			{ entities: { b: {} } },
 		)
 		expect(facts.featureGates).toEqual([{ featureGate: "beta", operationId: "a.list" }])
-		expect(facts.trackable.length).toBeLessThan(facts.entities.length)
-		expect(facts.blocking).toBe(facts.entities.length - facts.trackable.length)
+		expect(facts.testable.length).toBeLessThan(facts.entities.length)
+		expect(facts.blocking).toBe(facts.untestable.length)
 		expect(facts.unknownEntities).toEqual(["b"])
 	})
 
@@ -92,5 +95,42 @@ describe("doctorFacts and the roots a config supplies", () => {
 		})
 		const unscoped = doctorFacts(model, { credentials: { principals: { alpha: {}, beta: {} }, security: {} } })
 		expect(facts.blocking).toBe(unscoped.blocking - 1)
+	})
+})
+
+describe("doctorFacts and a run agree on what is testable", () => {
+	const record = { properties: { id: { type: "string" }, name: { type: "string" } }, type: "object" }
+	const create = (entity: string) => ({
+		operationId: `${entity}.create`,
+		requestBody: {
+			content: { "application/json": { schema: { properties: { name: { type: "string" } }, type: "object" } } },
+		},
+		responses: { "201": { content: { "application/json": { schema: record } }, description: "made" } },
+		"x-entity": { action: "create", identity: "id", name: entity },
+	})
+	/* A list entity, an entity with only its item read, and one with neither a list nor a read. */
+	const { model } = modelOf(
+		documentOf({
+			"/listed": { get: listOp("listed", "listed.list"), post: create("listed") },
+			"/listed/{id}": { get: readOp("listed", "listed.get") },
+			"/item": { post: create("item") },
+			"/item/{id}": { get: readOp("item", "item.get") },
+			"/bare": { post: create("bare") },
+		}),
+	)
+	const none = new Set<string>()
+
+	it("counts testable, untestable and blocking by the run's own answer, with its reasons", () => {
+		const facts = doctorFacts(model)
+		const run = testableEntities(model, none).map((entity) => entity.name)
+		expect(run).toEqual(["item", "listed"])
+		expect(facts.testable.map((entity) => entity.name)).toEqual(run)
+		expect(facts.untestable).toEqual(
+			[...model.entities.values()]
+				.filter((entity) => !run.includes(entity.name))
+				.map((entity) => ({ entity: entity.name, reason: untestableEntityReason(entity, model, none) })),
+		)
+		expect(facts.untestable).toEqual([{ entity: "bare", reason: '"bare" has no list operation and no read operation' }])
+		expect(facts.blocking).toBe(1)
 	})
 })

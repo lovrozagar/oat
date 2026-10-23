@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { OperationModel } from "../../../spec/graph/types.ts"
-import type { CheckContext } from "../core/context.ts"
+import type { CheckContext, Listed } from "../core/context.ts"
 import { notesContext } from "../query/__fixtures__/notes.ts"
 import {
 	absentId,
@@ -20,7 +20,7 @@ import {
 const ITEM_ID = { in: "path", name: "noteId", required: true } as const
 
 /** The notes context with the record identity typed `identity` and the read's id parameter `param`. */
-function shaped(identity: Record<string, unknown> | undefined, param?: Record<string, unknown>): CheckContext {
+function shaped(identity: Record<string, unknown> | undefined, param?: Record<string, unknown>): Listed {
 	const { ctx } = notesContext()
 	const collection = ctx.listOp.collection
 	if (collection === null) throw new Error("the notes list is a collection")
@@ -35,7 +35,7 @@ function shaped(identity: Record<string, unknown> | undefined, param?: Record<st
 		...ctx,
 		listOp: { ...ctx.listOp, collection: { ...collection, itemSchema: { properties } } },
 		model: { ...ctx.model, rawOperations },
-	} as CheckContext
+	} as Listed
 }
 
 describe("absentId", () => {

@@ -14,6 +14,7 @@ export const filterLteIsLtOrEq: Check<RangeProbe> = defineCheck<RangeProbe>({
 		"filter.numeric-comparison-is-numeric",
 	],
 	id: "filter.lte-is-lt-or-eq",
+	lists: true,
 	needs: "an ordered field that allows `lte` and `lt`",
 	subjects: subjectsOf.list,
 	async run(ctx, probe): Promise<Outcome> {

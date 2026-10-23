@@ -18,6 +18,7 @@ export const zeroMatchFilter: Check<{ term: Record<string, string> }> = defineCh
 	},
 	dependsOn: ["query.filter-selects-from-whole-set", "list.read-after-write"],
 	id: "filter.zero-match-returns-none",
+	lists: true,
 	needs: "a `filter` parameter that accepts the identity field",
 	subjects: subjectsOf.list,
 	async run(ctx, { term }): Promise<Outcome> {

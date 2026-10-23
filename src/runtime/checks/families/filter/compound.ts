@@ -1,7 +1,7 @@
 import { type andTerm, filterTerm } from "../../../../spec/conventions/filter.ts"
 import type { FilterQuery } from "../../../../spec/render/filter-types.ts"
 import type { Record_ } from "../../../world/records.ts"
-import type { CheckContext } from "../../core/context.ts"
+import type { Listed } from "../../core/context.ts"
 import { cannot, type Plan, ready } from "../../core/plan.ts"
 import { conv, filterableNames, filterIdentity, pageSize } from "../../query/capabilities.ts"
 import { cohortFact, collectSet, membership } from "../../sets/compare.ts"
@@ -28,7 +28,7 @@ interface Composed {
  * disagreement the fresh reads repeat is the backend's.
  */
 export async function readComposed(
-	ctx: CheckContext,
+	ctx: Listed,
 	terms: { combined: FilterQuery; termA: Record<string, string>; termB: Record<string, string> },
 	compose: (setA: Set<string>, setB: Set<string>) => Set<string>,
 ): Promise<Composed | "rejected" | "incomplete" | "moving"> {
@@ -62,11 +62,11 @@ export async function readComposed(
  * Finds a record holding non-null values on two distinct, non-identity filterable fields — the
  * minimum needed to build a compound predicate that is guaranteed to match at least that record.
  */
-export function twoFilterableFields(ctx: CheckContext): { fieldA: string; fieldB: string; target: Record_ } | null {
+export function twoFilterableFields(ctx: Listed): { fieldA: string; fieldB: string; target: Record_ } | null {
 	return cohortFact(ctx, "two-filterable", () => computeTwoFilterableFields(ctx))
 }
 
-function computeTwoFilterableFields(ctx: CheckContext): { fieldA: string; fieldB: string; target: Record_ } | null {
+function computeTwoFilterableFields(ctx: Listed): { fieldA: string; fieldB: string; target: Record_ } | null {
 	const skip = new Set([ctx.identity, filterIdentity(ctx)])
 	const candidates = filterableNames(ctx).filter((f) => !skip.has(f))
 	for (const target of ctx.records) {
@@ -90,7 +90,7 @@ export interface Compound {
 }
 
 export function compoundPlan(
-	ctx: CheckContext,
+	ctx: Listed,
 	/* `andTerm` or `orTerm`: both render two equalities joined by their combinator. */
 	combine: typeof andTerm,
 ): Plan<Compound> {

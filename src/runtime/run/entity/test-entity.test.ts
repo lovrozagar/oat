@@ -91,6 +91,35 @@ describe("testEntity without a list", () => {
 	})
 })
 
+describe("testEntity without a list, through its creates", () => {
+	it("tests an entity with a create and an item read through the records its creates return", async () => {
+		const doc = notesDoc()
+		const collection = doc.paths?.["/notes"]
+		if (collection === undefined) throw new Error("the notes document has a collection")
+		delete collection["get"]
+		const { ctx, options } = await tested(notesApi(doc), "note")
+		expect(ctx.state.entitiesTested).toEqual(["note"])
+		expect(ctx.state.checksRun).toContain("create.persists-submitted-fields")
+		expect(ctx.state.checksSkipped).toContainEqual({
+			check: "pagination.page-walk-covers-set",
+			entity: "note",
+			needs: "a list operation",
+		})
+		expect(options.seen.filter((request) => request.method === "GET" && request.path === "/notes")).toEqual([])
+		expect(options.seen.filter((request) => request.method === "POST").length).toBeGreaterThan(0)
+	})
+	it("tests nothing of an entity with only an item read: no create makes its records", async () => {
+		const doc = tagged(
+			"get /widgets/{widget_id}",
+			{ action: "read", identity: "id", name: "widget" },
+			{ parameters: [{ in: "path", name: "widget_id", required: true, schema: { type: "string" } }] },
+		)
+		const { ctx, options } = await tested(serving(doc), "widget")
+		expect(ctx.state.entitiesTested).toEqual([])
+		expect(options.seen.filter((request) => request.path.startsWith("/widgets"))).toEqual([])
+	})
+})
+
 describe("testEntity stops early", () => {
 	it("when the network is gone for good", async () => {
 		const { ctx } = await tested(notesApi(), "note", {

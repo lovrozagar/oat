@@ -25,7 +25,7 @@ describe("components", () => {
 		const shape = { specLayout: true }
 		const entities = shapedEntities(shape)
 		const declared = components({ entities, shape }) as { schemas: Record<string, unknown> }
-		expect(Object.keys(declared.schemas).slice(-3)).toEqual(["Table", "Row", "Job"])
+		expect(Object.keys(declared.schemas).slice(-4)).toEqual(["Table", "Row", "Job", "Webhook"])
 		expect(declared.schemas["Table"]).toEqual(itemSchema(entities[0] ?? TABLE))
 	})
 })

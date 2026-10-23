@@ -111,6 +111,34 @@
               "failed": [
                 "auth.alternative-accepted"
               ],
+              "gaps": [
+                "payload.string-survives"
+              ],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic",
+                "auth.scope-enforced",
+                "concurrency.if-match-enforced",
+                "response.status-is-documented",
+                "schema.error-response-matches-document",
+                "tenant.denial-does-not-reveal-existence",
+                "tenant.item-not-readable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "webhook",
+            "findings": 1,
+            "operationId": "webhook.get",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "auth.alternative-accepted"
+              ],
               "gaps": [],
               "inconclusive": [
                 "auth.cross-tenant-key-refused"
@@ -384,6 +412,37 @@
             "entity": "row",
             "findings": 0,
             "operationId": "row.get",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [
+                "payload.string-survives"
+              ],
+              "inconclusive": [],
+              "passed": [
+                "auth.alternative-accepted",
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic",
+                "auth.scope-enforced",
+                "concurrency.if-match-enforced",
+                "response.status-is-documented",
+                "schema.error-response-matches-document",
+                "tenant.denial-does-not-reveal-existence",
+                "tenant.item-not-readable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "webhook",
+            "findings": 0,
+            "operationId": "webhook.get",
             "reason": null,
             "status": "passed",
             "evidence": {},
@@ -740,12 +799,34 @@
           ],
           "summary": "an operation refused a credential one of its documented alternatives accepts",
           "verdict": "BACKEND_BUG"
+        },
+        {
+          "check": "auth.alternative-accepted",
+          "detail": "webhook.get answered 401 to alpha's apiKey credential, though the document accepts apiKey with webhook:read on its own. The same request with jwt answered 200.",
+          "entity": "webhook.get",
+          "operations": [
+            "webhook.get"
+          ],
+          "evidence": [
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/webhooks/webhook_ID"
+            },
+            {
+              "method": "GET",
+              "status": 401,
+              "url": "http://reference.test/v1/projects/proj_alpha/webhooks/webhook_ID"
+            }
+          ],
+          "summary": "an operation refused a credential one of its documented alternatives accepts",
+          "verdict": "BACKEND_BUG"
         }
       ]
     },
     "summary": {
       "BACKEND_BUG": {
-        "now": 5,
+        "now": 6,
         "was": null
       }
     }

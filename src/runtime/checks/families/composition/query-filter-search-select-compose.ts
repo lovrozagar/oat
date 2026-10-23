@@ -41,6 +41,7 @@ export const filterSearchSelectCompose: Check<
 		"query.filter-selects-from-whole-set",
 	],
 	id: "query.filter-search-select-compose",
+	lists: true,
 	needs: "a filterable field, a search parameter, a select parameter, and more than two records",
 	subjects: subjectsOf.list,
 	async run(ctx, { extra, field, projection, term, token }): Promise<Outcome> {

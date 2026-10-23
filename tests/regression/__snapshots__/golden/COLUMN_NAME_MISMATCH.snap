@@ -7,7 +7,7 @@
         "was": 0
       },
       "reason": {
-        "now": "2 root-cause findings",
+        "now": "3 root-cause findings",
         "was": "no defects found in what was graded"
       },
       "result": {
@@ -53,6 +53,11 @@
           "because": "create.persists-submitted-fields",
           "check": "concurrency.no-lost-update",
           "entity": "table"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "concurrency.no-lost-update",
+          "entity": "webhook"
         },
         {
           "because": "create.persists-submitted-fields",
@@ -349,6 +354,65 @@
           },
           {
             "checks": {
+              "failed": [
+                "create.persists-submitted-fields"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.status-matches-document",
+                "schema.success-response-matches-document",
+                "validation.content-type-enforced",
+                "validation.enum-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "webhook",
+            "findings": 1,
+            "operationId": "webhook.create",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [
+                "payload.string-survives"
+              ],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
+                "concurrency.if-match-enforced",
+                "patch.immutable-field-rejected",
+                "patch.minimality",
+                "request.invalid-body-refused",
+                "response.status-is-documented",
+                "schema.problem-json-shape",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": [
+                "concurrency.no-lost-update"
+              ]
+            },
+            "entity": "webhook",
+            "findings": 0,
+            "operationId": "webhook.update",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
               "failed": [],
               "gaps": [],
               "inconclusive": [
@@ -718,6 +782,40 @@
             "entity": "table",
             "findings": 0,
             "operationId": "table.update",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [
+                "payload.string-survives"
+              ],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
+                "concurrency.if-match-enforced",
+                "concurrency.no-lost-update",
+                "patch.immutable-field-rejected",
+                "patch.minimality",
+                "request.invalid-body-refused",
+                "response.status-is-documented",
+                "schema.problem-json-shape",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "webhook",
+            "findings": 0,
+            "operationId": "webhook.update",
             "reason": null,
             "status": "passed",
             "evidence": {},
@@ -1019,6 +1117,33 @@
             "sufficiency": "verified",
             "tier": "verified",
             "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "schema.success-response-matches-document",
+                "validation.content-type-enforced",
+                "validation.enum-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "webhook",
+            "findings": 0,
+            "operationId": "webhook.create",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
           }
         ]
       }
@@ -1026,8 +1151,8 @@
     "teardown": {
       "records": {},
       "removed": {
-        "now": 81,
-        "was": 88
+        "now": 105,
+        "was": 113
       }
     },
     "findings": {
@@ -1049,6 +1174,28 @@
               "method": "POST",
               "status": 201,
               "url": "http://reference.test/v1/projects/proj_alpha/jobs"
+            }
+          ],
+          "summary": "create silently discards submitted fields",
+          "verdict": "BACKEND_BUG"
+        },
+        {
+          "check": "create.persists-submitted-fields",
+          "detail": "the create response does not carry back 1 submitted field(s): name sent \"Quarterly Report 0\", got \"name\". A write that reports success and drops data is worse than one that fails.",
+          "entity": "webhook",
+          "operations": [
+            "webhook.create"
+          ],
+          "evidence": [
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/webhooks/webhook_ID"
+            },
+            {
+              "method": "POST",
+              "status": 201,
+              "url": "http://reference.test/v1/projects/proj_alpha/webhooks"
             }
           ],
           "summary": "create silently discards submitted fields",
@@ -1125,11 +1272,11 @@
     },
     "summary": {
       "COVERAGE_GAP": {
-        "now": 1,
-        "was": 2
+        "now": 2,
+        "was": 3
       },
       "BACKEND_BUG": {
-        "now": 2,
+        "now": 3,
         "was": null
       }
     },
@@ -1144,289 +1291,289 @@
           {
             "check": "consistency.projections-agree",
             "ran": 3,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "filter.alias-matches-canonical",
             "ran": 2,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.and-composes-as-intersection",
             "ran": 3,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "filter.condition-cap-rejected",
             "ran": 2,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.empty-in",
             "ran": 2,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.gte-is-gt-or-eq",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "filter.ilike-is-case-insensitive",
             "ran": 2,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.in-is-union-of-eq",
             "ran": 2,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.in-over-limit-rejected",
             "ran": 2,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.is-null-selects-nulls",
             "ran": 2,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.lte-is-lt-or-eq",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "filter.negation-partitions-the-set",
             "ran": 3,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "filter.nested-and-or-distributes",
             "ran": 3,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "filter.nin-complements-in",
             "ran": 2,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.or-composes-as-union",
             "ran": 3,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "filter.ordered-triple-partitions",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "idempotency.replay-does-not-duplicate",
             "ran": 3,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "pagination.cursor-agrees-with-page",
             "ran": 3,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "query.filter-and-select-compose",
             "ran": 3,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "query.filter-search-select-compose",
             "ran": 3,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "query.filter-search-sort-compose",
             "ran": 3,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "query.filter-search-sort-select-compose",
             "ran": 3,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "query.filter-sort-select-compose",
             "ran": 3,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "query.search-and-filter-compose",
             "ran": 3,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "search.tokens-and",
             "ran": 3,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "sort.multi-key-tiebreak",
             "ran": 3,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "sort.nulls-first-last",
             "ran": 2,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "sort.reverse-symmetry",
             "ran": 3,
-            "skipped": 1
+            "skipped": 2
           }
         ],
         "removed": [
           {
             "check": "concurrency.no-lost-update",
-            "ran": 5,
+            "ran": 6,
             "skipped": 1
           },
           {
             "check": "consistency.projections-agree",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "filter.alias-matches-canonical",
             "ran": 3,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.and-composes-as-intersection",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "filter.condition-cap-rejected",
             "ran": 3,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.empty-in",
             "ran": 3,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.gte-is-gt-or-eq",
             "ran": 4,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "filter.ilike-is-case-insensitive",
             "ran": 3,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.in-is-union-of-eq",
             "ran": 3,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.in-over-limit-rejected",
             "ran": 3,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.is-null-selects-nulls",
             "ran": 3,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.lte-is-lt-or-eq",
             "ran": 4,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "filter.negation-partitions-the-set",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "filter.nested-and-or-distributes",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "filter.nin-complements-in",
             "ran": 3,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.or-composes-as-union",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "filter.ordered-triple-partitions",
             "ran": 4,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "idempotency.replay-does-not-duplicate",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "pagination.cursor-agrees-with-page",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "query.filter-and-select-compose",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "query.filter-search-select-compose",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "query.filter-search-sort-compose",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "query.filter-search-sort-select-compose",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "query.filter-sort-select-compose",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "query.search-and-filter-compose",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "search.tokens-and",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "sort.multi-key-tiebreak",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "sort.nulls-first-last",
             "ran": 3,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "sort.reverse-symmetry",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           }
         ]
       }

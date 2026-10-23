@@ -14,6 +14,7 @@ export const filterAliasMatchesCanonical: Check = defineCheck({
 	plan: (ctx) => when(Object.keys(resolvedCaps(ctx).aliases).length > 0 && filterable(ctx)),
 	dependsOn: ["query.filter-selects-from-whole-set", ...FOUNDATIONS, "filter.equality-selects-exactly-one"],
 	id: "filter.alias-matches-canonical",
+	lists: true,
 	needs: "a declared filter operator alias",
 	subjects: subjectsOf.list,
 	async run(ctx): Promise<Outcome> {

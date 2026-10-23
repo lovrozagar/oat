@@ -10,6 +10,7 @@ export const hasMoreIsAccurate: Check = defineCheck({
 	plan: (ctx) => when(pageable(ctx) && ctx.records.length > 2),
 	dependsOn: ["pagination.limit-bounds-page-size"],
 	id: "pagination.has-more-is-accurate",
+	lists: true,
 	needs: "a way to page forward, and a more-pages signal in the body or a Link header",
 	subjects: subjectsOf.list,
 	async run(ctx): Promise<Outcome> {

@@ -1,18 +1,19 @@
 /* One check: what it needs, which operations it grades, and how it runs. */
 
 import type { CheckId } from "../../check-ids.ts"
-import type { CheckContext, WriteContext } from "./context.ts"
+import type { CheckContext, Listed, WriteContext } from "./context.ts"
 import type { OperationContext, OperationWriteContext } from "./operation-context.ts"
 import type { Plan } from "./plan.ts"
 import type { Outcome } from "../../finding.ts"
 import type { EntityModel, SpecModel } from "../../../spec/graph/types.ts"
+import type { Client } from "../../../client/client.ts"
 
-export interface CheckBase<T> {
+export interface CheckBase<T, X extends CheckContext = CheckContext> {
 	id: CheckId
 	/** What the check is planned on: an entity and its cohort. The default; see `OperationCheck`. */
 	subject?: "entity"
 	/** Decides whether the check applies to this entity, and gathers what `run` needs if it does. */
-	plan(ctx: CheckContext): Plan<T>
+	plan(ctx: X): Plan<T>
 	/**
 	 * Check ids whose failure makes this one's result meaningless. When any has already fired for
 	 * this entity, the check is skipped rather than reporting a consequence as a separate defect —
@@ -49,11 +50,21 @@ export interface CheckBase<T> {
  * the same cohort would make each other's observations wrong, and the resulting finding would
  * describe the interference rather than the backend.
  */
-export type Check<T = unknown> = CheckBase<T> &
-	(
-		| { mutates: true; run(ctx: WriteContext, plan: T): Promise<Outcome> }
-		| { mutates?: false; run(ctx: CheckContext, plan: T): Promise<Outcome> }
-	)
+type Runs<T, R, W> =
+	| { mutates: true; run(ctx: W, plan: T): Promise<Outcome> }
+	| { mutates?: false; run(ctx: R, plan: T): Promise<Outcome> }
+
+/** A check that needs no list: it plans and runs on every entity, listed or not. */
+export type UnlistedCheck<T = unknown> = CheckBase<T> & { lists?: false } & Runs<T, CheckContext, WriteContext>
+
+/**
+ * A check that reads the entity's listing: it plans and runs only where the entity has a list
+ * operation, with `listOp` set. On an entity with none it is skipped as needing one, never run.
+ */
+export type ListingCheck<T = unknown> = CheckBase<T, Listed> & { lists: true } & Runs<T, Listed, Listed<Client>>
+
+/** An entity check: one that needs no list, or one that reads the entity's listing. */
+export type Check<T = unknown> = UnlistedCheck<T> | ListingCheck<T>
 
 /**
  * A check planned on one operation rather than on an entity: the security family's. The security

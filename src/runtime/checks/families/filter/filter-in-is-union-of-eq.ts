@@ -39,6 +39,7 @@ export const filterInIsUnionOfEq: Check<{
 	},
 	dependsOn: ["query.filter-selects-from-whole-set", ...FOUNDATIONS, "filter.equality-selects-exactly-one"],
 	id: "filter.in-is-union-of-eq",
+	lists: true,
 	needs: "a field that allows `in` and at least two distinct values",
 	subjects: subjectsOf.list,
 	async run(ctx, { a, b, eqA, eqB, field, inTerm }): Promise<Outcome> {

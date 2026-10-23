@@ -68,3 +68,20 @@ describe("a base path", () => {
 		expect((await call("GET", "/api")).body["message"]).toBe("no route for /")
 	})
 })
+
+describe("handle for an entity with no list", () => {
+	it("refuses to list an entity with no list, and serves its create and item routes", async () => {
+		const { call } = await api()
+		const webhooks = TABLES.replace("/tables", "/webhooks")
+		expect(await call("GET", webhooks)).toMatchObject({
+			body: { error_key: "method_not_allowed", message: "webhooks cannot be listed" },
+			status: 405,
+		})
+		const made = await call("POST", webhooks, { body: { name: "w", url: "https://hooks.test/w" } })
+		expect(made.status).toBe(201)
+		const at = `${webhooks}/${String(made.body["id"])}`
+		expect(await call("GET", at)).toMatchObject({ body: { name: "w" }, status: 200 })
+		expect((await call("DELETE", at)).status).toBe(200)
+		expect((await call("GET", at)).status).toBe(404)
+	})
+})

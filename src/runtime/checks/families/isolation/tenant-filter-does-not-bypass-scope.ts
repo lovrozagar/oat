@@ -36,6 +36,7 @@ export const crossTenantFilterBypass: Check<{
 	 * not a leak that can be reported. */
 	dependsOn: ["query.filter-selects-from-whole-set"],
 	id: "tenant.filter-does-not-bypass-scope",
+	lists: true,
 	needs: "a second principal, a filter, and a tenant tagged or inferred from the path",
 	subjects: subjectsOf.list,
 	async run(ctx, { id, peer, peerScope, tenantTerm }): Promise<Outcome> {

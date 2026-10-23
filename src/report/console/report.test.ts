@@ -20,7 +20,7 @@ describe("report", () => {
 		]
 		for (const options of variants) {
 			const { model, externalRefs } = await referenceModel(options)
-			expect(report.doctor(model, { externalRefs }).text).toContain("  trackable  ")
+			expect(report.doctor(model, { externalRefs }).text).toContain("  testable   ")
 			expect(report.plan(model, false)).toContain(" operations · ")
 		}
 	})

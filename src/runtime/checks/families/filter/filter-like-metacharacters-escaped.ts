@@ -2,13 +2,13 @@ import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { filterSpec, filterTerm } from "../../../../spec/conventions/filter.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
-import type { CheckContext } from "../../core/context.ts"
+import type { Listed } from "../../core/context.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, filterable, filterableNames } from "../../query/capabilities.ts"
 import { readSet } from "../../sets/read.ts"
 
-function firstFilterable(ctx: CheckContext, predicate: (name: string) => boolean): string | null {
+function firstFilterable(ctx: Listed, predicate: (name: string) => boolean): string | null {
 	return filterableNames(ctx).find(predicate) ?? null
 }
 
@@ -31,6 +31,7 @@ export const likeEscaping: Check<{ field: string; likeTerm: Record<string, strin
 	 * wrong, that comparison is against a set the backend never served correctly. */
 	dependsOn: ["query.filter-selects-from-whole-set", "pagination.page-walk-covers-set", "list.read-after-write"],
 	id: "filter.like-metacharacters-escaped",
+	lists: true,
 	needs: "a `filter` parameter supporting a like operator",
 	subjects: subjectsOf.list,
 	async run(ctx, { field, likeTerm }): Promise<Outcome> {

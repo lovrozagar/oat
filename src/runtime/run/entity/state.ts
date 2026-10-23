@@ -11,7 +11,13 @@ export interface EntityRun {
 	entity: EntityModel
 	/** The entity's place in the model: half of what keeps one check run's salts its own. */
 	index: number
-	listOp: OperationModel
+	/** The entity's list; `undefined` for one whose cohort is its creates alone. */
+	listOp: OperationModel | undefined
+	/**
+	 * The route the entity's records live under: its list, else its create. Its path names the
+	 * parents a principal's scope needs.
+	 */
+	collectionOp: OperationModel
 	createOp: OperationModel | undefined
 	/** Findings about seeding land on the targets this entity's checks grade. */
 	findings: FindingCollector

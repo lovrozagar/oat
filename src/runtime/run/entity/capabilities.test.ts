@@ -70,3 +70,16 @@ describe("queryOf", () => {
 		expect((await queryOf(entityRunOf(ctx), {})).query).toBeNull()
 	})
 })
+
+describe("queryOf with no list", () => {
+	it("has nothing to query and asks nothing", async () => {
+		const options = optionsFor(notesApi())
+		const ctx = await contextOf(options)
+		const before = options.seen.length
+		const run = { ...entityRunOf(ctx), listOp: undefined }
+		const { capabilities, query } = await queryOf(run, {})
+		expect(query).toBeNull()
+		expect([capabilities.filterable, capabilities.sortable, capabilities.searchable]).toEqual([[], [], []])
+		expect(options.seen.length).toBe(before)
+	})
+})

@@ -4,7 +4,7 @@ import { Client } from "../../../client/client.ts"
 import { Redactor } from "../../../security/redact.ts"
 import { FindingCollector } from "../../finding.ts"
 import type { OpenApiDocument } from "../../../spec/types.ts"
-import type { WriteContext } from "../core/context.ts"
+import type { Listed } from "../core/context.ts"
 import { modelOf, op } from "./harness.ts"
 
 /*
@@ -18,7 +18,7 @@ export const BASE = "http://api.test"
 export type Serve = (url: URL, method: string) => unknown
 
 export interface WireStage {
-	ctx: WriteContext
+	ctx: Listed<Client>
 	findings: FindingCollector
 	/** Each request as `METHOD /path?query`, in order. */
 	requests: string[]
@@ -28,7 +28,7 @@ export interface WireStage {
 export function wireStage(
 	document: OpenApiDocument,
 	listOperation: string,
-	stage: { serve: Serve; fields?: Partial<WriteContext> },
+	stage: { serve: Serve; fields?: Partial<Listed<Client>> },
 ): WireStage {
 	const requests: string[] = []
 	const wire = transport((sent) => {

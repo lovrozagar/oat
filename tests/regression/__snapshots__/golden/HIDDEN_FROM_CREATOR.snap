@@ -171,8 +171,8 @@
         ]
       },
       "removed": {
-        "now": 84,
-        "was": 88
+        "now": 109,
+        "was": 113
       }
     },
     "findings": {
@@ -218,8 +218,8 @@
     },
     "summary": {
       "COVERAGE_GAP": {
-        "now": 1,
-        "was": 2
+        "now": 2,
+        "was": 3
       },
       "BACKEND_BUG": {
         "now": 1,

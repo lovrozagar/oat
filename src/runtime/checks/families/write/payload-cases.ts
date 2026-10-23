@@ -55,7 +55,7 @@ function payloadCandidate(name: string, propertySchema: JsonSchema): (PayloadFie
 }
 
 /** What picking a payload field and keying its write path read: the entity's routes in the document. */
-export type PayloadSubject = Pick<CheckContext, "createOp" | "identity" | "listOp" | "model" | "updateOp">
+export type PayloadSubject = Pick<CheckContext, "createOp" | "identity" | "listOp" | "model" | "readOp" | "updateOp">
 
 /**
  * Fields a write through `op` cannot set to an arbitrary value: immutable, server-generated, the
@@ -127,13 +127,13 @@ export function writePathOf(subject: PayloadSubject, writeOp: OperationModel, fi
  */
 export function plannedWritePath(model: SpecModel, entity: EntityModel): string | null {
 	const route = (operationId: string | undefined) => model.byOperationId.get(operationId ?? "")
-	const listOp = route(entity.list)
 	const createOp = route(entity.create)
 	const updateOp = route(entity.update)
-	if (listOp === undefined || createOp === undefined) return null
+	const readOp = route(entity.read)
+	if (createOp === undefined || readOp === undefined) return null
 	const writeOp = updateOp ?? createOp
-	if (route(entity.read) === undefined || (updateOp === undefined && route(entity.delete) === undefined)) return null
-	const subject = { createOp, identity: entity.identity ?? "id", listOp, model, updateOp }
+	if (updateOp === undefined && route(entity.delete) === undefined) return null
+	const subject = { createOp, identity: entity.identity ?? "id", listOp: route(entity.list), model, readOp, updateOp }
 	const field = pickPayloadField(subject, writeOp)
 	return field === null ? null : writePathOf(subject, writeOp, field.name)
 }

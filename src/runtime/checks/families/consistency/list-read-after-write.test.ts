@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { CheckContext } from "../../core/context.ts"
+import type { Listed } from "../../core/context.ts"
 import type { Record_ } from "../../../world/records.ts"
 import { contextFor, modelOf, op, type Responder } from "../../__fixtures__/harness.ts"
 import { readAfterWrite } from "./list-read-after-write.ts"
@@ -10,7 +10,7 @@ const others = (count: number): Record_[] =>
 	Array.from({ length: count }, (_, index) => ({ id: `o${index}`, status: "open", title: `o${index}` }))
 
 /** A notes context whose seeded record is `created`, served by `respond`. */
-function stage(respond: Responder, fields: Partial<CheckContext> = {}, doc = notesDoc()) {
+function stage(respond: Responder, fields: Partial<Listed> = {}, doc = notesDoc()) {
 	const model = modelOf(doc)
 	return contextFor(model, "notes.list", {
 		respond,

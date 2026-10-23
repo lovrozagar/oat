@@ -25,6 +25,7 @@ export const searchCaseInsensitive: Check<{ token: string; flipped: string }> = 
 	},
 	dependsOn: ["pagination.page-walk-covers-set", "search.q-narrows-result"],
 	id: "search.case-insensitive",
+	lists: true,
 	needs: "a searchable string with a letter",
 	subjects: subjectsOf.list,
 	async run(ctx, { flipped, token }): Promise<Outcome> {

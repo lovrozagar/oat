@@ -96,6 +96,9 @@ async function entityRoute(state: ReferenceState, request: ReferenceRequest): Pr
 	}
 	if (entity.name === state.job.name && method === "GET") await advanceJobs(state)
 	if (itemId === null) {
+		if (method === "GET" && entity.unlisted === true) {
+			throw new HttpError(405, "method_not_allowed", `${entity.plural} cannot be listed`)
+		}
 		if (method === "GET") return list(state, request, call)
 		if (method === "POST") return create(state, request, call)
 		throw new HttpError(404, "not_found", `method ${method} not supported here`)

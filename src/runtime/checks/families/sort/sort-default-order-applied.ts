@@ -14,6 +14,7 @@ export const sortDefaultOrderApplied: Check<{ defaultOrder: string }> = defineCh
 	},
 	dependsOn: ["sort.order-is-applied", "pagination.page-walk-covers-set"],
 	id: "sort.default-order-applied",
+	lists: true,
 	needs: "a declared defaultOrder and a complete walk",
 	subjects: subjectsOf.list,
 	async run(ctx, { defaultOrder }): Promise<Outcome> {

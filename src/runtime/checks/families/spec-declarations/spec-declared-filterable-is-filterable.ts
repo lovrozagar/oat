@@ -6,7 +6,7 @@ import { FILTER_OPS } from "../../../../spec/query/ops.ts"
 import type { Exchange } from "../../../exchange.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { filterSentinel } from "../../../generate/identifiers.ts"
-import type { CheckContext } from "../../core/context.ts"
+import type { Listed } from "../../core/context.ts"
 import { when } from "../../core/plan.ts"
 import { declarationAnswer } from "../../planning/declarations.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
@@ -49,6 +49,7 @@ export const declaredFilterableWorks: Check = defineCheck({
 		"error.malformed-filter-not-5xx",
 	],
 	id: "spec.declared-filterable-is-filterable",
+	lists: true,
 	needs: "x-query naming filterable fields",
 	subjects: subjectsOf.list,
 	async run(ctx): Promise<Outcome> {
@@ -118,7 +119,7 @@ type Probe = { op: (typeof FILTER_OPS)[number]; value: string | number | boolean
  * An operator the field allows and a value of the field's own type, to ask whether a declared
  * filter exists at all. Equality where it is allowed; membership for an array.
  */
-function capabilityProbe(ctx: CheckContext, name: string): Probe | null {
+function capabilityProbe(ctx: Listed, name: string): Probe | null {
 	const caps = resolvedCaps(ctx)
 	const field = caps.filterable.find((item) => item.field === name) ?? { field: name }
 	const type = field.type ?? schemaType(ctx, name)
@@ -128,12 +129,12 @@ function capabilityProbe(ctx: CheckContext, name: string): Probe | null {
 }
 
 /** The item schema's declaration of property `name`, when it has one. */
-function propertySchemaOf(ctx: CheckContext, name: string): JsonSchema | undefined {
+function propertySchemaOf(ctx: Listed, name: string): JsonSchema | undefined {
 	return (ctx.listOp.collection?.itemSchema?.properties as Record<string, JsonSchema> | undefined)?.[name]
 }
 
 /** `contains` with an element the cohort holds, or else one drawn from the array's item schema. */
-function membershipProbe(ctx: CheckContext, field: EffectiveFilterField, sample: unknown): Probe | null {
+function membershipProbe(ctx: Listed, field: EffectiveFilterField, sample: unknown): Probe | null {
 	if (!canUseOp(ctx, field, "contains")) return null
 	const element = Array.isArray(sample) ? sample[0] : undefined
 	if (element !== undefined) return { op: "contains", value: asTermValue(element) }
@@ -144,7 +145,7 @@ function membershipProbe(ctx: CheckContext, field: EffectiveFilterField, sample:
 
 /** `eq` with a scalar the cohort holds, or else a sentinel of the field's own type. */
 function equalityProbe(
-	ctx: CheckContext,
+	ctx: Listed,
 	field: EffectiveFilterField,
 	type: string | undefined,
 	sample: unknown,

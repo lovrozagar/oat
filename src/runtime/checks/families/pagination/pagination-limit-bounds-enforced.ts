@@ -24,6 +24,7 @@ export const limitBoundsEnforced: Check<{ limitParam: string; max: number }> = d
 	},
 	dependsOn: ["pagination.limit-bounds-page-size"],
 	id: "pagination.limit-bounds-enforced",
+	lists: true,
 	needs: "a declared limitOutOfRange: reject, and a page size with a maximum",
 	subjects: subjectsOf.list,
 	async run(ctx, { limitParam, max }): Promise<Outcome> {

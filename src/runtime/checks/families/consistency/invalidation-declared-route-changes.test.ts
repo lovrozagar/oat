@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
-import type { CheckContext } from "../../core/context.ts"
+import type { Listed } from "../../core/context.ts"
 import type { Record_ } from "../../../world/records.ts"
 import { type Answer, contextFor, modelOf, op, type Responder } from "../../__fixtures__/harness.ts"
 import { declaredInvalidationHappens } from "./invalidation-declared-route-changes.ts"
@@ -11,7 +11,7 @@ const FOREIGN = ["GET /boards", "GET /stats"]
 const declaring = (invalidate: readonly string[]) => notesDoc({ invalidate })
 
 /** A note context over `doc`, whose create declares FOREIGN unless the document says otherwise. */
-function stage(respond: Responder, fields: Partial<CheckContext> = {}, doc = declaring(FOREIGN)) {
+function stage(respond: Responder, fields: Partial<Listed> = {}, doc = declaring(FOREIGN)) {
 	const model = modelOf(doc)
 	return contextFor(model, "notes.list", { respond, fields: { createOp: op(model, "notes.create"), ...fields } })
 }

@@ -30,6 +30,7 @@ export const filterOrComposesAsUnion: Check<Compound> = defineCheck<Compound>({
 		 * only thing that can see. */
 	],
 	id: "filter.or-composes-as-union",
+	lists: true,
 	needs: "two filterable fields and an or() combinator (postgrest-shaped filter grammar)",
 	subjects: subjectsOf.list,
 	async run(ctx, { combined, fieldA, fieldB, termA, termB, valueA, valueB }): Promise<Outcome> {

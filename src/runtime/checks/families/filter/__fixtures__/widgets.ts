@@ -1,3 +1,4 @@
+import type { Client } from "../../../../../client/client.ts"
 import type { Finding, FindingCollector } from "../../../../finding.ts"
 import type { Record_ } from "../../../../world/records.ts"
 import type { QueryConventions } from "../../../../../spec/conventions/types.ts"
@@ -6,7 +7,7 @@ import type { FilterGrammarSpec } from "../../../../../spec/render/filter-types.
 import type { FilterOp } from "../../../../../config/types/query.ts"
 import type { JsonSchema, OpenApiDocument } from "../../../../../spec/types.ts"
 import { contextFor, modelOf, op, type Responder, type Sent } from "../../../__fixtures__/harness.ts"
-import type { CheckContext, WriteContext } from "../../../core/context.ts"
+import type { Listed } from "../../../core/context.ts"
 import { backend, type Behavior, PATH, PROPERTIES } from "./backend.ts"
 
 /*
@@ -87,11 +88,11 @@ export interface StageOptions {
 	respond?: Responder
 	/** Merged over the listing's derived conventions. */
 	conventions?: Partial<QueryConventions>
-	fields?: Partial<CheckContext>
+	fields?: Partial<Listed>
 }
 
 export interface Stage {
-	ctx: WriteContext
+	ctx: Listed<Client>
 	sent: Sent[]
 	findings: FindingCollector
 }

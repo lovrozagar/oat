@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { CheckContext } from "../core/context.ts"
+import type { CheckContext, Listed } from "../core/context.ts"
 import { modelOf, op } from "../__fixtures__/harness.ts"
 import { notesContext, notesDoc, notesModel } from "../query/__fixtures__/notes.ts"
 import {
@@ -33,7 +33,7 @@ const FORM = {
 }
 
 /** The notes context with `properties` as the list's item schema. */
-function itemOf(properties: Record<string, unknown>): CheckContext {
+function itemOf(properties: Record<string, unknown>): Listed {
 	const { ctx } = notesContext()
 	const collection = ctx.listOp.collection
 	if (collection === null) throw new Error("the notes list is a collection")
@@ -144,7 +144,7 @@ describe("createExchange", () => {
 })
 
 /** The create's request body schema. */
-const schema = (ctx: CheckContext) => requestSchemaOf(ctx, ctx.createOp ?? ctx.listOp) ?? {}
+const schema = (ctx: Listed) => requestSchemaOf(ctx, ctx.createOp ?? ctx.listOp) ?? {}
 
 describe("validBody", () => {
 	it("builds a body the document accepts, every string salted so no two bodies collide", () => {

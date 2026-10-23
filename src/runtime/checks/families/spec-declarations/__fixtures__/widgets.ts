@@ -2,7 +2,7 @@ import type { QueryConventions } from "../../../../../spec/conventions/types.ts"
 import type { QueryCapability } from "../../../../../spec/extensions/query-tag.ts"
 import type { OperationModel, SpecModel } from "../../../../../spec/graph/types.ts"
 import type { OpenApiDocument } from "../../../../../spec/types.ts"
-import type { CheckContext } from "../../../core/context.ts"
+import type { Listed } from "../../../core/context.ts"
 import { contextFor, modelOf, op, type Responder, type Sent } from "../../../__fixtures__/harness.ts"
 
 /*
@@ -88,7 +88,7 @@ export function listing(patch: Partial<QueryConventions>, ...omit: Array<keyof Q
 }
 
 /** A context on the widgets list holding one row, with `fields` laid over it. */
-export function stage(respond: Responder, fields: Partial<CheckContext> = {}) {
+export function stage(respond: Responder, fields: Partial<Listed> = {}) {
 	return contextFor(widgetsModel(), "listWidgets", {
 		respond,
 		fields: { query: tagQuery(), records: [ROW], ...fields },

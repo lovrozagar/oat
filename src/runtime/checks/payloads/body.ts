@@ -14,18 +14,19 @@ import { type Record_ } from "../../world/records.ts"
 import { stringProperties } from "../../world/schema.ts"
 import type { CheckContext } from "../core/context.ts"
 import { reserveClientIdentity, saltOf } from "./identity.ts"
+import { itemSchemaOf } from "./item-schema.ts"
 import type { JsonSchema } from "../../../spec/types.ts"
 
 /** The schema of `field` as the item's representation declares it. */
 export function propertySchemaOf(
-	ctx: Pick<CheckContext, "listOp" | "model">,
+	ctx: Pick<CheckContext, "listOp" | "model" | "readOp">,
 	field: string,
 	op?: OperationModel,
 ): JsonSchema | undefined {
 	const request = op === undefined ? null : requestSchemaOf(ctx, op)
 	const fromRequest = (request?.properties as Record<string, JsonSchema> | undefined)?.[field]
 	if (fromRequest !== undefined) return normalizeSchema(fromRequest, { direction: "request" })
-	const item = (ctx.listOp.collection?.itemSchema?.properties ?? {}) as Record<string, JsonSchema>
+	const item = (itemSchemaOf(ctx)?.properties ?? {}) as Record<string, JsonSchema>
 	return item[field] === undefined ? undefined : normalizeSchema(item[field], { direction: "request" })
 }
 

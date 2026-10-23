@@ -57,6 +57,7 @@ export const filterNestedAndOrDistributes: Check<{
 		"filter.or-composes-as-union",
 	],
 	id: "filter.nested-and-or-distributes",
+	lists: true,
 	needs: "a postgrest-shaped grammar and two filterable fields",
 	subjects: subjectsOf.list,
 	async run(ctx, { nested, termA, termB, termC }): Promise<Outcome> {

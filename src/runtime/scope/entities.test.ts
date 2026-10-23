@@ -144,12 +144,14 @@ describe("untestableEntityReason", () => {
 
 	it("lists only the entities it can test, by name", () => {
 		expect(testableEntities(model, none).map((entity) => entity.name)).toEqual([
+			"api-key",
 			"job",
 			"notice",
 			"overview",
 			"profile",
 			"row",
 			"table",
+			"webhook",
 		])
 	})
 })
@@ -167,6 +169,26 @@ describe("untestableReason", () => {
 		const untrackable = { ...model, entities: new Map([...model.entities, ["row", row]]) }
 		expect(untestableReason(model.byOperationId.get("row.create") as OperationModel, untrackable, none)).toBe(
 			'entity-not-testable: "row" has no records oat can identify after create',
+		)
+	})
+})
+
+describe("untestableEntityReason for an entity with no list", () => {
+	const row = entityOf(model, "row")
+
+	it("tests an entity with a create, an item read and an identity but no list: its creates are its cohort", () => {
+		expect(untestableEntityReason(omit(row, "list"), model, none)).toBeNull()
+	})
+
+	it("names what an entity with no list lacks to be found again by its item read", () => {
+		expect(untestableEntityReason(omit(row, "list", "read", "reads"), model, none)).toBe(
+			'"row" has no list operation and no read operation',
+		)
+		expect(untestableEntityReason({ ...omit(row, "list"), trackable: false }, model, none)).toBe(
+			'"row" has no records oat can identify after create',
+		)
+		expect(untestableEntityReason(omit(row, "list"), model, new Set(["row.create"]))).toBe(
+			'"row" has no list operation and no create other than the sign-up the auth flow sends',
 		)
 	})
 })

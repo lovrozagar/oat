@@ -3,7 +3,7 @@ import type { Outcome } from "../../finding.ts"
 import { notesContext } from "../query/__fixtures__/notes.ts"
 import type { Check } from "./check.ts"
 import { cannot, ready } from "./plan.ts"
-import { checkSalts, runCheck } from "./run.ts"
+import { checkSalts, NEEDS_LIST, planOn, runCheck, runOn } from "./run.ts"
 
 /*
  * What the scheduler does for one check: plan it, and run it only when the plan applies, with what
@@ -47,6 +47,47 @@ describe("runCheck", () => {
 			kind: "stood-down",
 			reason: "an unstated precondition",
 		})
+	})
+})
+
+/** A check that reads the listing, recording what its plan handed its run. */
+function listing(): { check: Check; ran: unknown[] } {
+	const ran: unknown[] = []
+	const check: Check = {
+		id: "sort.order-is-applied",
+		lists: true,
+		plan: (ctx) => ready(ctx.listOp.operationId),
+		run: async (_ctx, value) => {
+			ran.push(value)
+			return { kind: "asserted" } satisfies Outcome
+		},
+		subjects: () => [],
+	}
+	return { check, ran }
+}
+
+/** The notes context with no list. */
+const unlistedContext = () => ({ ...notesContext().ctx, listOp: undefined })
+
+describe("a check that reads the entity's listing", () => {
+	it("plans and runs on an entity with a list", async () => {
+		const { check, ran } = listing()
+		expect(await runCheck(check, notesContext().ctx)).toEqual({ kind: "asserted" })
+		expect(ran).toEqual(["note.list"])
+	})
+
+	it("is skipped as needing a list on an entity with none, and never runs", async () => {
+		const { check, ran } = listing()
+		expect(planOn(check, unlistedContext())).toEqual({ needs: NEEDS_LIST, ok: false })
+		expect(await runCheck(check, unlistedContext())).toEqual({ kind: "stood-down", reason: NEEDS_LIST })
+		expect(await runOn(check, unlistedContext(), "note.list")).toEqual({ kind: "stood-down", reason: NEEDS_LIST })
+		expect(ran).toEqual([])
+	})
+
+	it("leaves a check that needs no list to plan and run on an entity with none", async () => {
+		const { check, ran } = stubCheck(() => ready("item"))
+		expect(await runCheck(check, unlistedContext())).toEqual({ kind: "asserted" })
+		expect(ran).toEqual(["item"])
 	})
 })
 

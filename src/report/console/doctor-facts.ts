@@ -1,5 +1,6 @@
 import type { Hooks } from "../../config/types/hooks.ts"
 import type { Gap } from "../../spec/extensions/gaps.ts"
+import { untestableEntityReason } from "../../runtime/scope/entities.ts"
 import type { EntityModel, SpecModel } from "../../spec/graph/types.ts"
 import { type CatalogConfig, entityQueryCatalogs, type QueryCatalog } from "./catalog.ts"
 import { hasInvite, type InvitingEntity, sortedEntities } from "./describe.ts"
@@ -19,14 +20,19 @@ export interface DoctorConfig extends CatalogConfig {
 /** What `doctor` found in a document, before it is printed as text or JSON. */
 export interface DoctorFacts {
 	entities: EntityModel[]
-	/** Entities with an identity and a read: the ones a run can follow. */
+	/** Entities a run seeds and checks, by the answer the run itself gives (`untestableEntityReason`). */
+	testable: EntityModel[]
+	/** Every other entity, and why a run cannot test it. */
+	untestable: Array<{ entity: string; reason: string }>
+	/** Entities with an identity and a read. */
 	trackable: EntityModel[]
+	/** Testable entities with a list: the ones query checks can run on. */
 	listable: EntityModel[]
 	/** The document's gaps, less those on an operation a recipe sends: a sign-in call is no entity to tag. */
 	gaps: Gap[]
 	gapsByTag: Map<string, Gap[]>
 	/**
-	 * Untrackable entities, plus one when a root has to be supplied, plus each operation the config's
+	 * Untestable entities, plus one when a root has to be supplied, plus each operation the config's
 	 * principals cannot send. Non-zero exits 1.
 	 */
 	blocking: number
@@ -55,11 +61,15 @@ export function doctorFacts(model: SpecModel, config?: DoctorConfig): DoctorFact
 	const authCreates = config?.authCreates ?? new Set<string>()
 	const entities = sortedEntities(model, authCreates)
 	const gaps = model.gaps.gaps.filter((gap) => !authCreates.has(gap.operationId))
-	const trackable = entities.filter((e) => e.trackable && e.readSurface.length > 0)
+	const untestable = entities.flatMap((entity) => {
+		const reason = untestableEntityReason(entity, model, authCreates)
+		return reason === null ? [] : [{ entity: entity.name, reason }]
+	})
+	const testable = entities.filter((entity) => !untestable.some((row) => row.entity === entity.name))
 	const security = securityFacts(model, config?.credentials)
 	const roots = rootsOf(model, config ?? {})
 	return {
-		blocking: entities.length - trackable.length + (roots.required.length > 0 ? 1 : 0) + security.blocking,
+		blocking: untestable.length + (roots.required.length > 0 ? 1 : 0) + security.blocking,
 		entities,
 		featureGates: model.operations
 			.filter((op) => op.featureGate !== null)
@@ -67,13 +77,15 @@ export function doctorFacts(model: SpecModel, config?: DoctorConfig): DoctorFact
 		gaps,
 		gapsByTag: gapsByTag(gaps),
 		inviting: entities.filter(hasInvite),
-		listable: trackable.filter((e) => e.list !== undefined),
-		trackable,
+		listable: testable.filter((e) => e.list !== undefined),
+		testable,
+		trackable: entities.filter((e) => e.trackable && e.readSurface.length > 0),
 		uniqueConstraints: entities
 			.filter((entity) => entity.unique !== null)
 			.map((entity) => ({ entity: entity.name, unique: entity.unique })),
 		roots,
 		security,
+		untestable,
 		...entityQueryCatalogs(model, config),
 	}
 }

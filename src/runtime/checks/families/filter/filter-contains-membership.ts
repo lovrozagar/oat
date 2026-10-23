@@ -5,7 +5,7 @@ import type { EffectiveFilterField } from "../../../../spec/query/effective.ts"
 import { fieldAllows } from "../../../../spec/query/field-ops.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { idOf } from "../../../world/records.ts"
-import type { CheckContext } from "../../core/context.ts"
+import type { Listed } from "../../core/context.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 import { asTermValue, conv, FOUNDATIONS, pageSize, resolvedCaps, schemaType } from "../../query/capabilities.ts"
@@ -13,7 +13,7 @@ import { collectSet, sameSet } from "../../sets/compare.ts"
 import { knownHits } from "./fields.ts"
 
 /** An array field membership can be asked of, with a known element — one rule for both phases. */
-function containsField(ctx: CheckContext): EffectiveFilterField | undefined {
+function containsField(ctx: Listed): EffectiveFilterField | undefined {
 	return resolvedCaps(ctx).filterable.find(
 		(field) =>
 			(field.type === "array" ||
@@ -52,6 +52,7 @@ export const filterContainsMembership: Check<{
 	},
 	dependsOn: [...FOUNDATIONS, "query.filter-selects-from-whole-set"],
 	id: "filter.contains-membership",
+	lists: true,
 	needs: "an array field that allows `contains` and a known element",
 	subjects: subjectsOf.list,
 	async run(ctx, { element, field, term }): Promise<Outcome> {

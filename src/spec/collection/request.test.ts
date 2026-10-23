@@ -64,3 +64,37 @@ describe("requestContent for an upload", () => {
 		expect(requestContent(login)?.mediaType).toBe("application/x-www-form-urlencoded")
 	})
 })
+
+/** A pet's body as JSON or a form: an object property, an array of scalars and one of objects. */
+const pet = (encoding?: Record<string, unknown>) => ({
+	"application/json": { schema: { type: "object" } },
+	"application/x-www-form-urlencoded": {
+		...(encoding === undefined ? {} : { encoding }),
+		schema: {
+			properties: {
+				category: { properties: { id: { type: "integer" } }, type: "object" },
+				name: { type: "string" },
+				photoUrls: { items: { type: "string" }, type: "array" },
+				tags: { items: { properties: { id: { type: "integer" } }, type: "object" }, type: "array" },
+			},
+			type: "object",
+		},
+	},
+})
+
+describe("requestContent for a form that cannot carry the body", () => {
+	it("sends JSON over a form that cannot carry the body: an object, or an array of objects, spread into keys", () => {
+		expect(requestContent(body(pet()))?.mediaType).toBe("application/json")
+		/* An array of objects alone is enough, and so is an object property alone. */
+		const tagsOnly = { category: { contentType: "application/json" } }
+		expect(requestContent(body(pet(tagsOnly)))?.mediaType).toBe("application/json")
+		const categoryOnly = { tags: { contentType: "application/json" } }
+		expect(requestContent(body(pet(categoryOnly)))?.mediaType).toBe("application/json")
+		/* Each written as JSON, or the object as a deepObject, the form carries it, and is the contract. */
+		const carried = { category: { style: "deepObject" }, tags: { contentType: "application/json" } }
+		expect(requestContent(body(pet(carried)))?.mediaType).toBe("application/x-www-form-urlencoded")
+		/* With no JSON beside it, the form is all there is. */
+		const { "application/json": _json, ...formOnly } = pet()
+		expect(requestContent(body(formOnly))?.mediaType).toBe("application/x-www-form-urlencoded")
+	})
+})

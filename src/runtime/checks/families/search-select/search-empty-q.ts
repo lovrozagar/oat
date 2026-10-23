@@ -19,6 +19,7 @@ export const searchEmptyQ: Check<{
 	},
 	dependsOn: ["pagination.page-walk-covers-set", "search.q-narrows-result"],
 	id: "search.empty-q",
+	lists: true,
 	needs: "`searchEmpty` declared",
 	subjects: subjectsOf.list,
 	async run(ctx, { policy }): Promise<Outcome> {

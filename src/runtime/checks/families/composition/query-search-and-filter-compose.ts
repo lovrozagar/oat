@@ -40,6 +40,7 @@ export const searchAndFilterCompose: Check<Subset & { token: string }> = defineC
 		"pagination.page-walk-covers-set",
 	],
 	id: "query.search-and-filter-compose",
+	lists: true,
 	needs: "a filterable field, a free-text search parameter, and more than two records",
 	subjects: subjectsOf.list,
 	async run(ctx, { field, term, token }): Promise<Outcome> {

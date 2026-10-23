@@ -6,7 +6,8 @@ import { fillPath } from "../../../fill-path.ts"
 import { ASSERTED, type Outcome, standDown } from "../../../finding.ts"
 import { listedIds } from "../../../proven-id.ts"
 import { createdRecordOf } from "../../../created-id.ts"
-import type { CheckContext, WriteContext } from "../../core/context.ts"
+import type { Client } from "../../../../client/client.ts"
+import type { CheckContext, Listed } from "../../core/context.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { encodeOpBody, requestSchemaOf, validBody } from "../../payloads/body.ts"
 import { standDownForFeatureGate } from "../../planning/stand-down.ts"
@@ -48,6 +49,7 @@ export const idempotentReplay: Check<{
 	},
 	dependsOn: ["pagination.page-walk-covers-set", "list.read-after-write", "create.persists-submitted-fields"],
 	id: "idempotency.replay-does-not-duplicate",
+	lists: true,
 	mutates: true,
 	needs: "a create operation declaring an idempotency-key header",
 	subjects: subjectsOf.create,
@@ -89,7 +91,7 @@ export const idempotentReplay: Check<{
 
 /** One create and its replay under the same key, as sent and answered. */
 interface Replay {
-	ctx: WriteContext
+	ctx: Listed<Client>
 	check: string
 	header: string
 	key: string

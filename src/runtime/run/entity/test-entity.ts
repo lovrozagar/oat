@@ -14,20 +14,23 @@ import type { EntityRun } from "./state.ts"
 
 /**
  * Tests one entity: seeds its world, gives every principal its scope, resolves what its list can
- * query, and runs its checks. An entity with no list is tested by its root read or as the caller.
+ * query, and runs its checks. An entity with no list is tested by its root read, as the caller, or,
+ * with a create, through the records its creates return.
  */
 export async function testEntity(ctx: RunContext, entity: EntityModel): Promise<void> {
 	const listOp = ctx.model.byOperationId.get(entity.list ?? "")
 	if (listOp === undefined) {
 		if (rootReadIds(entity).length > 0) return rootRead(ctx, entity)
 		if (entityIsSelf(entity)) return selfIdentity(ctx, entity)
-		return
 	}
-	if (ctx.network.gate.exhausted) return
+	/* With no list, each record its creates return is found again by its item read. */
+	const collectionOp =
+		listOp ?? (entity.read === undefined ? undefined : ctx.model.byOperationId.get(entity.create ?? ""))
+	if (collectionOp === undefined || ctx.network.gate.exhausted) return
 	/* No fallback for a list route itself: every other check on this entity is reached through
 	 * it, so its exclusion is the whole entity's, not one operation's. */
 	if (ctx.exclusion.excludeOp(entity, listOp)) return
-	const run = entityRun(ctx, entity, listOp)
+	const run = entityRun(ctx, entity, { collectionOp, listOp })
 	ctx.progress.check = undefined
 	ctx.progress.tick({
 		entity: entity.name,
@@ -44,8 +47,14 @@ export async function testEntity(ctx: RunContext, entity: EntityModel): Promise<
 	await runChecks(run, context)
 }
 
+/** The routes an entity's records are listed by, if any, and live under. */
+export interface CollectionRoutes {
+	listOp: OperationModel | undefined
+	collectionOp: OperationModel
+}
+
 /** One entity under test, before its seeding: its routes, its targets, and its own scratch state. */
-export function entityRun(ctx: RunContext, entity: EntityModel, listOp: OperationModel): EntityRun {
+export function entityRun(ctx: RunContext, entity: EntityModel, { collectionOp, listOp }: CollectionRoutes): EntityRun {
 	const { model, scope, findings, principals, state } = ctx
 	const createOp = model.byOperationId.get(entity.create ?? "")
 	/* Targets this entity's checks can grade. Seeding findings land on them: under --ops a seed
@@ -59,6 +68,7 @@ export function entityRun(ctx: RunContext, entity: EntityModel, listOp: Operatio
 	const taken = takenOf(state, entity.name)
 	return {
 		ancestors: { creating: new Map(), made: new Map() },
+		collectionOp,
 		createOp,
 		ctx,
 		entity,

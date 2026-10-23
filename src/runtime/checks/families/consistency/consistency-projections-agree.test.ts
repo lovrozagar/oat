@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { CheckContext } from "../../core/context.ts"
+import type { Listed } from "../../core/context.ts"
 import type { Record_ } from "../../../world/records.ts"
 import { type Answer, contextFor, modelOf, op, type Responder } from "../../__fixtures__/harness.ts"
 import { projectionsAgree } from "./consistency-projections-agree.ts"
@@ -11,7 +11,7 @@ const rows = (): Record_[] => [
 ]
 
 /** A notes context whose first record is note n1, served by `respond`. */
-function stage(respond: Responder, fields: Partial<CheckContext> = {}, doc = notesDoc()) {
+function stage(respond: Responder, fields: Partial<Listed> = {}, doc = notesDoc()) {
 	const model = modelOf(doc)
 	const listOp = op(model, "notes.list")
 	return contextFor(model, "notes.list", {
@@ -33,7 +33,7 @@ async function drive(staged: ReturnType<typeof stage>) {
 	return projectionsAgree.run(staged.ctx, planned.value)
 }
 
-const planWith = (fields: Partial<CheckContext>) => projectionsAgree.plan(stage(notesBackend(rows()), fields).ctx)
+const planWith = (fields: Partial<Listed>) => projectionsAgree.plan(stage(notesBackend(rows()), fields).ctx)
 
 /** The correct backend, except where `override` answers first. */
 const over =

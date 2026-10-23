@@ -5,6 +5,7 @@ import { JOB } from "../model/job.ts"
 import { ROW } from "../model/row.ts"
 import { shapedEntities } from "../model/shaped.ts"
 import { TABLE } from "../model/table.ts"
+import { WEBHOOK } from "../model/webhook.ts"
 import { buildSpec, buildUntaggedSpec } from "./build.ts"
 import type { Json } from "./types.ts"
 
@@ -23,6 +24,18 @@ function keysDeep(node: unknown, found = new Set<string>()): Set<string> {
 describe("buildSpec", () => {
 	const spec = buildSpec()
 
+	it("gives an entity with no list a create alone at its collection, and no listing to invalidate", () => {
+		const paths = spec["paths"] as Record<string, Record<string, Json>>
+		expect(Object.keys(paths[WEBHOOK.collectionPath] ?? {})).toEqual(["post"])
+		const invalidated = [
+			paths[WEBHOOK.collectionPath]?.["post"],
+			...Object.values(paths[WEBHOOK.itemPath] ?? {}),
+		].flatMap((operation) => (operation?.["x-invalidate"] as string[] | undefined) ?? [])
+		expect(invalidated.length).toBeGreaterThan(0)
+		expect(invalidated).not.toContain(`GET ${WEBHOOK.collectionPath}`)
+		expect(Object.keys(paths[TABLE.collectionPath] ?? {})).toEqual(["get", "post"])
+	})
+
 	it("is the PostgREST document over the default entities when called bare", () => {
 		expect(spec).toEqual(buildSpec(POSTGREST, { entities: ENTITIES, shape: {} }))
 		/* 3.2: the search route is a QUERY operation, a Path Item field since OAS 3.2. */
@@ -31,8 +44,10 @@ describe("buildSpec", () => {
 
 	it("routes every entity, then the caller, public, invite, job, auth, API key, styles and search routes", () => {
 		const routes = Object.keys(spec["paths"] as Json)
-		expect(routes.slice(0, 6)).toEqual([TABLE, ROW, JOB].flatMap((entity) => [entity.collectionPath, entity.itemPath]))
-		expect(routes.slice(6)).toEqual([
+		expect(routes.slice(0, 8)).toEqual(
+			[TABLE, ROW, JOB, WEBHOOK].flatMap((entity) => [entity.collectionPath, entity.itemPath]),
+		)
+		expect(routes.slice(8)).toEqual([
 			"/v1/me",
 			"/health",
 			"/v1/notices",

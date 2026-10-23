@@ -1,6 +1,6 @@
 import type { CredentialStore } from "../../../../../credentials/store-types.ts"
 import { type Answer, contextFor, modelOf, type Responder } from "../../../__fixtures__/harness.ts"
-import type { CheckContext } from "../../../core/context.ts"
+import type { Listed } from "../../../core/context.ts"
 import type { OpenApiDocument } from "../../../../../spec/types.ts"
 import { actor } from "./context.ts"
 
@@ -165,7 +165,7 @@ export function credentialsOf(): {
 }
 
 /** A context on note n1 with the invite tag the document declares, as the owner. */
-export function inviteContext(doc: OpenApiDocument, respond: Responder, fields: Partial<CheckContext> = {}) {
+export function inviteContext(doc: OpenApiDocument, respond: Responder, fields: Partial<Listed> = {}) {
 	const model = modelOf(doc)
 	const invites = [...model.entities.values()].find((entity) => entity.invite !== null)
 	return contextFor(model, "listNotes", {

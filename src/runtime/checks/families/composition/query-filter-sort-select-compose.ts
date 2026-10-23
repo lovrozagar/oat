@@ -51,6 +51,7 @@ export const filterSortSelectCompose: Check<
 		"query.filter-selects-from-whole-set",
 	],
 	id: "query.filter-sort-select-compose",
+	lists: true,
 	needs: "a filterable field, a sortable field, a select parameter, and more than two records",
 	subjects: subjectsOf.list,
 	async run(ctx, { extra, field, projection, sortField, term }): Promise<Outcome> {

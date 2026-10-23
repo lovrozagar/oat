@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest"
 import type { EntityModel, OperationModel, SpecModel } from "../../../../spec/graph/types.ts"
 import { ASSERTED } from "../../../finding.ts"
 import { type Answer, contextFor, modelOf, op, type Responder } from "../../__fixtures__/harness.ts"
-import type { CheckContext } from "../../core/context.ts"
+import type { CheckContext, Listed } from "../../core/context.ts"
 import {
 	baseDocument,
 	eachFixture,
@@ -64,7 +64,7 @@ function widgets(action: Answer = { body: {}, status: 200 }, adds = true, more: 
 	})
 }
 
-async function occurred(respond: Responder, ids: string[], fields: Partial<CheckContext> = {}) {
+async function occurred(respond: Responder, ids: string[], fields: Partial<Listed> = {}) {
 	const recordCreated = vi.fn<NonNullable<CheckContext["recordCreated"]>>()
 	const recordUnidentified = vi.fn<NonNullable<CheckContext["recordUnidentified"]>>()
 	const effectOps = ids.map((id): OperationModel => op(model, id))

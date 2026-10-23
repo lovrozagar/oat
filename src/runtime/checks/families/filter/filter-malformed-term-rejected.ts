@@ -41,6 +41,7 @@ export const filterMalformedTermRejected: Check<{
 	},
 	dependsOn: ["list.read-after-write", "filter.unknown-field-rejected", "error.malformed-filter-not-5xx"],
 	id: "filter.malformed-term-rejected",
+	lists: true,
 	needs: "a declared filter grammar whose terms carry a conjunction or an operator",
 	subjects: subjectsOf.list,
 	async run(ctx, { control, field, malformed }): Promise<Outcome> {

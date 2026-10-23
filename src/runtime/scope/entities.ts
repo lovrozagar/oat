@@ -94,7 +94,27 @@ export function authOwnedReason(
 	return null
 }
 
-/** Why an entity cannot be seeded and checked, or `null` when it can. */
+/**
+ * What a cohort of `entity` lacks: none with a list and a create whose records oat can identify,
+ * or, with no list, a create oat may send, an item read and an identity. With no list the creates
+ * are the cohort, each record found again by its item read.
+ */
+function cohortGaps(entity: EntityModel, model: SpecModel, authCreates: ReadonlySet<string>): string[] {
+	const unidentified = entity.trackable ? [] : ["records oat can identify after create"]
+	/* A list with no create is a cohort already (`testableOtherwise`): this one has neither. */
+	if (entity.create === undefined) return ["list operation", "create operation"]
+	if (entity.list !== undefined) return unidentified
+	/* An entity's create is one of the model's operations. */
+	if (createIsAuthProvisioned(model.byOperationId.get(entity.create) as OperationModel, authCreates)) {
+		return ["list operation", "create other than the sign-up the auth flow sends"]
+	}
+	return entity.read === undefined ? ["list operation", "read operation", ...unidentified] : unidentified
+}
+
+/**
+ * Why an entity cannot be seeded and checked, or `null` when it can. The one answer a run, `doctor`
+ * and `plan` all give.
+ */
 export function untestableEntityReason(
 	entity: EntityModel,
 	model: SpecModel,
@@ -103,13 +123,7 @@ export function untestableEntityReason(
 	const owned = authOwnedReason(entity, model, authCreates)
 	if (owned !== null) return owned
 	if (testableOtherwise(entity, model)) return null
-	const missing = [
-		...(entity.list === undefined ? ["list operation"] : []),
-		...(entity.create === undefined ? ["create operation"] : []),
-		...(entity.list !== undefined && entity.create !== undefined && !entity.trackable
-			? ["records oat can identify after create"]
-			: []),
-	]
+	const missing = cohortGaps(entity, model, authCreates)
 	return missing.length === 0 ? null : `"${entity.name}" has no ${missing.join(" and no ")}`
 }
 

@@ -27,6 +27,7 @@ export const selectRequestedFieldsPresent: Check<{
 	},
 	dependsOn: ["select.projection-honoured"],
 	id: "select.requested-fields-present",
+	lists: true,
 	needs: "a select parameter and at least one selectable field",
 	subjects: subjectsOf.list,
 	async run(ctx, { projection, requested }): Promise<Outcome> {

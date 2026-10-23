@@ -44,6 +44,7 @@ export const filterOrderedTriplePartitions: Check<{
 		"filter.numeric-comparison-is-numeric",
 	],
 	id: "filter.ordered-triple-partitions",
+	lists: true,
 	needs: "an ordered field that allows `lt`, `eq`, and `gt`",
 	subjects: subjectsOf.list,
 	async run(ctx, { eq, field, gt, lt }): Promise<Outcome> {

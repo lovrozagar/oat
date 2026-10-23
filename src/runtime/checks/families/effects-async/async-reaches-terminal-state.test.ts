@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import type { CheckContext } from "../../core/context.ts"
+import type { CheckContext, Listed } from "../../core/context.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
 import { ASSERTED } from "../../../finding.ts"
 import { type Answer, contextFor, modelOf, op, type Responder } from "../../__fixtures__/harness.ts"
@@ -41,11 +41,7 @@ function polls(...answers: ReturnType<Handler>[]): Handler {
 	return () => answers[Math.min(at++, answers.length - 1)]
 }
 
-async function watched(
-	respond: Responder,
-	asyncOps: OperationModel[] = [startJob],
-	fields: Partial<CheckContext> = {},
-) {
+async function watched(respond: Responder, asyncOps: OperationModel[] = [startJob], fields: Partial<Listed> = {}) {
 	const recordCreated = vi.fn<NonNullable<CheckContext["recordCreated"]>>()
 	const recordUnidentified = vi.fn<NonNullable<CheckContext["recordUnidentified"]>>()
 	const stage = contextFor(model, "listWidgets", {

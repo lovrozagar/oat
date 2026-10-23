@@ -32,7 +32,7 @@ describe("commandPlan", () => {
 	it("leaves out the entity whose operations mint and revoke the config's key, as a run does", async () => {
 		const writer = bufferWriter()
 		expect(await commandPlan(writer, { config: referenceConfig() })).toBe(0)
-		expect(writer.text()).toMatch(/ operations · 6 entities\n/)
+		expect(writer.text()).toMatch(/ operations · 7 entities\n/)
 		expect(writer.text()).not.toContain("api-key")
 		const machine = bufferWriter()
 		await commandPlan(machine, { config: referenceConfig(), json: true })

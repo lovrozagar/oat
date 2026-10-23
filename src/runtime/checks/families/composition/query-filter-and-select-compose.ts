@@ -41,6 +41,7 @@ export const filterAndSelectCompose: Check<Subset & { extra: string; projection:
 			"pagination.page-walk-covers-set",
 		],
 		id: "query.filter-and-select-compose",
+		lists: true,
 		needs: "a filterable field, a select parameter, and more than two records",
 		subjects: subjectsOf.list,
 		async run(ctx, { extra, field, projection, term }): Promise<Outcome> {

@@ -25,6 +25,7 @@ export const filterAndComposesAsIntersection: Check<Compound> = defineCheck<Comp
 		"pagination.page-walk-covers-set",
 	],
 	id: "filter.and-composes-as-intersection",
+	lists: true,
 	needs: "two filterable fields and a filter parameter or grammar supporting eq",
 	subjects: subjectsOf.list,
 	async run(ctx, { combined, fieldA, fieldB, termA, termB, valueA, valueB }): Promise<Outcome> {

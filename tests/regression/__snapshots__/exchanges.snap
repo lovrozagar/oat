@@ -309,5 +309,40 @@
     "PATCH /v1/projects/proj_alpha/tables/table_ID [Authorization,content-type] → 409",
     "PATCH /v1/projects/proj_alpha/tables/table_ID [content-type] → 401",
     "PATCH /v1/projects/proj_beta/tables/table_ID [Authorization,content-type] → 404"
+  ],
+  "webhook.create": [
+    "POST /v1/projects/proj_alpha/webhooks [Authorization,content-type] → 201",
+    "POST /v1/projects/proj_alpha/webhooks [Authorization,content-type] → 400",
+    "POST /v1/projects/proj_alpha/webhooks [Authorization,content-type] → 403",
+    "POST /v1/projects/proj_alpha/webhooks [Authorization,content-type] → 415"
+  ],
+  "webhook.delete": [
+    "DELETE /v1/projects/proj_alpha/webhooks/oat-absent-NONCE [Authorization] → 404",
+    "DELETE /v1/projects/proj_alpha/webhooks/webhook_ID [Authorization] → 200",
+    "DELETE /v1/projects/proj_alpha/webhooks/webhook_ID [Authorization] → 401",
+    "DELETE /v1/projects/proj_alpha/webhooks/webhook_ID [Authorization] → 403",
+    "DELETE /v1/projects/proj_alpha/webhooks/webhook_ID [Authorization] → 404",
+    "DELETE /v1/projects/proj_alpha/webhooks/webhook_ID [] → 401",
+    "DELETE /v1/projects/proj_beta/webhooks/webhook_ID [Authorization] → 404"
+  ],
+  "webhook.get": [
+    "GET /v1/projects/proj_alpha/webhooks/oat-absent-NONCE [Authorization] → 404",
+    "GET /v1/projects/proj_alpha/webhooks/webhook_ID [Authorization] → 200",
+    "GET /v1/projects/proj_alpha/webhooks/webhook_ID [Authorization] → 401",
+    "GET /v1/projects/proj_alpha/webhooks/webhook_ID [Authorization] → 403",
+    "GET /v1/projects/proj_alpha/webhooks/webhook_ID [Authorization] → 404",
+    "GET /v1/projects/proj_alpha/webhooks/webhook_ID [] → 401",
+    "GET /v1/projects/proj_beta/webhooks/oat-absent-NONCE [Authorization] → 404",
+    "GET /v1/projects/proj_beta/webhooks/webhook_ID [Authorization] → 404"
+  ],
+  "webhook.update": [
+    "PATCH /v1/projects/proj_alpha/webhooks/webhook_ID [Authorization,If-Match,content-type] → 200",
+    "PATCH /v1/projects/proj_alpha/webhooks/webhook_ID [Authorization,If-Match,content-type] → 412",
+    "PATCH /v1/projects/proj_alpha/webhooks/webhook_ID [Authorization,content-type] → 200",
+    "PATCH /v1/projects/proj_alpha/webhooks/webhook_ID [Authorization,content-type] → 400",
+    "PATCH /v1/projects/proj_alpha/webhooks/webhook_ID [Authorization,content-type] → 401",
+    "PATCH /v1/projects/proj_alpha/webhooks/webhook_ID [Authorization,content-type] → 403",
+    "PATCH /v1/projects/proj_alpha/webhooks/webhook_ID [content-type] → 401",
+    "PATCH /v1/projects/proj_beta/webhooks/webhook_ID [Authorization,content-type] → 404"
   ]
 }

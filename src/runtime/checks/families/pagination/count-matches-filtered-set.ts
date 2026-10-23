@@ -25,6 +25,7 @@ export const countMatchesWalk: Check<{ countTerm: Record<string, string> }> = de
 	 * filtering itself is known to work. */
 	dependsOn: ["query.filter-selects-from-whole-set", "list.read-after-write", "filter.equality-selects-exactly-one"],
 	id: "count.matches-filtered-set",
+	lists: true,
 	needs: "a total-count field and a `filter` parameter",
 	subjects: subjectsOf.list,
 	async run(ctx, { countTerm }): Promise<Outcome> {

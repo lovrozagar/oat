@@ -27,6 +27,7 @@ export const selectNestedHonoured: Check<{
 	},
 	dependsOn: ["select.projection-honoured"],
 	id: "select.nested-honoured",
+	lists: true,
 	needs: "select.nested and a named relation",
 	subjects: subjectsOf.list,
 	async run(ctx, { first, projection, relation }): Promise<Outcome> {

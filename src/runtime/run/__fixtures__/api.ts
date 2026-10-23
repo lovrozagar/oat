@@ -347,7 +347,7 @@ export function entityRunOf(ctx: RunContext, name = "note"): EntityRun {
 	const entity = ctx.model.entities.get(name)
 	const listOp = ctx.model.byOperationId.get(entity?.list ?? "")
 	if (entity === undefined || listOp === undefined) throw new Error(`the test document has no listed ${name}`)
-	return entityRun(ctx, entity, listOp)
+	return entityRun(ctx, entity, { collectionOp: listOp, listOp })
 }
 
 /** Ledgers each id as a note `owner` (default: the first principal) created, as the lanes would. */

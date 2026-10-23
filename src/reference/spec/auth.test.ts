@@ -76,7 +76,20 @@ describe("the API key operations", () => {
 		expect(statuses("/v1/api-keys/{id}", "get")).toEqual(["200", "401", "404"])
 		expect(bodyOf("/v1/api-keys", "post")).toMatchObject({
 			properties: {
-				scopes: { items: { enum: ["table:read", "table:write", "row:read", "row:write", "job:read", "job:write"] } },
+				scopes: {
+					items: {
+						enum: [
+							"table:read",
+							"table:write",
+							"row:read",
+							"row:write",
+							"job:read",
+							"job:write",
+							"webhook:read",
+							"webhook:write",
+						],
+					},
+				},
 			},
 		})
 	})

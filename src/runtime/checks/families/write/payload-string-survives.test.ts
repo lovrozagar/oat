@@ -2,14 +2,14 @@ import { describe, expect, it } from "vitest"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
 import { REQUIRED_IDS, STRING_PAYLOADS } from "../../../payloads.ts"
 import { contextFor, modelOf, op, type Responder } from "../../__fixtures__/harness.ts"
-import type { CheckContext } from "../../core/context.ts"
+import type { Listed } from "../../core/context.ts"
 import { runCheck } from "../../core/run.ts"
 import { ASCII_PAYLOAD_PROBE, writePathOf } from "./payload-cases.ts"
 import { PayloadClaims } from "./payload-claims.ts"
 import { stringPayloadSurvives } from "./payload-string-survives.ts"
 import { overriding, type Rows, widgetApi, widgetDoc, type WidgetDocOptions } from "./__fixtures__/widget-api.ts"
 
-function stage(respond: Responder, options: WidgetDocOptions = {}, fields: Partial<CheckContext> = {}) {
+function stage(respond: Responder, options: WidgetDocOptions = {}, fields: Partial<Listed> = {}) {
 	const model = modelOf(widgetDoc(options))
 	return contextFor(model, "listWidgets", {
 		respond,

@@ -17,6 +17,7 @@ export const countIsConsistentWithPage: Check = defineCheck({
 	plan: (ctx) => when(ctx.records.length > 0),
 	dependsOn: ["list.read-after-write"],
 	id: "count.consistent-with-returned-page",
+	lists: true,
 	needs: "a total-count field in the list envelope",
 	subjects: subjectsOf.list,
 	async run(ctx): Promise<Outcome> {

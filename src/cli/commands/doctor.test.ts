@@ -92,7 +92,7 @@ describe("commandDoctor and the operations a recipe names", () => {
 		await commandDoctor(writer, { config: referenceConfig(), json: true })
 		const report = JSON.parse(writer.text()) as { blocking: number; entities: number; trackableEntities: number }
 		/* The reference config's principals supply the project_id root, so nothing blocks. */
-		expect([report.entities, report.trackableEntities, report.blocking]).toEqual([6, 6, 0])
+		expect([report.entities, report.trackableEntities, report.blocking]).toEqual([7, 7, 0])
 		const text = bufferWriter()
 		await commandDoctor(text, { config: referenceConfig() })
 		expect(text.text()).not.toContain("api-key")

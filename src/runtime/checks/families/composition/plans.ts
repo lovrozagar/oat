@@ -1,7 +1,7 @@
 import { filterTerm } from "../../../../spec/conventions/filter.ts"
 import { selectTerm } from "../../../../spec/conventions/select.ts"
 import { idOf, type Record_ } from "../../../world/records.ts"
-import type { CheckContext } from "../../core/context.ts"
+import type { CheckContext, Listed } from "../../core/context.ts"
 import { cannot, type Plan, ready } from "../../core/plan.ts"
 import { conv } from "../../query/capabilities.ts"
 import { cohortFact } from "../../sets/compare.ts"
@@ -20,7 +20,7 @@ export interface Subset {
  * as a change in membership. A value matching everything would make the filtered and unfiltered
  * sets identical, and a composition check would pass whatever the backend did.
  */
-export function subsetPlan(ctx: CheckContext): Plan<Subset> {
+export function subsetPlan(ctx: Listed): Plan<Subset> {
 	const picked = properSubsetFilter(ctx)
 	if (picked === null) return cannot("a filterable value shared by several cohort records but not all of them")
 	const term = filterTerm(conv(ctx), { field: picked.field, op: "eq", value: String(picked.target[picked.field]) })
@@ -30,7 +30,7 @@ export function subsetPlan(ctx: CheckContext): Plan<Subset> {
 }
 
 /** A proper-subset filter and a search token that overlap without nesting. */
-export function overlapPlan(ctx: CheckContext): Plan<Subset & { token: string }> {
+export function overlapPlan(ctx: Listed): Plan<Subset & { token: string }> {
 	const picked = overlappingFilterAndSearch(ctx)
 	if (picked === null) return cannot("a filterable value and a search token that overlap without nesting")
 	const term = filterTerm(conv(ctx), { field: picked.field, op: "eq", value: String(picked.target[picked.field]) })
@@ -40,20 +40,20 @@ export function overlapPlan(ctx: CheckContext): Plan<Subset & { token: string }>
 }
 
 /** A sparse fieldset of the identity and one other selectable field. */
-export function projectionBeside(ctx: CheckContext): { extra: string; projection: Record<string, string> } | null {
+export function projectionBeside(ctx: Listed): { extra: string; projection: Record<string, string> } | null {
 	const extra = (ctx.query?.selectable ?? []).find((name) => name !== ctx.identity) ?? ctx.identity
 	const projection = selectTerm(conv(ctx), [ctx.identity, extra], ctx.entityName)
 	return projection === null ? null : { extra, projection }
 }
 
 /** `projectionBeside` as a plan: it stands down when the select grammar cannot write a fieldset. */
-export function projectionPlan(ctx: CheckContext): Plan<{ extra: string; projection: Record<string, string> }> {
+export function projectionPlan(ctx: Listed): Plan<{ extra: string; projection: Record<string, string> }> {
 	const projected = projectionBeside(ctx)
 	return projected === null ? cannot("a select grammar that can express a sparse fieldset") : ready(projected)
 }
 
 /** The sparse fieldset `requested` as a plan: it stands down, unexplained, when no select can write it. */
-export function selectionPlan(ctx: CheckContext, requested: readonly string[]): Plan<Record<string, string>> {
+export function selectionPlan(ctx: Listed, requested: readonly string[]): Plan<Record<string, string>> {
 	const projection = selectTerm(conv(ctx), requested, ctx.entityName)
 	return projection === null ? cannot() : ready(projection)
 }
@@ -64,7 +64,7 @@ export function sortFieldBeside(ctx: CheckContext, field: string): string {
 }
 
 /** A filterable field whose value selects a proper subset of the cohort. */
-function properSubsetFilter(ctx: CheckContext): { field: string; target: Record_ } | null {
+function properSubsetFilter(ctx: Listed): { field: string; target: Record_ } | null {
 	return cohortFact(ctx, "proper-subset", () => findProperSubset(ctx))
 }
 
@@ -86,7 +86,7 @@ function findProperSubset(ctx: CheckContext): { field: string; target: Record_ }
  * A filter value and a search token that overlap without nesting, so dropping either axis
  * changes the intersection.
  */
-function overlappingFilterAndSearch(ctx: CheckContext): { field: string; target: Record_; token: string } | null {
+function overlappingFilterAndSearch(ctx: Listed): { field: string; target: Record_; token: string } | null {
 	return cohortFact(ctx, "overlap", () => findOverlap(ctx))
 }
 

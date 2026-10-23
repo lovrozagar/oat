@@ -10,6 +10,7 @@ export const limitBoundsPageSize: Check = defineCheck({
 	plan: (ctx) => when(conv(ctx).limit !== undefined && ctx.records.length > 2),
 	dependsOn: ["list.read-after-write"],
 	id: "pagination.limit-bounds-page-size",
+	lists: true,
 	needs: "a page-size query parameter named `limit`",
 	subjects: subjectsOf.list,
 	async run(ctx): Promise<Outcome> {

@@ -7,7 +7,7 @@
         "was": 0
       },
       "reason": {
-        "now": "6 root-cause findings",
+        "now": "8 root-cause findings",
         "was": "no defects found in what was graded"
       },
       "result": {
@@ -91,6 +91,37 @@
             "entity": "row",
             "findings": 1,
             "operationId": "row.update",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "auth.role-enforced"
+              ],
+              "gaps": [
+                "payload.string-survives"
+              ],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic-on-writes",
+                "auth.scope-enforced",
+                "concurrency.if-match-enforced",
+                "concurrency.no-lost-update",
+                "patch.immutable-field-rejected",
+                "patch.minimality",
+                "request.invalid-body-refused",
+                "response.status-is-documented",
+                "schema.problem-json-shape",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "webhook",
+            "findings": 1,
+            "operationId": "webhook.update",
             "reason": null,
             "status": "failed"
           },
@@ -194,6 +225,30 @@
             "entity": "row",
             "findings": 1,
             "operationId": "row.delete",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "auth.role-enforced"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic-on-writes",
+                "auth.scope-enforced",
+                "delete.absent-record-returns-404",
+                "response.status-is-documented",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "webhook",
+            "findings": 1,
+            "operationId": "webhook.delete",
             "reason": null,
             "status": "failed"
           },
@@ -299,6 +354,40 @@
           {
             "checks": {
               "failed": [],
+              "gaps": [
+                "payload.string-survives"
+              ],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
+                "concurrency.if-match-enforced",
+                "concurrency.no-lost-update",
+                "patch.immutable-field-rejected",
+                "patch.minimality",
+                "request.invalid-body-refused",
+                "response.status-is-documented",
+                "schema.problem-json-shape",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "webhook",
+            "findings": 0,
+            "operationId": "webhook.update",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
               "gaps": [],
               "inconclusive": [],
               "passed": [
@@ -436,6 +525,33 @@
             "sufficiency": "verified",
             "tier": "verified",
             "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
+                "delete.absent-record-returns-404",
+                "response.status-is-documented",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "webhook",
+            "findings": 0,
+            "operationId": "webhook.delete",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
           }
         ]
       }
@@ -466,12 +582,18 @@
             "id": "table_ID",
             "principal": "alpha_viewer",
             "removed": true
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha_viewer",
+            "removed": true
           }
         ]
       },
       "removed": {
-        "now": 95,
-        "was": 88
+        "now": 122,
+        "was": 113
       }
     },
     "findings": {
@@ -577,12 +699,46 @@
           ],
           "summary": "a read-only principal's write is accepted",
           "verdict": "SECURITY"
+        },
+        {
+          "check": "auth.role-enforced",
+          "detail": "alpha_viewer, marked readOnly in tenant proj_alpha, wrote to a record this run created, and webhook.delete answered 200. Roles must be enforced on writes.",
+          "entity": "webhook.delete",
+          "operations": [
+            "webhook.delete"
+          ],
+          "evidence": [
+            {
+              "method": "DELETE",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/webhooks/webhook_ID"
+            }
+          ],
+          "summary": "a read-only principal's write is accepted",
+          "verdict": "SECURITY"
+        },
+        {
+          "check": "auth.role-enforced",
+          "detail": "alpha_viewer, marked readOnly in tenant proj_alpha, wrote to a record this run created, and webhook.update answered 200. Roles must be enforced on writes.",
+          "entity": "webhook.update",
+          "operations": [
+            "webhook.update"
+          ],
+          "evidence": [
+            {
+              "method": "PATCH",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/webhooks/webhook_ID"
+            }
+          ],
+          "summary": "a read-only principal's write is accepted",
+          "verdict": "SECURITY"
         }
       ]
     },
     "summary": {
       "SECURITY": {
-        "now": 6,
+        "now": 8,
         "was": null
       }
     }

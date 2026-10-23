@@ -1837,8 +1837,8 @@
         ]
       },
       "removed": {
-        "now": 30,
-        "was": 88
+        "now": 55,
+        "was": 113
       },
       "unidentified": {
         "added": [
@@ -2128,8 +2128,8 @@
     },
     "summary": {
       "COVERAGE_GAP": {
-        "now": 1,
-        "was": 2
+        "now": 2,
+        "was": 3
       },
       "BACKEND_BUG": {
         "now": 1,
@@ -2151,581 +2151,581 @@
           {
             "check": "async.reaches-terminal-state",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "async.receipt-identifies-the-job",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "auth.alternative-accepted",
             "ran": 0,
-            "skipped": 38
+            "skipped": 41
           },
           {
             "check": "auth.destructive-spares-the-caller",
             "ran": 2,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "auth.invalid-credential-refused",
             "ran": 0,
-            "skipped": 32
+            "skipped": 33
           },
           {
             "check": "auth.invite-grants-then-revokes",
             "ran": 2,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "auth.missing-credential-refused",
             "ran": 0,
-            "skipped": 32
+            "skipped": 33
           },
           {
             "check": "auth.rank-is-monotonic",
-            "ran": 4,
+            "ran": 5,
             "skipped": 1
           },
           {
             "check": "auth.rank-is-monotonic-on-writes",
-            "ran": 4,
+            "ran": 5,
             "skipped": 1
           },
           {
             "check": "auth.role-enforced",
             "ran": 0,
-            "skipped": 39
+            "skipped": 41
           },
           {
             "check": "auth.scope-enforced",
             "ran": 0,
-            "skipped": 36
+            "skipped": 37
           },
           {
             "check": "auth.self-is-the-caller",
             "ran": 2,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "auth.wrong-scheme-refused",
             "ran": 0,
-            "skipped": 37
+            "skipped": 41
           },
           {
             "check": "concurrency.if-match-enforced",
-            "ran": 4,
+            "ran": 5,
             "skipped": 1
           },
           {
             "check": "concurrency.no-lost-update",
-            "ran": 4,
+            "ran": 5,
             "skipped": 1
           },
           {
             "check": "consistency.projections-agree",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "count.consistent-with-returned-page",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "count.matches-filtered-set",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "create.keeps-submitted-identity",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "create.persists-submitted-fields",
-            "ran": 3,
+            "ran": 4,
             "skipped": 2
           },
           {
             "check": "create.status-matches-document",
-            "ran": 4,
+            "ran": 5,
             "skipped": 1
           },
           {
             "check": "create.unique-conflict-rejected",
             "ran": 2,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "delete.absent-record-returns-404",
-            "ran": 4,
+            "ran": 5,
             "skipped": 1
           },
           {
             "check": "effects.declared-effect-occurs",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "effects.side-effect-arrives",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "error.malformed-filter-not-5xx",
             "ran": 4,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "filter.alias-matches-canonical",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "filter.and-composes-as-intersection",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "filter.condition-cap-rejected",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "filter.contains-membership",
             "ran": 2,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.empty-in",
             "ran": 2,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.equality-selects-exactly-one",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "filter.gte-is-gt-or-eq",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "filter.ilike-is-case-insensitive",
             "ran": 2,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.illegal-op-rejected",
             "ran": 4,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "filter.in-is-union-of-eq",
             "ran": 2,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.in-over-limit-rejected",
             "ran": 2,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.is-null-selects-nulls",
             "ran": 2,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.like-metacharacters-escaped",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "filter.lte-is-lt-or-eq",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "filter.malformed-term-rejected",
             "ran": 4,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "filter.negation-partitions-the-set",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "filter.nested-and-or-distributes",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "filter.nin-complements-in",
             "ran": 2,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.numeric-comparison-is-numeric",
             "ran": 2,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.or-composes-as-union",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "filter.ordered-triple-partitions",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "filter.unknown-field-rejected",
             "ran": 4,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "filter.zero-match-returns-none",
             "ran": 4,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "idempotency.replay-does-not-duplicate",
             "ran": 4,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "invalidation.declared-route-changes",
             "ran": 2,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "list.item-matches-listed-row",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "list.read-after-write",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "pagination.bounds-handled",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "pagination.cursor-agrees-with-page",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "pagination.has-more-is-accurate",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "pagination.limit-bounds-enforced",
             "ran": 4,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "pagination.limit-bounds-page-size",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "pagination.limit-respects-documented-max",
             "ran": 2,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "pagination.page-walk-covers-set",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "patch.immutable-field-rejected",
-            "ran": 4,
+            "ran": 5,
             "skipped": 1
           },
           {
             "check": "patch.minimality",
-            "ran": 4,
+            "ran": 5,
             "skipped": 1
           },
           {
             "check": "payload.string-survives",
-            "ran": 4,
+            "ran": 5,
             "skipped": 1
           },
           {
             "check": "query.axes-compose",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.filter-and-select-compose",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.filter-search-select-compose",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.filter-search-sort-compose",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.filter-search-sort-select-compose",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.filter-selects-from-whole-set",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.filter-sort-select-compose",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.search-and-filter-compose",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.search-and-select-compose",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.search-and-sort-compose",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.sort-and-select-compose",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.unknown-parameter-consistent",
             "ran": 4,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "read.matches-caller-root",
             "ran": 2,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "request.invalid-body-refused",
             "ran": 0,
-            "skipped": 39
+            "skipped": 42
           },
           {
             "check": "response.contract-call",
             "ran": 2,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "response.no-server-error",
             "ran": 2,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "response.public-get-returns-success",
             "ran": 2,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "schema.success-response-matches-document",
-            "ran": 4,
+            "ran": 5,
             "skipped": 1
           },
           {
             "check": "search.case-insensitive",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "search.empty-q",
             "ran": 4,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "search.mode-accepted",
             "ran": 4,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "search.q-narrows-result",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "search.tokens-and",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "select.nested-honoured",
             "ran": 2,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "select.projection-honoured",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "select.requested-fields-present",
             "ran": 4,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "select.unknown-field-rejected",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "softdelete.absent-from-default-list",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "sort.default-order-applied",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "sort.invalid-direction-rejected",
             "ran": 2,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "sort.multi-key-tiebreak",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "sort.nulls-first-last",
             "ran": 2,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "sort.numeric-order-is-numeric",
             "ran": 2,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "sort.order-is-applied",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "sort.reverse-symmetry",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "sort.stable-tiebreak",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "sort.unknown-field-rejected",
             "ran": 4,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "spec.declared-filterable-is-filterable",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "spec.declared-filterable-ops-accepted",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "spec.declared-rate-limit-is-honoured",
             "ran": 4,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "spec.declared-selectable-is-selectable",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "spec.declared-sortable-is-sortable",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "spec.declared-sortable-nulls-accepted",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "tenant.denial-does-not-reveal-existence",
-            "ran": 3,
+            "ran": 4,
             "skipped": 2
           },
           {
             "check": "tenant.filter-does-not-bypass-scope",
             "ran": 3,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "tenant.item-not-readable-cross-tenant",
-            "ran": 3,
+            "ran": 4,
             "skipped": 2
           },
           {
             "check": "tenant.item-not-writable-cross-tenant",
-            "ran": 4,
+            "ran": 5,
             "skipped": 1
           },
           {
             "check": "tenant.parent-not-reachable-from-another-root",
             "ran": 2,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "update.unique-conflict-rejected",
             "ran": 2,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "validation.content-type-enforced",
-            "ran": 4,
+            "ran": 5,
             "skipped": 1
           },
           {
             "check": "validation.enum-enforced",
-            "ran": 4,
+            "ran": 5,
             "skipped": 1
           },
           {
             "check": "validation.max-length-enforced",
-            "ran": 4,
+            "ran": 5,
             "skipped": 1
           },
           {
             "check": "validation.required-enforced",
-            "ran": 4,
+            "ran": 5,
             "skipped": 1
           }
         ],
@@ -2733,576 +2733,581 @@
           {
             "check": "async.reaches-terminal-state",
             "ran": 3,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "async.receipt-identifies-the-job",
             "ran": 3,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "auth.alternative-accepted",
             "ran": 0,
-            "skipped": 36
+            "skipped": 39
           },
           {
             "check": "auth.destructive-spares-the-caller",
             "ran": 2,
-            "skipped": 4
+            "skipped": 5
           },
           {
             "check": "auth.invalid-credential-refused",
             "ran": 0,
-            "skipped": 25
+            "skipped": 26
           },
           {
             "check": "auth.invite-grants-then-revokes",
             "ran": 3,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "auth.missing-credential-refused",
             "ran": 0,
-            "skipped": 25
+            "skipped": 26
           },
           {
             "check": "auth.privileged-field-ignored",
             "ran": 0,
-            "skipped": 40
+            "skipped": 44
           },
           {
             "check": "auth.rank-is-monotonic-on-writes",
-            "ran": 5,
+            "ran": 6,
             "skipped": 1
           },
           {
             "check": "auth.role-enforced",
             "ran": 0,
-            "skipped": 34
+            "skipped": 36
           },
           {
             "check": "auth.scope-enforced",
             "ran": 0,
-            "skipped": 30
+            "skipped": 31
           },
           {
             "check": "auth.self-is-the-caller",
             "ran": 2,
-            "skipped": 4
+            "skipped": 5
           },
           {
             "check": "auth.wrong-scheme-refused",
             "ran": 0,
-            "skipped": 36
+            "skipped": 40
           },
           {
             "check": "concurrency.if-match-enforced",
-            "ran": 5,
+            "ran": 6,
             "skipped": 1
           },
           {
             "check": "concurrency.no-lost-update",
-            "ran": 5,
+            "ran": 6,
             "skipped": 1
           },
           {
             "check": "consistency.projections-agree",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "count.consistent-with-returned-page",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "count.matches-filtered-set",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "create.keeps-submitted-identity",
             "ran": 3,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "create.persists-submitted-fields",
-            "ran": 5,
+            "ran": 6,
             "skipped": 1
           },
           {
             "check": "create.status-matches-document",
-            "ran": 5,
+            "ran": 6,
             "skipped": 1
           },
           {
             "check": "create.unique-conflict-rejected",
             "ran": 3,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "delete.absent-record-returns-404",
-            "ran": 5,
+            "ran": 6,
             "skipped": 1
           },
           {
             "check": "effects.declared-effect-occurs",
             "ran": 3,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "effects.side-effect-arrives",
             "ran": 3,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "error.malformed-filter-not-5xx",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "filter.alias-matches-canonical",
             "ran": 3,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.and-composes-as-intersection",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "filter.condition-cap-rejected",
             "ran": 3,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.contains-membership",
             "ran": 3,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.empty-in",
             "ran": 3,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.equality-selects-exactly-one",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "filter.gte-is-gt-or-eq",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "filter.ilike-is-case-insensitive",
             "ran": 3,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.illegal-op-rejected",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "filter.in-is-union-of-eq",
             "ran": 3,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.in-over-limit-rejected",
             "ran": 3,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.is-null-selects-nulls",
             "ran": 3,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.like-metacharacters-escaped",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "filter.lte-is-lt-or-eq",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "filter.malformed-term-rejected",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "filter.negation-partitions-the-set",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "filter.nested-and-or-distributes",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "filter.nin-complements-in",
             "ran": 3,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.numeric-comparison-is-numeric",
             "ran": 4,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "filter.or-composes-as-union",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "filter.ordered-triple-partitions",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "filter.unknown-field-rejected",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "filter.zero-match-returns-none",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "idempotency.replay-does-not-duplicate",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "invalidation.declared-route-changes",
             "ran": 3,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "list.item-matches-listed-row",
             "ran": 3,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "list.read-after-write",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "pagination.bounds-handled",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "pagination.cursor-agrees-with-page",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "pagination.has-more-is-accurate",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "pagination.limit-bounds-enforced",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "pagination.limit-bounds-page-size",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "pagination.limit-respects-documented-max",
             "ran": 3,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "pagination.page-walk-covers-set",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "patch.immutable-field-rejected",
-            "ran": 5,
+            "ran": 6,
             "skipped": 1
           },
           {
             "check": "patch.minimality",
-            "ran": 5,
+            "ran": 6,
             "skipped": 1
           },
           {
             "check": "payload.string-survives",
-            "ran": 5,
+            "ran": 6,
             "skipped": 1
           },
           {
             "check": "query.axes-compose",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "query.filter-and-select-compose",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "query.filter-search-select-compose",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "query.filter-search-sort-compose",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "query.filter-search-sort-select-compose",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "query.filter-selects-from-whole-set",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "query.filter-sort-select-compose",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "query.search-and-filter-compose",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "query.search-and-select-compose",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "query.search-and-sort-compose",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "query.sort-and-select-compose",
             "ran": 5,
+            "skipped": 2
+          },
+          {
+            "check": "query.unknown-parameter-consistent",
+            "ran": 6,
             "skipped": 1
           },
           {
             "check": "read.matches-caller-root",
             "ran": 2,
-            "skipped": 4
+            "skipped": 5
           },
           {
             "check": "request.invalid-body-refused",
             "ran": 0,
-            "skipped": 36
+            "skipped": 39
           },
           {
             "check": "response.contract-call",
             "ran": 2,
-            "skipped": 4
+            "skipped": 5
           },
           {
             "check": "response.no-server-error",
             "ran": 2,
-            "skipped": 4
+            "skipped": 5
           },
           {
             "check": "response.public-get-returns-success",
             "ran": 2,
-            "skipped": 4
+            "skipped": 5
           },
           {
             "check": "schema.success-response-matches-document",
-            "ran": 5,
+            "ran": 6,
             "skipped": 1
           },
           {
             "check": "search.case-insensitive",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "search.empty-q",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "search.mode-accepted",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "search.q-narrows-result",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "search.tokens-and",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "select.nested-honoured",
             "ran": 3,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "select.projection-honoured",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "select.requested-fields-present",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "select.unknown-field-rejected",
             "ran": 3,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "softdelete.absent-from-default-list",
             "ran": 3,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "sort.default-order-applied",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "sort.invalid-direction-rejected",
             "ran": 2,
-            "skipped": 4
+            "skipped": 5
           },
           {
             "check": "sort.multi-key-tiebreak",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "sort.nulls-first-last",
             "ran": 3,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "sort.numeric-order-is-numeric",
             "ran": 4,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "sort.order-is-applied",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "sort.reverse-symmetry",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "sort.stable-tiebreak",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "sort.unknown-field-rejected",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "spec.declared-filterable-is-filterable",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "spec.declared-filterable-ops-accepted",
             "ran": 3,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "spec.declared-rate-limit-is-honoured",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "spec.declared-selectable-is-selectable",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "spec.declared-sortable-is-sortable",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "spec.declared-sortable-nulls-accepted",
             "ran": 3,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "tenant.denial-does-not-reveal-existence",
-            "ran": 5,
+            "ran": 6,
             "skipped": 1
           },
           {
             "check": "tenant.filter-does-not-bypass-scope",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "tenant.item-not-readable-cross-tenant",
-            "ran": 5,
+            "ran": 6,
             "skipped": 1
           },
           {
             "check": "tenant.item-not-writable-cross-tenant",
-            "ran": 5,
+            "ran": 6,
             "skipped": 1
           },
           {
             "check": "tenant.parent-not-reachable-from-another-root",
             "ran": 3,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "update.unique-conflict-rejected",
             "ran": 3,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "validation.content-type-enforced",
-            "ran": 5,
+            "ran": 6,
             "skipped": 1
           },
           {
             "check": "validation.enum-enforced",
-            "ran": 4,
+            "ran": 5,
             "skipped": 2
           },
           {
             "check": "validation.max-length-enforced",
-            "ran": 5,
+            "ran": 6,
             "skipped": 1
           },
           {
             "check": "validation.required-enforced",
-            "ran": 5,
+            "ran": 6,
             "skipped": 1
           }
         ]

@@ -16,6 +16,7 @@ export const searchModeAccepted: Check = defineCheck({
 				conv(ctx).search !== undefined,
 		),
 	id: "search.mode-accepted",
+	lists: true,
 	needs: "declared searchModes and a search-mode parameter",
 	subjects: subjectsOf.list,
 	async run(ctx): Promise<Outcome> {

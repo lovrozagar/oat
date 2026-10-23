@@ -1,6 +1,7 @@
 import type { EffectiveQueryCapabilities } from "../../../spec/query/effective.ts"
 import type { QueryCapability } from "../../../spec/extensions/query-tag.ts"
 import { resolveEntityCapabilities } from "../../query-capabilities.ts"
+import { emptyCapabilities } from "../../../spec/query/merge.ts"
 import type { EntityRun } from "./state.ts"
 
 /** What the entity's list can filter, search, select and sort by, and the query the checks read. */
@@ -10,9 +11,13 @@ export interface EntityQuery {
 	query: QueryCapability | null
 }
 
-/** Resolves the list's query capabilities: the tag, then config, then the hook, then probes. */
+/**
+ * Resolves the list's query capabilities: the tag, then config, then the hook, then probes. An
+ * entity with no list has none to query.
+ */
 export async function queryOf(run: EntityRun, scope: Record<string, string>): Promise<EntityQuery> {
 	const { ctx, entity, listOp } = run
+	if (listOp === undefined) return { capabilities: emptyCapabilities(), query: null }
 	const { options, hooks } = ctx
 	const configured = options.entities?.[entity.name]?.query
 	const capabilities = await resolveEntityCapabilities({

@@ -3,10 +3,11 @@ import { ENTITIES } from "./entities.ts"
 import { JOB } from "./job.ts"
 import { ROW } from "./row.ts"
 import { TABLE } from "./table.ts"
+import { WEBHOOK } from "./webhook.ts"
 
 describe("ENTITIES", () => {
 	it("lists every entity, a parent before its children", () => {
-		expect(ENTITIES).toEqual([TABLE, ROW, JOB])
+		expect(ENTITIES).toEqual([TABLE, ROW, JOB, WEBHOOK])
 		expect(ENTITIES[0]).toBe(TABLE)
 	})
 

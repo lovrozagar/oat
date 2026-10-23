@@ -1,13 +1,14 @@
 import { absentIdentifier } from "../../generate/identifiers.ts"
 import { type ClientIdentity, reserveIdentity } from "../../world/client-identity.ts"
 import type { CheckContext } from "../core/context.ts"
+import { itemSchemaOf } from "./item-schema.ts"
 import type { JsonSchema } from "../../../spec/types.ts"
 
 /* ------------------------------------------------------------------- invented values */
 
 /** This entity's identifier as its item route takes it: the path parameter's schema, else the record's. */
 function identifierSchema(ctx: CheckContext): JsonSchema {
-	const properties = (ctx.listOp.collection?.itemSchema?.properties ?? {}) as Record<string, JsonSchema>
+	const properties = (itemSchemaOf(ctx)?.properties ?? {}) as Record<string, JsonSchema>
 	const recordIdentity = properties[ctx.identity]
 	for (const op of [ctx.readOp, ctx.deleteOp, ctx.updateOp]) {
 		if (op === undefined) continue

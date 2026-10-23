@@ -38,6 +38,7 @@ export const declaredSortableWorks: Check = defineCheck({
 		"sort.order-is-applied",
 	],
 	id: "spec.declared-sortable-is-sortable",
+	lists: true,
 	needs: "x-query naming sortable fields",
 	subjects: subjectsOf.list,
 	async run(ctx): Promise<Outcome> {

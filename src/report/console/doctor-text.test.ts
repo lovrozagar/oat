@@ -44,13 +44,13 @@ describe("block", () => {
 })
 
 describe("summaryLines", () => {
-	it("draws how many entities a run can follow and list", async () => {
+	it("draws how many entities a run can test and list", async () => {
 		const facts = doctorFacts((await referenceModel()).model)
-		/* The reference reads its API keys back (apiKey.get), so api-key is a trackable entity of its own. */
+		/* With no recipe minting API keys, api-key is an entity of its own, tested through its creates. */
 		expect(summaryLines(facts)).toEqual([
 			"",
-			`  trackable  ${"█".repeat(24)}  7/7 entities have an identity and a read`,
-			`  listable   ${"█".repeat(14)}${"░".repeat(10)}  4/7 entities have a list, so query checks can run`,
+			`  testable   ${"█".repeat(24)}  8/8 entities a run can seed and check`,
+			`  listable   ${"█".repeat(12)}${"░".repeat(12)}  4/8 entities have a list, so query checks can run`,
 			"",
 		])
 	})
@@ -94,24 +94,42 @@ describe("tagLines", () => {
 })
 
 describe("entityLines", () => {
-	it("says why an entity cannot be followed, which have no list, and the roots a run needs", async () => {
+	it("says why a run cannot test an entity, which have no list, and the roots a run needs", async () => {
 		const edges = modelOf(EDGES).model
 		const lines = entityLines(doctorFacts(edges))
-		expect(lines).toContain("  not trackable")
-		expect(lines).toContain(
-			`    ${"c".padEnd(20)} no identity property — instances cannot be tracked across projections`,
-		)
-		expect(lines).toContain(`    ${"d".padEnd(20)} no read surface — mutations cannot be verified`)
-		expect(lines).toContain("  no list — query, pagination and count checks will not run")
-		expect(lines).toContain(`    ${"u".padEnd(20)} GET /u/{id}`)
+		expect(lines.slice(0, 5)).toEqual([
+			"  not testable",
+			`    ${"c".padEnd(20)} "c" has no list operation and no read operation and no records oat can identify after create`,
+			`    ${"d".padEnd(20)} "d" has no list operation and no create operation`,
+			`    ${"u".padEnd(20)} "u" has no list operation and no create operation`,
+			"",
+		])
+		expect(lines).not.toContain("  no list — query, pagination and count checks will not run")
 		const { model } = await referenceModel()
 		const reference = entityLines(doctorFacts(model))
+		expect(reference).toContain("  no list — query, pagination and count checks will not run")
+		expect(reference).toContain(`    ${"api-key".padEnd(20)} apiKey.get`)
 		expect(reference).toContain(`    ${"profile".padEnd(20)} profile.get`)
+		/* The caller with an update and no read is read where its update says it changes. */
+		const caller = modelOf(
+			documentOf({
+				"/me": {
+					patch: {
+						operationId: "me.update",
+						requestBody: body,
+						responses: { "200": { description: "ok" } },
+						"x-entity": { action: "update", identity: "self", name: "me" },
+						"x-invalidate": ["GET /me"],
+					},
+				},
+			}),
+		).model
+		expect(entityLines(doctorFacts(caller))).toContain(`    ${"me".padEnd(20)} GET /me`)
 		expect(reference).toContain("  roots required in config (no create operation in this document)")
 		expect(reference).toContain(
 			"  ids no operation creates — their operations run once a flow or hooks.resolvePathValue yields one",
 		)
-		expect(reference).not.toContain("  not trackable")
+		expect(reference).not.toContain("  not testable")
 		const scoped = { alpha: { scope: { project_id: "proj_alpha" } } }
 		const supplied = entityLines(doctorFacts(model, { credentials: { principals: scoped, security: {} } }))
 		expect(supplied).not.toContain("  roots required in config (no create operation in this document)")

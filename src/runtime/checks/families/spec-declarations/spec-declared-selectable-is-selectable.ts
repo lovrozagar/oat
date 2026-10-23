@@ -35,6 +35,7 @@ export const declaredSelectableWorks: Check = defineCheck({
 		"select.projection-honoured",
 	],
 	id: "spec.declared-selectable-is-selectable",
+	lists: true,
 	needs: "x-query naming selectable fields",
 	subjects: subjectsOf.list,
 	async run(ctx): Promise<Outcome> {

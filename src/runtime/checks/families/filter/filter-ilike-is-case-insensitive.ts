@@ -40,6 +40,7 @@ export const filterIlikeIsCaseInsensitive: Check<{
 	},
 	dependsOn: ["query.filter-selects-from-whole-set", ...FOUNDATIONS, "filter.like-metacharacters-escaped"],
 	id: "filter.ilike-is-case-insensitive",
+	lists: true,
 	needs: "a field that allows both `ilike` and `like`, and a string with a letter",
 	subjects: subjectsOf.list,
 	async run(ctx, { field, flipped, ilikeTerm, likeTerm, sample }): Promise<Outcome> {

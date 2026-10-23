@@ -53,14 +53,14 @@ async function listedWorld(run: EntityRun, plan: SeedPlan): Promise<World> {
 }
 
 async function listedRootsOf(run: EntityRun, plan: SeedPlan): Promise<Record<string, string>> {
-	const { listOp, roots, seeding, ctx } = run
+	const { collectionOp, roots, seeding, ctx } = run
 	const listParent = async (): Promise<Record<string, string>> => ({
 		...roots,
-		...(await resolvePathScope(listOp, { client: seeding, model: ctx.model, options: worldOptions(run) })).values,
+		...(await resolvePathScope(collectionOp, { client: seeding, model: ctx.model, options: worldOptions(run) })).values,
 	})
 	/* An action cohort has to create the parent the list path names. */
 	if (plan.needsListedCohort) return listParent()
-	if (plan.inviteOnly || listOp.pathParams.every((param) => roots[param] !== undefined)) return roots
+	if (plan.inviteOnly || collectionOp.pathParams.every((param) => roots[param] !== undefined)) return roots
 	/* A table's exports, a webhook's deliveries: nobody creates one directly, but the list sits
 	 * under a parent oat can make, and every check on the entity goes through it. A parent oat
 	 * cannot make leaves the scope as it was, and the gap says which. */

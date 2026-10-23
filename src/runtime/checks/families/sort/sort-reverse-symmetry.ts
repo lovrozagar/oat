@@ -35,6 +35,7 @@ export const sortReverseSymmetry: Check<{ field: string }> = defineCheck<{ field
 		"pagination.page-walk-covers-set",
 	],
 	id: "sort.reverse-symmetry",
+	lists: true,
 	needs: "an `order` parameter supporting asc and desc",
 	subjects: subjectsOf.list,
 	async run(ctx, { field }): Promise<Outcome> {

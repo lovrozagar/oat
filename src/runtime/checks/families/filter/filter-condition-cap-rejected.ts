@@ -30,6 +30,7 @@ export const filterConditionCapRejected: Check<{ max: number; overCap: FilterQue
 	},
 	dependsOn: [...FOUNDATIONS, "error.malformed-filter-not-5xx"],
 	id: "filter.condition-cap-rejected",
+	lists: true,
 	needs: "`maxFilterConditions` declared and a grammar that can group eq terms",
 	subjects: subjectsOf.list,
 	async run(ctx, { max, overCap }): Promise<Outcome> {

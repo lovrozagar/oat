@@ -6,14 +6,14 @@ import type { EffectiveFilterField } from "../../../../spec/query/effective.ts"
 import { opsAreClosed, opsForField } from "../../../../spec/query/field-ops.ts"
 import { FILTER_OPS } from "../../../../spec/query/ops.ts"
 import type { Outcome } from "../../../finding.ts"
-import type { CheckContext } from "../../core/context.ts"
+import type { Listed } from "../../core/context.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { judgeRefusal } from "../../planning/refusal.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 import { asTermValue, conv, pageSize, q, resolvedCaps } from "../../query/capabilities.ts"
 import { ids, list } from "../../sets/list.ts"
 
-function firstIllegalOp(ctx: CheckContext, field: EffectiveFilterField): (typeof FILTER_OPS)[number] | undefined {
+function firstIllegalOp(ctx: Listed, field: EffectiveFilterField): (typeof FILTER_OPS)[number] | undefined {
 	const caps = resolvedCaps(ctx)
 	if (!opsAreClosed(field, caps)) return undefined
 	const allowed = new Set(opsForField(field, caps))
@@ -73,6 +73,7 @@ export const filterIllegalOpRejected: Check<{ probes: IllegalOpProbe[] }> = defi
 	},
 	dependsOn: ["list.read-after-write", "filter.unknown-field-rejected", "error.malformed-filter-not-5xx"],
 	id: "filter.illegal-op-rejected",
+	lists: true,
 	needs: "a field with a closed operator list, or a declared filter grammar",
 	subjects: subjectsOf.list,
 	async run(ctx, { probes }): Promise<Outcome> {

@@ -1,6 +1,6 @@
 import type { Record_ } from "../../../../world/records.ts"
 import { type Answer, modelOf, op, type Responder } from "../../../__fixtures__/harness.ts"
-import type { CheckContext } from "../../../core/context.ts"
+import type { Listed } from "../../../core/context.ts"
 import type { OpenApiDocument } from "../../../../../spec/types.ts"
 import { backend, LIST, NOTES, PARAMS, queryDoc, queryOf } from "./query-api.ts"
 
@@ -54,7 +54,7 @@ export function endlessWhen(...keys: string[]): Responder {
  * written: the one way to reach a plan's "the grammar cannot express this projection" branch,
  * which a document alone never does — a declared select parameter always renders.
  */
-export function fleetingSelect(): Partial<CheckContext> {
+export function fleetingSelect(): Partial<Listed> {
 	const listOp = op(modelOf(queryDoc()), LIST)
 	let reads = 0
 	const conventions = Object.create(listOp.conventions, {

@@ -44,6 +44,8 @@ export interface EntityDef {
 	collectionPath: string
 	itemPath: string
 	itemParam: string
+	/** The entity has no list operation: its collection route takes a create alone, in the document and the server. */
+	unlisted?: true
 	/** Path parameters that must be resolved from an ancestor. */
 	parents: string[]
 	identity: string

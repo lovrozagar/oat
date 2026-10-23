@@ -1,3 +1,4 @@
+import type { Client } from "../../../../client/client.ts"
 import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { UnsatisfiedSecurity } from "../../../../client/credential-source.ts"
@@ -16,7 +17,7 @@ import {
 } from "../../../unique.ts"
 import { idOf, type Record_ } from "../../../world/records.ts"
 import { isPlanLimitResponse } from "../../../world/plan-limit.ts"
-import type { WriteContext } from "../../core/context.ts"
+import type { Listed, WriteContext } from "../../core/context.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { readRecord } from "../../isolation/scratch.ts"
 import { encodeOpBody, requestSchemaOf, validBody } from "../../payloads/body.ts"
@@ -67,6 +68,7 @@ export const uniqueConflictCreate: Check<{
 	/* Reads whole sets across pages, so a walk that skips or repeats records corrupts them. */
 	dependsOn: ["pagination.page-walk-covers-set"],
 	id: "create.unique-conflict-rejected",
+	lists: true,
 	mutates: true,
 	needs: "x-unique on create with at least one probeable column set, and a known row",
 	subjects: subjectsOf.create,
@@ -150,7 +152,7 @@ async function sendCollision(
 	})
 }
 
-async function probeCreateSet(ctx: WriteContext, probe: CreateProbe, set: string[], index: number): Promise<void> {
+async function probeCreateSet(ctx: Listed<Client>, probe: CreateProbe, set: string[], index: number): Promise<void> {
 	const { check, createOp } = probe
 	const sent = await sendCollision(ctx, probe, set, index)
 	if (sent === null) return

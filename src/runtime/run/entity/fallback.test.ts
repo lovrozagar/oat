@@ -84,3 +84,16 @@ describe("worldOptions", () => {
 		expect(entityRunOf(ctx).taken).toEqual(new Set(["n9"]))
 	})
 })
+
+describe("readExisting with no list", () => {
+	it("reads nothing, keeping the roots as the scope", async () => {
+		const options = optionsFor(notesApi(notesDoc(), [{ id: "n1" }]))
+		const ctx = await contextOf(options)
+		const before = options.seen.length
+		expect(await readExisting({ ...entityRunOf(ctx), listOp: undefined }, { org_id: "o1" })).toEqual({
+			records: [],
+			scope: { org_id: "o1" },
+		})
+		expect(options.seen.length).toBe(before)
+	})
+})

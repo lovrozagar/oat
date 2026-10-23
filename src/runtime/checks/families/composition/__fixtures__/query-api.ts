@@ -4,7 +4,7 @@ import type { Record_ } from "../../../../world/records.ts"
 import type { OpenApiDocument } from "../../../../../spec/types.ts"
 import { type Answer, contextFor, modelOf, op, type Responder } from "../../../__fixtures__/harness.ts"
 import type { Check } from "../../../core/check.ts"
-import type { CheckContext } from "../../../core/context.ts"
+import type { Listed } from "../../../core/context.ts"
 import { runCheck } from "../../../core/run.ts"
 
 /*
@@ -249,7 +249,7 @@ export interface StageOptions {
 	doc?: OpenApiDocument
 	rows?: readonly Record_[]
 	respond?: Responder
-	fields?: Partial<CheckContext>
+	fields?: Partial<Listed>
 }
 
 /** One check staged against the notes listing: its context, findings and the requests it sent. */

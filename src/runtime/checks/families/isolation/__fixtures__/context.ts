@@ -1,8 +1,9 @@
+import type { Client } from "../../../../../client/client.ts"
 import type { RequestOptions } from "../../../../../client/types.ts"
 import type { FindingCollector } from "../../../../finding.ts"
 import type { SpecModel } from "../../../../../spec/graph/types.ts"
 import { type Answer, contextFor, type Sent } from "../../../__fixtures__/harness.ts"
-import type { Actor, CheckContext, WriteContext } from "../../../core/context.ts"
+import type { Actor, Listed } from "../../../core/context.ts"
 
 /*
  * A context for the notes entity as a run builds it: the entity's own operations, the owner in
@@ -39,8 +40,8 @@ export type Asked = Omit<RequestOptions, "as"> & { who: string }
 export function stagedFor(
 	model: SpecModel,
 	listOperation: string,
-	{ backend, fields }: { backend: Backend; fields: Partial<CheckContext> },
-): { ctx: WriteContext; sent: Sent[]; findings: FindingCollector } {
+	{ backend, fields }: { backend: Backend; fields: Partial<Listed> },
+): { ctx: Listed<Client>; sent: Sent[]; findings: FindingCollector } {
 	const recorded: { sent: Sent[] } = { sent: [] }
 	const respond = (method: string, path: string, options: Omit<RequestOptions, "as">) => {
 		const last = recorded.sent.at(-1)
@@ -52,13 +53,13 @@ export function stagedFor(
 }
 
 /** Context fields to override; `peer: undefined` leaves the peer out. */
-export type NotesFields = Omit<Partial<CheckContext>, "peer"> & { peer?: Actor | undefined }
+export type NotesFields = Omit<Partial<Listed>, "peer"> & { peer?: Actor | undefined }
 
 export function notesContext(
 	model: SpecModel,
 	backend: Backend,
 	fields: NotesFields = {},
-): { ctx: WriteContext; sent: Sent[]; findings: FindingCollector } {
+): { ctx: Listed<Client>; sent: Sent[]; findings: FindingCollector } {
 	const { peer, ...rest } = { peer: OTHER, ...fields }
 	const entity = model.entities.get("note")
 	const opOf = (id: string | undefined) => (id === undefined ? undefined : model.byOperationId.get(id))

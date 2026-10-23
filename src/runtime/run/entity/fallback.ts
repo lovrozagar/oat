@@ -25,7 +25,7 @@ export function worldOptions(run: EntityRun): WorldOptions {
 	}
 }
 
-/** Reads whatever the list endpoint already returns, for degraded read-only coverage. */
+/** Reads whatever the list endpoint already returns, for degraded read-only coverage; nothing with no list. */
 export async function readExisting(
 	run: EntityRun,
 	roots: Record<string, string>,
@@ -34,9 +34,12 @@ export async function readExisting(
 	 * the same entity are often scoped differently — a global list beside a tenant-scoped item
 	 * route — and a scope built from the list alone leaves those unresolvable. */
 	const scope: Record<string, string> = { ...roots }
-	if (run.listOp.pathParams.some((param) => scope[param] === undefined)) return { records: [], scope }
+	const { listOp } = run
+	if (listOp === undefined || listOp.pathParams.some((param) => scope[param] === undefined)) {
+		return { records: [], scope }
+	}
 	const { model, principals } = run.ctx
-	const records = await listExisting({ listOp: run.listOp, model, values: scope }, run.seeding, principals.alpha.id)
+	const records = await listExisting({ listOp, model, values: scope }, run.seeding, principals.alpha.id)
 	return { records, scope }
 }
 

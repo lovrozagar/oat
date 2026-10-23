@@ -12,6 +12,7 @@ export const sortUnknownFieldRejected: Check = defineCheck({
 	plan: (ctx) => when(conv(ctx).order !== undefined),
 	dependsOn: ["error.malformed-filter-not-5xx"],
 	id: "sort.unknown-field-rejected",
+	lists: true,
 	needs: "an order parameter",
 	subjects: subjectsOf.list,
 	async run(ctx): Promise<Outcome> {

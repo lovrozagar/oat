@@ -3,12 +3,12 @@ import type { EffectiveFilterField } from "../../../../spec/query/effective.ts"
 import { fieldAllows } from "../../../../spec/query/field-ops.ts"
 import { FILTER_OPS, ORDERED_TYPES } from "../../../../spec/query/ops.ts"
 import type { Record_ } from "../../../world/records.ts"
-import type { CheckContext } from "../../core/context.ts"
+import type { CheckContext, Listed } from "../../core/context.ts"
 import { canUseOp, conv, resolvedCaps } from "../../query/capabilities.ts"
 import { cohortFact, setOf } from "../../sets/compare.ts"
 import { ids } from "../../sets/list.ts"
 
-export function fieldsAllowing(ctx: CheckContext, op: (typeof FILTER_OPS)[number]): EffectiveFilterField[] {
+export function fieldsAllowing(ctx: Listed, op: (typeof FILTER_OPS)[number]): EffectiveFilterField[] {
 	if (!canWriteFilterOp(conv(ctx), op)) return []
 	return resolvedCaps(ctx).filterable.filter((field) => fieldAllows(field, op, resolvedCaps(ctx)))
 }
@@ -34,7 +34,7 @@ export function knownHits(items: Record_[], ctx: CheckContext): Set<string> {
 }
 
 export function pickFieldForOp(
-	ctx: CheckContext,
+	ctx: Listed,
 	op: (typeof FILTER_OPS)[number],
 	minDistinct = 2,
 ): { field: EffectiveFilterField; values: unknown[] } | null {
@@ -45,11 +45,11 @@ export function pickFieldForOp(
 	return null
 }
 
-export function pickOrderedField(ctx: CheckContext): { field: EffectiveFilterField; values: number[] } | null {
+export function pickOrderedField(ctx: Listed): { field: EffectiveFilterField; values: number[] } | null {
 	return cohortFact(ctx, "ordered", () => computePickOrderedField(ctx))
 }
 
-function computePickOrderedField(ctx: CheckContext): { field: EffectiveFilterField; values: number[] } | null {
+function computePickOrderedField(ctx: Listed): { field: EffectiveFilterField; values: number[] } | null {
 	const caps = resolvedCaps(ctx)
 	for (const field of caps.filterable) {
 		if (field.type !== undefined && !ORDERED_TYPES.has(field.type)) continue

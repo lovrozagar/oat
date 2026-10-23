@@ -15,6 +15,7 @@ export const orderChangesResult: Check<{ field: string }> = defineCheck<{ field:
 	},
 	dependsOn: ["pagination.limit-bounds-page-size"],
 	id: "sort.order-is-applied",
+	lists: true,
 	needs: "an `order` parameter and a sortable field",
 	subjects: subjectsOf.list,
 	async run(ctx, { field }): Promise<Outcome> {

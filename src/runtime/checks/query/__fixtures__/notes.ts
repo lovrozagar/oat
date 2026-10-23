@@ -1,10 +1,10 @@
+import type { Client } from "../../../../client/client.ts"
 import type { QueryConventions } from "../../../../spec/conventions/types.ts"
 import type { OperationModel, SpecModel } from "../../../../spec/graph/types.ts"
 import type { OpenApiDocument } from "../../../../spec/types.ts"
-import type { CheckContext } from "../../core/context.ts"
+import type { Listed } from "../../core/context.ts"
 import { contextFor, modelOf, op, type Responder, type Sent } from "../../__fixtures__/harness.ts"
 import type { FindingCollector } from "../../../finding.ts"
-import type { WriteContext } from "../../core/context.ts"
 
 /*
  * One small entity, `note`, with every operation the shared check helpers reach for: a list that
@@ -94,9 +94,9 @@ export function notesModel(extra: Record<string, unknown> = {}): SpecModel {
 /** A context on the notes list, with every note operation wired in and the fake client answering. */
 export function notesContext(
 	respond: Responder = () => undefined,
-	fields: Partial<CheckContext> = {},
+	fields: Partial<Listed> = {},
 	model: SpecModel = notesModel(),
-): { ctx: WriteContext; sent: Sent[]; findings: FindingCollector } {
+): { ctx: Listed<Client>; sent: Sent[]; findings: FindingCollector } {
 	return contextFor(model, "note.list", {
 		respond,
 		fields: {
@@ -111,7 +111,7 @@ export function notesContext(
 }
 
 /** `ctx` with its list operation's conventions replaced by `conventions` over the given base ones. */
-export function withConventions<C extends CheckContext>(ctx: C, conventions: ConventionPatch): C {
+export function withConventions<C extends Listed>(ctx: C, conventions: ConventionPatch): C {
 	const merged = { ...ctx.listOp.conventions, ...conventions } as QueryConventions
 	const listOp: OperationModel = { ...ctx.listOp, conventions: merged }
 	return { ...ctx, listOp }

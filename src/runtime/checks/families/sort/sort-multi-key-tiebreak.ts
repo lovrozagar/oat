@@ -3,14 +3,14 @@ import { defineCheck } from "../../core/define.ts"
 import { sortKeys } from "../../../../spec/conventions/sort.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import type { Record_ } from "../../../world/records.ts"
-import type { CheckContext } from "../../core/context.ts"
+import type { CheckContext, Listed } from "../../core/context.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, pageSize, resolvedCaps } from "../../query/capabilities.ts"
 import { sortedUnder } from "../../query/order.ts"
 import { cohortFact, collectSet } from "../../sets/compare.ts"
 
-function pickMultiKeyPair(ctx: CheckContext): { primary: string; secondary: string; tied: Record_[] } | null {
+function pickMultiKeyPair(ctx: Listed): { primary: string; secondary: string; tied: Record_[] } | null {
 	return cohortFact(ctx, "multi-key", () => computePickMultiKeyPair(ctx))
 }
 
@@ -62,6 +62,7 @@ export const sortMultiKeyTiebreak: Check<{
 	},
 	dependsOn: ["sort.order-is-applied", "sort.reverse-symmetry"],
 	id: "sort.multi-key-tiebreak",
+	lists: true,
 	needs: "two sortable fields and rows that tie on the first and differ on the second",
 	subjects: subjectsOf.list,
 	async run(ctx, { primary, secondary, tied }): Promise<Outcome> {

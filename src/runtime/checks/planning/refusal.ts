@@ -49,7 +49,7 @@ export function judgeRefusal(
  * probes, so a status the document leaves out for deliberately invalid input is reported apart
  * from what ordinary traffic got.
  */
-export function asProbe<C extends ReadClient>(ctx: CheckContext<C>): CheckContext<C> {
+export function asProbe<X extends CheckContext<ReadClient>>(ctx: X): X {
 	/* What a probe the server accepts anyway creates is ledgered like any other create. */
-	return { ...ctx, client: ctx.client.view({ purpose: "probe" }) as C }
+	return { ...ctx, client: ctx.client.view({ purpose: "probe" }) as X["client"] }
 }

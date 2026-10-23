@@ -21,6 +21,7 @@ export const limitRespectsMax: Check<{ max: number; limitParam: string }> = defi
 	},
 	dependsOn: ["pagination.limit-bounds-page-size"],
 	id: "pagination.limit-respects-documented-max",
+	lists: true,
 	needs: "a declared maxLimit, and more records than it",
 	subjects: subjectsOf.list,
 	async run(ctx, { limitParam, max }): Promise<Outcome> {

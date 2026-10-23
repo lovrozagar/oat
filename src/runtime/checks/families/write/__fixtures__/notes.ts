@@ -1,9 +1,10 @@
+import type { Client } from "../../../../../client/client.ts"
 import type { RequestOptions } from "../../../../../client/types.ts"
 import type { FindingCollector } from "../../../../finding.ts"
 import type { SpecModel } from "../../../../../spec/graph/types.ts"
 import type { JsonSchema, OpenApiDocument } from "../../../../../spec/types.ts"
 import { type Answer, contextFor, modelOf, op, type Responder, type Sent } from "../../../__fixtures__/harness.ts"
-import type { CheckContext, WriteContext } from "../../../core/context.ts"
+import type { Listed } from "../../../core/context.ts"
 
 /*
  * A notes API for the write checks: list, create, read, update and delete on one entity, every
@@ -205,8 +206,8 @@ export function notesModel(options: NotesOptions = {}): SpecModel {
 export function notesContext(
 	model: SpecModel,
 	respond: Responder,
-	fields: Partial<CheckContext> = {},
-): { ctx: WriteContext; sent: Sent[]; findings: FindingCollector } {
+	fields: Partial<Listed> = {},
+): { ctx: Listed<Client>; sent: Sent[]; findings: FindingCollector } {
 	return contextFor(model, "note.list", {
 		respond,
 		fields: {

@@ -9,9 +9,9 @@ export function block(title: string, rows: string[]): string[] {
 	return rows.length === 0 ? [] : [title, ...rows, ""]
 }
 
-/** What `allow` removed, and how many entities a run can follow and list. */
+/** What `allow` removed, and how many entities a run can test and list. */
 export function summaryLines(facts: DoctorFacts, config?: DoctorConfig): string[] {
-	const { entities, trackable, listable } = facts
+	const { entities, testable, listable } = facts
 	const lines = [""]
 	if (config?.allowRemoved !== undefined) {
 		const removed = config.allowRemoved
@@ -21,8 +21,8 @@ export function summaryLines(facts: DoctorFacts, config?: DoctorConfig): string[
 		)
 	}
 	lines.push(
-		`  trackable  ${bar(trackable.length, entities.length)}  ${trackable.length}/${entities.length} ` +
-			"entities have an identity and a read",
+		`  testable   ${bar(testable.length, entities.length)}  ${testable.length}/${entities.length} ` +
+			"entities a run can seed and check",
 	)
 	lines.push(
 		`  listable   ${bar(listable.length, entities.length)}  ${listable.length}/${entities.length} ` +
@@ -62,22 +62,15 @@ export function tagLines(model: SpecModel, facts: DoctorFacts): string[] {
 	]
 }
 
-/** Entities a run cannot follow or list, and the roots it needs supplied. */
+/** Entities a run cannot test or list, and the roots it needs supplied. */
 export function entityLines(facts: DoctorFacts): string[] {
-	const untrackable = facts.entities.filter((e) => !facts.trackable.includes(e))
-	const itemOnly = facts.trackable.filter((e) => e.list === undefined)
+	const itemOnly = facts.testable.filter((e) => e.list === undefined)
 	return [
 		...block(
-			"  not trackable",
-			untrackable.map((entity) => {
-				const reason =
-					entity.identity === null
-						? "no identity property — instances cannot be tracked across projections"
-						: "no read surface — mutations cannot be verified"
-				return `    ${entity.name.padEnd(20)} ${reason}`
-			}),
+			"  not testable",
+			facts.untestable.map(({ entity, reason }) => `    ${entity.padEnd(20)} ${reason}`),
 		),
-		/* A trackable entity has a read surface, so a route is always there to name. */
+		/* A testable entity with no list is read by its item route, its root read, or as the caller. */
 		...block(
 			"  no list — query, pagination and count checks will not run",
 			itemOnly.map((entity) => `    ${entity.name.padEnd(20)} ${entity.read ?? (entity.readSurface[0] as string)}`),

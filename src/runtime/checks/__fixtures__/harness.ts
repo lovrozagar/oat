@@ -8,7 +8,7 @@ import { buildModel } from "../../../spec/graph/build.ts"
 import type { OperationModel, SpecModel } from "../../../spec/graph/types.ts"
 import { dereference } from "../../../spec/load/dereference.ts"
 import type { OpenApiDocument } from "../../../spec/types.ts"
-import type { CheckContext, WriteContext } from "../core/context.ts"
+import type { Listed } from "../core/context.ts"
 
 /*
  * A socket-free stage for one check: a model from a small document, a client whose answers a
@@ -117,7 +117,7 @@ export function op(model: SpecModel, operationId: string): OperationModel {
 /** How a staged check is answered, and the context fields it overrides. */
 export interface Stage {
 	respond: Responder
-	fields?: Partial<CheckContext>
+	fields?: Partial<Listed>
 }
 
 /** A full context for a check against `model`, with the fake client and fresh findings. */
@@ -125,7 +125,7 @@ export function contextFor(
 	model: SpecModel,
 	listOperation: string,
 	{ respond, fields }: Stage,
-): { ctx: WriteContext; sent: Sent[]; findings: FindingCollector } {
+): { ctx: Listed<Client>; sent: Sent[]; findings: FindingCollector } {
 	const { client, sent } = fakeClient(respond)
 	const findings = new FindingCollector()
 	const listOp = op(model, listOperation)
@@ -135,7 +135,7 @@ export function contextFor(
 		findings,
 		listOp,
 		model,
-		...(fields as Partial<WriteContext>),
+		...(fields as Partial<Listed<Client>>),
 	})
 	return { ctx, findings, sent }
 }

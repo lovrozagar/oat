@@ -30,6 +30,7 @@ export const querySortAndSelectCompose: Check<{
 	},
 	dependsOn: ["sort.order-is-applied", "select.projection-honoured", "select.requested-fields-present"],
 	id: "query.sort-and-select-compose",
+	lists: true,
 	needs: "sortable and selectable fields",
 	subjects: subjectsOf.list,
 	async run(ctx, { field, projection, requested }): Promise<Outcome> {

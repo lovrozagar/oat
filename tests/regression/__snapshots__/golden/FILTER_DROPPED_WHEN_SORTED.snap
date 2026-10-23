@@ -670,34 +670,34 @@
           {
             "check": "query.filter-search-sort-compose",
             "ran": 2,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "query.filter-search-sort-select-compose",
             "ran": 2,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "query.filter-sort-select-compose",
             "ran": 2,
-            "skipped": 1
+            "skipped": 2
           }
         ],
         "removed": [
           {
             "check": "query.filter-search-sort-compose",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "query.filter-search-sort-select-compose",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "query.filter-sort-select-compose",
             "ran": 5,
-            "skipped": 1
+            "skipped": 2
           }
         ]
       }

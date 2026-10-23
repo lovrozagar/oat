@@ -30,6 +30,7 @@ export const filterEmptyIn: Check<{
 	},
 	dependsOn: ["query.filter-selects-from-whole-set", ...FOUNDATIONS, "filter.in-is-union-of-eq"],
 	id: "filter.empty-in",
+	lists: true,
 	needs: "`emptyIn` declared and a field that allows `in`",
 	subjects: subjectsOf.list,
 	async run(ctx, { field, policy, term }): Promise<Outcome> {

@@ -1,5 +1,5 @@
 import type { SortValue } from "../../../../spec/render/sort.ts"
-import type { CheckContext } from "../../core/context.ts"
+import type { Listed } from "../../core/context.ts"
 import { ids, type Walk } from "../../sets/list.ts"
 import { readSet } from "../../sets/read.ts"
 
@@ -16,7 +16,7 @@ export const MAX_WALK_PAGES = 6
 
 /** Walks pages in order, returning ids as encountered — repeats kept, since they are the finding. */
 export async function walkPages(
-	ctx: CheckContext,
+	ctx: Listed,
 	perPage: number,
 	order?: SortValue,
 	maxPages: number = MAX_WALK_PAGES,

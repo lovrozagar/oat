@@ -2,16 +2,16 @@
 
 import type { EntityDef } from "../model/types.ts"
 import { fieldsWhere } from "../model/fields.ts"
-import { parentReadRoutes } from "./collection.ts"
+import { listRoute, parentReadRoutes } from "./collection.ts"
 import { errorResponses, preconditionResponses } from "./errors.ts"
 import { declaredIdentity, entityTag, jsonResponse, ok } from "./operation.ts"
 import { pathParams, tenantParam } from "./params.ts"
 import { bodySchema, located, readSchema, writtenSchema } from "./schemas.ts"
 import type { Json, SpecContext } from "./types.ts"
 
-/** The routes an entity's own writes change: its listing and its item. */
+/** The routes an entity's own writes change: its listing, when it has one, and its item. */
 function surface(entity: EntityDef): string[] {
-	return [`GET ${entity.collectionPath}`, `GET ${entity.itemPath}`]
+	return [...listRoute(entity), `GET ${entity.itemPath}`]
 }
 
 /* The version a read answers, which an update's If-Match names. */

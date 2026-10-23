@@ -1,6 +1,6 @@
 import { filterTerm } from "../../../../spec/conventions/filter.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
-import type { CheckContext } from "../../core/context.ts"
+import type { Listed } from "../../core/context.ts"
 import { cannot, type Plan, ready } from "../../core/plan.ts"
 import { canUseOp, conv, MOVING_FILTER } from "../../query/capabilities.ts"
 import { readSettled, sameSet, setOf } from "../../sets/compare.ts"
@@ -19,7 +19,7 @@ export interface RangeProbe {
 	eqTerm: Record<string, string>
 }
 
-export function rangePlan(ctx: CheckContext, closed: "gte" | "lte", open: "gt" | "lt"): Plan<RangeProbe> {
+export function rangePlan(ctx: Listed, closed: "gte" | "lte", open: "gt" | "lt"): Plan<RangeProbe> {
 	const picked = pickOrderedField(ctx)
 	if (picked === null) return cannot()
 	if (!canUseOp(ctx, picked.field, closed)) return cannot(`an ordered field that allows \`${closed}\``)
@@ -37,7 +37,7 @@ export function rangePlan(ctx: CheckContext, closed: "gte" | "lte", open: "gt" |
 }
 
 export async function assertRangeUnion(
-	ctx: CheckContext,
+	ctx: Listed,
 	check: string,
 	{ closed, closedTerm, eqTerm, field, open, openTerm, threshold }: RangeProbe,
 ): Promise<Outcome> {

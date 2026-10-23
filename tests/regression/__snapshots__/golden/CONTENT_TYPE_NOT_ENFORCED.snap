@@ -7,7 +7,7 @@
         "was": 0
       },
       "reason": {
-        "now": "3 root-cause findings",
+        "now": "4 root-cause findings",
         "was": "no defects found in what was graded"
       },
       "result": {
@@ -96,6 +96,30 @@
             "entity": "job",
             "findings": 1,
             "operationId": "job.create",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "validation.content-type-enforced"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "schema.success-response-matches-document",
+                "validation.enum-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "webhook",
+            "findings": 1,
+            "operationId": "webhook.create",
             "reason": null,
             "status": "failed"
           }
@@ -190,6 +214,33 @@
             "sufficiency": "verified",
             "tier": "verified",
             "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "schema.success-response-matches-document",
+                "validation.content-type-enforced",
+                "validation.enum-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "webhook",
+            "findings": 0,
+            "operationId": "webhook.create",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
           }
         ]
       }
@@ -197,8 +248,8 @@
     "teardown": {
       "records": {},
       "removed": {
-        "now": 91,
-        "was": 88
+        "now": 117,
+        "was": 113
       }
     },
     "findings": {
@@ -253,12 +304,29 @@
           ],
           "summary": "a request labelled with an undeclared content type was processed",
           "verdict": "BACKEND_BUG"
+        },
+        {
+          "check": "validation.content-type-enforced",
+          "detail": "the operation documents 415 and declares application/json, but the same body sent as text/plain was processed (201). Content negotiation is documented but not implemented.",
+          "entity": "webhook",
+          "operations": [
+            "webhook.create"
+          ],
+          "evidence": [
+            {
+              "method": "POST",
+              "status": 201,
+              "url": "http://reference.test/v1/projects/proj_alpha/webhooks"
+            }
+          ],
+          "summary": "a request labelled with an undeclared content type was processed",
+          "verdict": "BACKEND_BUG"
         }
       ]
     },
     "summary": {
       "BACKEND_BUG": {
-        "now": 3,
+        "now": 4,
         "was": null
       }
     }

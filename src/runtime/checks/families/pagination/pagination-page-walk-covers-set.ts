@@ -50,6 +50,7 @@ export const pageWalkCoversSet: Check = defineCheck({
 		"sort.order-is-applied",
 	],
 	id: "pagination.page-walk-covers-set",
+	lists: true,
 	needs: "a way to page forward — a page number, a row offset or a cursor — and at least three records",
 	subjects: subjectsOf.list,
 	async run(ctx): Promise<Outcome> {

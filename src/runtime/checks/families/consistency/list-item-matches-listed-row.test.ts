@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest"
-import type { CheckContext, WriteContext } from "../../core/context.ts"
+import type { Listed, WriteContext } from "../../core/context.ts"
 import { contextFor, modelOf, op, type Responder } from "../../__fixtures__/harness.ts"
+import { NEEDS_LIST, planOn } from "../../core/run.ts"
 import { listedRowIsTheGet } from "./list-item-matches-listed-row.ts"
 import { notesBackend, notesDoc } from "./__fixtures__/notes.ts"
 
 const listed = { id: "n1", status: "open", title: "alpha" }
 
 /** A list-only notes context: a read route, no create, and `records` as the list returned them. */
-function stage(respond: Responder, fields: Partial<CheckContext> = {}) {
+function stage(respond: Responder, fields: Partial<Listed> = {}) {
 	const model = modelOf(notesDoc())
 	return contextFor(model, "notes.list", {
 		respond,
@@ -96,11 +97,10 @@ describe("list.item-matches-listed-row run", () => {
 		}
 	})
 
-	it("names the list generically when the context carries none", async () => {
+	it("is skipped as needing a list on an entity with none", async () => {
 		const staged = stage(answering({}))
-		const ctx = { ...staged.ctx, listOp: undefined } as unknown as WriteContext
-		await listedRowIsTheGet.run(ctx, { id: "n1", listed })
-		expect(staged.findings.findings[0]?.detail).toContain("the row the list already returned")
+		const ctx: WriteContext = { ...staged.ctx, listOp: undefined }
+		expect(planOn(listedRowIsTheGet, ctx)).toEqual({ needs: NEEDS_LIST, ok: false })
 	})
 })
 

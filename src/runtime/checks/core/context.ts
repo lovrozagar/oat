@@ -64,7 +64,8 @@ export interface CheckContext<C extends ReadClient = ReadClient> {
 	client: C
 	findings: FindingCollector
 	scope: Record<string, string>
-	listOp: OperationModel
+	/** The entity's list, or `undefined` for one whose cohort is its creates alone; see `ListingCheck`. */
+	listOp: OperationModel | undefined
 	readOp: OperationModel | undefined
 	createOp: OperationModel | undefined
 	updateOp: OperationModel | undefined
@@ -156,3 +157,11 @@ export interface CheckContext<C extends ReadClient = ReadClient> {
 
 /** The context of a check that changes server state. */
 export type WriteContext = CheckContext<Client>
+
+/** The context of an entity with a list: what a check that reads the listing plans and runs on. */
+export type Listed<C extends ReadClient = ReadClient> = CheckContext<C> & { listOp: OperationModel }
+
+/** Whether the entity has a list for checks to read. */
+export function isListed<C extends ReadClient>(ctx: CheckContext<C>): ctx is Listed<C> {
+	return ctx.listOp !== undefined
+}

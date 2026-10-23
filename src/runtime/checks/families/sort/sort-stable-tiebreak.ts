@@ -25,6 +25,7 @@ export const sortStableTiebreak: Check<{ primary: string; tiebreak: string }> = 
 	},
 	dependsOn: ["pagination.page-walk-covers-set", "sort.order-is-applied"],
 	id: "sort.stable-tiebreak",
+	lists: true,
 	needs: "a declared stableTiebreak and a tie on the primary key",
 	subjects: subjectsOf.list,
 	async run(ctx, { primary, tiebreak }): Promise<Outcome> {

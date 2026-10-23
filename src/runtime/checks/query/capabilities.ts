@@ -7,11 +7,12 @@ import { mergeQueryCapabilities } from "../../../spec/query/merge.ts"
 import { FILTER_OPS } from "../../../spec/query/ops.ts"
 import type { SortValue } from "../../../spec/render/sort.ts"
 import type { RequestOptions } from "../../../client/types.ts"
-import type { CheckContext } from "../core/context.ts"
+import type { CheckContext, Listed } from "../core/context.ts"
+import { itemSchemaOf } from "../payloads/item-schema.ts"
 import type { JsonSchema } from "../../../spec/types.ts"
 
 /** The list endpoint's derived conventions — parameter roles and envelope spellings. */
-export function conv(ctx: CheckContext): QueryConventions {
+export function conv(ctx: Listed): QueryConventions {
 	return ctx.listOp.conventions
 }
 
@@ -25,7 +26,7 @@ export type Query = NonNullable<RequestOptions["query"]>
  * spells them, so a check written once works against an API that shares no parameter names with
  * the fixture.
  */
-export function q(ctx: CheckContext, roles: QueryRoles): Query {
+export function q(ctx: Listed, roles: QueryRoles): Query {
 	const c = conv(ctx)
 	const out: QueryOut = {}
 	/* Never above the documented maximum: a backend is right to refuse a request that breaks the
@@ -87,7 +88,7 @@ function placePage(out: QueryOut, c: QueryConventions, { page, size }: PageAsked
 }
 
 /** The largest page this endpoint documents — see `documentedPage`. */
-export function pageSize(ctx: CheckContext): number {
+export function pageSize(ctx: Listed): number {
 	return documentedPage(ctx.model, ctx.listOp).size
 }
 
@@ -103,7 +104,7 @@ export function pageSize(ctx: CheckContext): number {
  * still stand down individually, because `filterTerm` returns null for them and there is genuinely
  * no request to send.
  */
-export function filterable(ctx: CheckContext): boolean {
+export function filterable(ctx: Listed): boolean {
 	const c = conv(ctx)
 	if (c.filter !== undefined) return true
 	/* Equality-per-field needs a field to attach the predicate to, and the document has to say
@@ -111,7 +112,7 @@ export function filterable(ctx: CheckContext): boolean {
 	return filterSpec(c).param === "field" && (ctx.query?.filterable.length ?? 0) > 0
 }
 
-export function resolvedCaps(ctx: CheckContext): EffectiveQueryCapabilities {
+export function resolvedCaps(ctx: Listed): EffectiveQueryCapabilities {
 	if (ctx.capabilities !== undefined) return ctx.capabilities
 	return mergeQueryCapabilities({
 		itemSchema: ctx.listOp.collection?.itemSchema ?? null,
@@ -137,21 +138,21 @@ export function resolvedCaps(ctx: CheckContext): EffectiveQueryCapabilities {
 	})
 }
 
-export function filterableNames(ctx: CheckContext): string[] {
+export function filterableNames(ctx: Listed): string[] {
 	return resolvedCaps(ctx).filterable.map((field) => field.field)
 }
 
 /** Filter field for identity predicates when it differs from the JSON identity. */
-export function filterIdentity(ctx: CheckContext): string {
+export function filterIdentity(ctx: Listed): string {
 	return resolvedCaps(ctx).identityFilter ?? ctx.identity
 }
 
-export function identityIsFilterable(ctx: CheckContext): boolean {
+export function identityIsFilterable(ctx: Listed): boolean {
 	const names = filterableNames(ctx)
 	return names.includes(filterIdentity(ctx)) || names.includes(ctx.identity)
 }
 
-export function canUseOp(ctx: CheckContext, field: EffectiveFilterField, op: (typeof FILTER_OPS)[number]): boolean {
+export function canUseOp(ctx: Listed, field: EffectiveFilterField, op: (typeof FILTER_OPS)[number]): boolean {
 	return canWriteFilterOp(conv(ctx), op) && fieldAllows(field, op, resolvedCaps(ctx))
 }
 
@@ -163,7 +164,7 @@ export function canUseOp(ctx: CheckContext, field: EffectiveFilterField, op: (ty
  * signal is honest — holds identically under both. Gating those checks on a *page* parameter
  * meant an offset-paged API silently skipped them, which reads exactly like a clean result.
  */
-export function pageable(ctx: CheckContext): boolean {
+export function pageable(ctx: Listed): boolean {
 	const c = conv(ctx)
 	return c.page !== undefined || c.offset !== undefined
 }
@@ -188,7 +189,7 @@ export const FOUNDATIONS = [
 
 /** The JSON type the item schema gives a property, looking through a nullable union. */
 export function schemaType(ctx: CheckContext, field: string): string | undefined {
-	const properties = (ctx.listOp.collection?.itemSchema?.properties ?? {}) as Record<string, JsonSchema>
+	const properties = (itemSchemaOf(ctx)?.properties ?? {}) as Record<string, JsonSchema>
 	const propertySchema = properties[field]
 	if (propertySchema === undefined) return undefined
 	const branches = [propertySchema, ...((propertySchema.oneOf ?? propertySchema.anyOf ?? []) as Array<JsonSchema>)]

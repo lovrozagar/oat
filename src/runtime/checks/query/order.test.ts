@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { Record_ } from "../../world/records.ts"
-import type { CheckContext } from "../core/context.ts"
+import type { Listed } from "../core/context.ts"
 import { resolvedCaps } from "./capabilities.ts"
 import { compareScalars, holdsSomeNulls, nullableField, observeTextOrder, sortedUnder, tiedSortField } from "./order.ts"
 import { notesContext } from "./__fixtures__/notes.ts"
@@ -11,7 +11,7 @@ import { notesContext } from "./__fixtures__/notes.ts"
  * or the document has declared — which, under that one alone; nulls sit together at one end.
  */
 
-const withRecords = (records: Record_[]): CheckContext => notesContext(undefined, { records }).ctx
+const withRecords = (records: Record_[]): Listed => notesContext(undefined, { records }).ctx
 
 /** The notes context with the sort behaviour the document declares. */
 function declaring(sort: { collation?: "binary" | "case-insensitive" | "locale"; defaultNulls?: "first" | "last" }) {

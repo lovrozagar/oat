@@ -33,6 +33,7 @@ export const querySearchAndSelectCompose: Check<{
 	},
 	dependsOn: ["pagination.page-walk-covers-set", "search.q-narrows-result", "select.projection-honoured"],
 	id: "query.search-and-select-compose",
+	lists: true,
 	needs: "searchable and selectable fields",
 	subjects: subjectsOf.list,
 	async run(ctx, { projection, token }): Promise<Outcome> {

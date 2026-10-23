@@ -1,6 +1,6 @@
 import type { Exchange } from "../../../../exchange.ts"
 import type { JsonSchema, OpenApiDocument } from "../../../../../spec/types.ts"
-import type { CheckContext } from "../../../core/context.ts"
+import type { Listed } from "../../../core/context.ts"
 import { type Answer, contextFor, modelOf } from "../../../__fixtures__/harness.ts"
 
 /*
@@ -42,7 +42,7 @@ export function itemsDocument(
 }
 
 /** A context over `doc` whose create is the document's, answering every request with `answer`. */
-export function stage(doc: OpenApiDocument, answer: Answer, fields: Partial<CheckContext> = {}) {
+export function stage(doc: OpenApiDocument, answer: Answer, fields: Partial<Listed> = {}) {
 	const model = modelOf(doc)
 	return contextFor(model, "item.list", {
 		respond: () => answer,

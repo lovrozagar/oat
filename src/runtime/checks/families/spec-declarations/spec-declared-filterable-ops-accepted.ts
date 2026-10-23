@@ -7,7 +7,7 @@ import { FILTER_OPS } from "../../../../spec/query/ops.ts"
 import type { Exchange } from "../../../exchange.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { filterSentinel } from "../../../generate/identifiers.ts"
-import type { CheckContext } from "../../core/context.ts"
+import type { Listed } from "../../core/context.ts"
 import { when } from "../../core/plan.ts"
 import { declarationAnswer } from "../../planning/declarations.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
@@ -15,7 +15,7 @@ import { asTermValue, conv, q, resolvedCaps, schemaType } from "../../query/capa
 import { list } from "../../sets/list.ts"
 
 function probeValueForOp(
-	ctx: CheckContext,
+	ctx: Listed,
 	field: EffectiveFilterField,
 	op: (typeof FILTER_OPS)[number],
 ): string | number | readonly (string | number)[] | null {
@@ -34,7 +34,7 @@ function probeValueForOp(
 }
 
 /** A well-formed value of `field`'s declared type that no record holds, for probing a capability. */
-function typedSentinel(ctx: CheckContext, field: EffectiveFilterField): string | number | null {
+function typedSentinel(ctx: Listed, field: EffectiveFilterField): string | number | null {
 	const propertySchema = (ctx.listOp.collection?.itemSchema?.properties as Record<string, unknown> | undefined)?.[
 		field.field
 	]
@@ -53,6 +53,7 @@ export const declaredFilterableOpsAccepted: Check = defineCheck({
 		),
 	dependsOn: ["list.read-after-write", "spec.declared-filterable-is-filterable", "error.malformed-filter-not-5xx"],
 	id: "spec.declared-filterable-ops-accepted",
+	lists: true,
 	needs: "a closed operator list on at least one declared field",
 	subjects: subjectsOf.list,
 	async run(ctx): Promise<Outcome> {

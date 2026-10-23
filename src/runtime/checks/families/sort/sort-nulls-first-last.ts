@@ -40,6 +40,7 @@ export const sortNullsFirstLast: Check<{
 	},
 	dependsOn: ["sort.order-is-applied", "sort.reverse-symmetry"],
 	id: "sort.nulls-first-last",
+	lists: true,
 	needs: "a declared nulls token, a dotted sort grammar, and a null in the cohort",
 	subjects: subjectsOf.list,
 	async run(ctx, { field, firstClause, lastClause }): Promise<Outcome> {

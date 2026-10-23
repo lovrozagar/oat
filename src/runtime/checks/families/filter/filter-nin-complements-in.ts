@@ -39,6 +39,7 @@ export const filterNinComplementsIn: Check<{
 	},
 	dependsOn: ["query.filter-selects-from-whole-set", ...FOUNDATIONS, "filter.in-is-union-of-eq"],
 	id: "filter.nin-complements-in",
+	lists: true,
 	needs: "a field that allows both `in` and `nin`",
 	subjects: subjectsOf.list,
 	async run(ctx, { field, inTerm, ninTerm }): Promise<Outcome> {

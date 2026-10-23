@@ -1,3 +1,4 @@
+import type { Client } from "../../../../client/client.ts"
 import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
@@ -13,7 +14,7 @@ import {
 import type { Exchange } from "../../../exchange.ts"
 import { idOf, type Record_ } from "../../../world/records.ts"
 import { isPlanLimitResponse } from "../../../world/plan-limit.ts"
-import type { WriteContext } from "../../core/context.ts"
+import type { Listed, WriteContext } from "../../core/context.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { scratchRecord, updateRequest } from "../../isolation/scratch.ts"
 import { standDownForFeatureGate } from "../../planning/stand-down.ts"
@@ -42,6 +43,7 @@ export const uniqueConflictUpdate: Check<{
 	/* Reads whole sets across pages, so a walk that skips or repeats records corrupts them. */
 	dependsOn: ["pagination.page-walk-covers-set"],
 	id: "update.unique-conflict-rejected",
+	lists: true,
 	mutates: true,
 	needs: "x-unique, an update operation with a probeable set, a create, and a known row",
 	subjects: subjectsOf.update,
@@ -71,7 +73,7 @@ interface UpdateProbe {
 
 /** One set's probe; an outcome only when no record could be made for it, which ends the check. */
 async function probeUpdateSet(
-	ctx: WriteContext,
+	ctx: Listed<Client>,
 	probe: UpdateProbe,
 	set: string[],
 	index: number,
@@ -113,7 +115,7 @@ async function probeUpdateSet(
 }
 
 async function judgeUpdateProbe(
-	ctx: WriteContext,
+	ctx: Listed<Client>,
 	probe: UpdateProbe,
 	{ before, method, sent, set }: { before: Listing; method: string; sent: Exchange; set: string[] },
 ): Promise<void> {

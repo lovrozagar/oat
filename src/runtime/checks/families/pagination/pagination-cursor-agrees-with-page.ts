@@ -5,7 +5,7 @@ import type { SortValue } from "../../../../spec/render/sort.ts"
 import type { Exchange } from "../../../exchange.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { idOf, type Record_, recordsFromList } from "../../../world/records.ts"
-import type { CheckContext } from "../../core/context.ts"
+import type { CheckContext, Listed } from "../../core/context.ts"
 import { when } from "../../core/plan.ts"
 import { NO_KEY, subjectsOf } from "../../planning/subjects.ts"
 import { conv, pageable } from "../../query/capabilities.ts"
@@ -14,12 +14,7 @@ import { ids, rowsAt, type Walk } from "../../sets/list.ts"
 import { readSet } from "../../sets/read.ts"
 import { MAX_WALK_PAGES, walkPages } from "./walk.ts"
 
-async function walkCursor(
-	ctx: CheckContext,
-	perPage: number,
-	order?: SortValue,
-	maxPages = MAX_WALK_PAGES,
-): Promise<Walk> {
+async function walkCursor(ctx: Listed, perPage: number, order?: SortValue, maxPages = MAX_WALK_PAGES): Promise<Walk> {
 	const read = await readSet(
 		ctx,
 		{},
@@ -48,7 +43,7 @@ function textSortField(ctx: CheckContext): string | undefined {
 }
 
 /** The cursor pages up to the one that served a record again. */
-function repeatEvidence(ctx: CheckContext, cursorWalk: Walk, repeated: string[]): Exchange[] {
+function repeatEvidence(ctx: Listed, cursorWalk: Walk, repeated: string[]): Exchange[] {
 	return cursorWalk.exchanges.slice(
 		0,
 		Math.max(
@@ -95,6 +90,7 @@ export const cursorAgreesWithPage: Check = defineCheck({
 		"pagination.limit-respects-documented-max",
 	],
 	id: "pagination.cursor-agrees-with-page",
+	lists: true,
 	needs: "both `cursor` and `page` parameters",
 	subjects: subjectsOf.list,
 	async run(ctx): Promise<Outcome> {

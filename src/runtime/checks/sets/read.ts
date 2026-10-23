@@ -2,7 +2,7 @@ import type { QueryConventions } from "../../../spec/conventions/types.ts"
 import type { SortValue } from "../../../spec/render/sort.ts"
 import { fillPath } from "../../fill-path.ts"
 import { idOf, type Record_ } from "../../world/records.ts"
-import type { CheckContext } from "../core/context.ts"
+import type { Listed } from "../core/context.ts"
 import { conv, pageSize, q, type Query } from "../query/capabilities.ts"
 import { envelopeValue, list, type ListResult } from "./list.ts"
 
@@ -64,7 +64,7 @@ const SET_RECORD_CAP = 500
  * A page answered with an error leaves the set unresolved, never "ended". Identical reads are
  * shared until the next write, unless `fresh` asks for a new one.
  */
-export async function readSet(ctx: CheckContext, extra: Query = {}, options: ReadOptions = {}): Promise<SetRead> {
+export async function readSet(ctx: Listed, extra: Query = {}, options: ReadOptions = {}): Promise<SetRead> {
 	const size = Math.min(options.size ?? pageSize(ctx), pageSize(ctx))
 	/* Identical set reads within one run, keyed by request and by how many writes came before. */
 	const memo = memoTable<Promise<SetRead>>(ctx.memo.run, "setReads")
@@ -101,7 +101,7 @@ function pagingMode(c: QueryConventions, byCursor: boolean): PagingMode {
 
 /** A walk in progress: how it reads a page, and what it has gathered so far. */
 interface Walk {
-	ctx: CheckContext
+	ctx: Listed
 	extra: Query
 	options: ReadOptions
 	size: number
@@ -116,7 +116,7 @@ interface Walk {
 	ahead: Map<number, Promise<ListResult>>
 }
 
-async function walkSet(ctx: CheckContext, extra: Query, options: ReadOptions, size: number): Promise<SetRead> {
+async function walkSet(ctx: Listed, extra: Query, options: ReadOptions, size: number): Promise<SetRead> {
 	const mode = pagingMode(conv(ctx), options.byCursor === true)
 	const walk: Walk = {
 		ahead: new Map(),

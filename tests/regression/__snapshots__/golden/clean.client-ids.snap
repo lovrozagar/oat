@@ -151,6 +151,11 @@
         "needs": "an operation declaring x-async"
       },
       {
+        "check": "async.reaches-terminal-state",
+        "entity": "webhook",
+        "needs": "an operation declaring x-async"
+      },
+      {
         "check": "async.receipt-identifies-the-job",
         "entity": "notice",
         "needs": "x-async with an idFrom pointer"
@@ -163,6 +168,11 @@
       {
         "check": "async.receipt-identifies-the-job",
         "entity": "table",
+        "needs": "x-async with an idFrom pointer"
+      },
+      {
+        "check": "async.receipt-identifies-the-job",
+        "entity": "webhook",
         "needs": "x-async with an idFrom pointer"
       },
       {
@@ -346,6 +356,21 @@
         "needs": "a read: a write an alternative is accepted on would apply it"
       },
       {
+        "check": "auth.alternative-accepted",
+        "entity": "webhook.create",
+        "needs": "a read: a write an alternative is accepted on would apply it"
+      },
+      {
+        "check": "auth.alternative-accepted",
+        "entity": "webhook.delete",
+        "needs": "a read: a write an alternative is accepted on would apply it"
+      },
+      {
+        "check": "auth.alternative-accepted",
+        "entity": "webhook.update",
+        "needs": "a read: a write an alternative is accepted on would apply it"
+      },
+      {
         "check": "auth.anonymous-operation-open",
         "entity": "account.delete",
         "needs": "an operation whose security lets anonymous callers in"
@@ -518,6 +543,26 @@
       {
         "check": "auth.anonymous-operation-open",
         "entity": "table.update",
+        "needs": "an operation whose security lets anonymous callers in"
+      },
+      {
+        "check": "auth.anonymous-operation-open",
+        "entity": "webhook.create",
+        "needs": "an operation whose security lets anonymous callers in"
+      },
+      {
+        "check": "auth.anonymous-operation-open",
+        "entity": "webhook.delete",
+        "needs": "an operation whose security lets anonymous callers in"
+      },
+      {
+        "check": "auth.anonymous-operation-open",
+        "entity": "webhook.get",
+        "needs": "an operation whose security lets anonymous callers in"
+      },
+      {
+        "check": "auth.anonymous-operation-open",
+        "entity": "webhook.update",
         "needs": "an operation whose security lets anonymous callers in"
       },
       {
@@ -716,6 +761,26 @@
         "needs": "a GET; table.update is probed by the write stage's checks"
       },
       {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "webhook.create",
+        "needs": "a GET; webhook.create is probed by the write stage's checks"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "webhook.delete",
+        "needs": "a GET; webhook.delete is probed by the write stage's checks"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "webhook.get",
+        "needs": "a path the actor's and the peer's scopes each fill, differently"
+      },
+      {
+        "check": "auth.cross-tenant-key-refused",
+        "entity": "webhook.update",
+        "needs": "a GET; webhook.update is probed by the write stage's checks"
+      },
+      {
         "check": "auth.destructive-spares-the-caller",
         "entity": "job",
         "needs": "x-destructive, a way to sign up a second user, and a caller read"
@@ -733,6 +798,11 @@
       {
         "check": "auth.destructive-spares-the-caller",
         "entity": "table",
+        "needs": "x-destructive, a way to sign up a second user, and a caller read"
+      },
+      {
+        "check": "auth.destructive-spares-the-caller",
+        "entity": "webhook",
         "needs": "x-destructive, a way to sign up a second user, and a caller read"
       },
       {
@@ -861,6 +931,11 @@
         "needs": "a record this run created that table.revoke can be sent to"
       },
       {
+        "check": "auth.invalid-credential-refused",
+        "entity": "webhook.create",
+        "needs": "a record this run created that webhook.create can be sent to"
+      },
+      {
         "check": "auth.invite-grants-then-revokes",
         "entity": "job",
         "needs": "x-invite naming invite/accept/revoke, a peer principal with inviteAs, and an item or list route"
@@ -873,6 +948,11 @@
       {
         "check": "auth.invite-grants-then-revokes",
         "entity": "row",
+        "needs": "x-invite naming invite/accept/revoke, a peer principal with inviteAs, and an item or list route"
+      },
+      {
+        "check": "auth.invite-grants-then-revokes",
+        "entity": "webhook",
         "needs": "x-invite naming invite/accept/revoke, a peer principal with inviteAs, and an item or list route"
       },
       {
@@ -1081,6 +1161,26 @@
         "needs": "opt in with checks: { \"auth.login-throttled\": true }"
       },
       {
+        "check": "auth.login-throttled",
+        "entity": "webhook.create",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "webhook.delete",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "webhook.get",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
+        "check": "auth.login-throttled",
+        "entity": "webhook.update",
+        "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+      },
+      {
         "check": "auth.missing-credential-refused",
         "entity": "account.delete",
         "needs": "a record this run created that account.delete can be sent to"
@@ -1204,6 +1304,11 @@
         "check": "auth.missing-credential-refused",
         "entity": "table.revoke",
         "needs": "a record this run created that table.revoke can be sent to"
+      },
+      {
+        "check": "auth.missing-credential-refused",
+        "entity": "webhook.create",
+        "needs": "a record this run created that webhook.create can be sent to"
       },
       {
         "check": "auth.privileged-field-ignored",
@@ -1404,6 +1509,26 @@
         "check": "auth.privileged-field-ignored",
         "entity": "table.revoke",
         "needs": "a request body property marked x-privileged; table.revoke marks none"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "webhook.create",
+        "needs": "a request body property marked x-privileged; webhook.create marks none"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "webhook.delete",
+        "needs": "a request body property marked x-privileged; webhook.delete marks none"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "webhook.get",
+        "needs": "a request body property marked x-privileged; webhook.get marks none"
+      },
+      {
+        "check": "auth.privileged-field-ignored",
+        "entity": "webhook.update",
+        "needs": "a request body property marked x-privileged; webhook.update marks none"
       },
       {
         "check": "auth.rank-is-monotonic-on-writes",
@@ -1611,6 +1736,26 @@
         "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
       },
       {
+        "check": "auth.refresh-reuse-refused",
+        "entity": "webhook.create",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
+        "entity": "webhook.delete",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
+        "entity": "webhook.get",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
+        "check": "auth.refresh-reuse-refused",
+        "entity": "webhook.update",
+        "needs": "the refresh operation of a recipe; this check runs on auth.refresh"
+      },
+      {
         "check": "auth.revoked-credential-refused",
         "entity": "account.delete",
         "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
@@ -1806,6 +1951,26 @@
         "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
       },
       {
+        "check": "auth.revoked-credential-refused",
+        "entity": "webhook.create",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
+        "entity": "webhook.delete",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
+        "entity": "webhook.get",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
+        "check": "auth.revoked-credential-refused",
+        "entity": "webhook.update",
+        "needs": "the revoke operation of a recipe; this check runs on apiKey.revoke, auth.logout"
+      },
+      {
         "check": "auth.role-enforced",
         "entity": "account.delete",
         "needs": "a record this run created that account.delete can be sent to"
@@ -1976,6 +2141,16 @@
         "needs": "a record this run created that table.revoke can be sent to"
       },
       {
+        "check": "auth.role-enforced",
+        "entity": "webhook.create",
+        "needs": "a record this run created that webhook.create can be sent to"
+      },
+      {
+        "check": "auth.role-enforced",
+        "entity": "webhook.get",
+        "needs": "a write method"
+      },
+      {
         "check": "auth.scope-enforced",
         "entity": "account.delete",
         "needs": "an alternative that requires a scope"
@@ -2126,6 +2301,11 @@
         "needs": "an alternative that requires a scope"
       },
       {
+        "check": "auth.scope-enforced",
+        "entity": "webhook.create",
+        "needs": "a record this run created that webhook.create can be sent to"
+      },
+      {
         "check": "auth.self-is-the-caller",
         "entity": "job",
         "needs": "x-entity.identity: self, and a read or an update"
@@ -2143,6 +2323,11 @@
       {
         "check": "auth.self-is-the-caller",
         "entity": "table",
+        "needs": "x-entity.identity: self, and a read or an update"
+      },
+      {
+        "check": "auth.self-is-the-caller",
+        "entity": "webhook",
         "needs": "x-entity.identity: self, and a read or an update"
       },
       {
@@ -2326,6 +2511,26 @@
         "needs": "a scheme the document uses that table.update does not list"
       },
       {
+        "check": "auth.wrong-scheme-refused",
+        "entity": "webhook.create",
+        "needs": "a scheme the document uses that webhook.create does not list"
+      },
+      {
+        "check": "auth.wrong-scheme-refused",
+        "entity": "webhook.delete",
+        "needs": "a scheme the document uses that webhook.delete does not list"
+      },
+      {
+        "check": "auth.wrong-scheme-refused",
+        "entity": "webhook.get",
+        "needs": "a scheme the document uses that webhook.get does not list"
+      },
+      {
+        "check": "auth.wrong-scheme-refused",
+        "entity": "webhook.update",
+        "needs": "a scheme the document uses that webhook.update does not list"
+      },
+      {
         "check": "concurrency.if-match-enforced",
         "entity": "notice",
         "needs": "a create, an item read that declares an ETag, and an update that declares If-Match"
@@ -2341,14 +2546,29 @@
         "needs": "a client-owned field that is filterable, sortable and set on a record"
       },
       {
+        "check": "consistency.projections-agree",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
         "check": "count.consistent-with-returned-page",
         "entity": "notice",
         "needs": "the listing reports no total"
       },
       {
+        "check": "count.consistent-with-returned-page",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
         "check": "count.matches-filtered-set",
         "entity": "notice",
         "needs": "a total-count field and a `filter` parameter"
+      },
+      {
+        "check": "count.matches-filtered-set",
+        "entity": "webhook",
+        "needs": "a list operation"
       },
       {
         "check": "create.keeps-submitted-identity",
@@ -2363,6 +2583,11 @@
       {
         "check": "create.keeps-submitted-identity",
         "entity": "row",
+        "needs": "a create that takes the record's identity from the client, and an item read"
+      },
+      {
+        "check": "create.keeps-submitted-identity",
+        "entity": "webhook",
         "needs": "a create that takes the record's identity from the client, and an item read"
       },
       {
@@ -2391,6 +2616,11 @@
         "needs": "x-unique on create with at least one probeable column set, and a known row"
       },
       {
+        "check": "create.unique-conflict-rejected",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
         "check": "delete.absent-record-returns-404",
         "entity": "notice",
         "needs": "a delete operation"
@@ -2411,6 +2641,11 @@
         "needs": "an operation declaring x-effects"
       },
       {
+        "check": "effects.declared-effect-occurs",
+        "entity": "webhook",
+        "needs": "an operation declaring x-effects"
+      },
+      {
         "check": "effects.side-effect-arrives",
         "entity": "notice",
         "needs": "an operation declaring x-wait"
@@ -2423,6 +2658,11 @@
       {
         "check": "effects.side-effect-arrives",
         "entity": "table",
+        "needs": "an operation declaring x-wait"
+      },
+      {
+        "check": "effects.side-effect-arrives",
+        "entity": "webhook",
         "needs": "an operation declaring x-wait"
       },
       {
@@ -2431,6 +2671,11 @@
         "needs": "a way to express a filter — a filter expression parameter, or filterable fields"
       },
       {
+        "check": "error.malformed-filter-not-5xx",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
         "check": "filter.alias-matches-canonical",
         "entity": "job",
         "needs": "a declared filter operator alias"
@@ -2444,6 +2689,11 @@
         "check": "filter.alias-matches-canonical",
         "entity": "row",
         "needs": "a declared filter operator alias"
+      },
+      {
+        "check": "filter.alias-matches-canonical",
+        "entity": "webhook",
+        "needs": "a list operation"
       },
       {
         "check": "filter.and-composes-as-intersection",
@@ -2451,6 +2701,11 @@
         "needs": "two filterable fields and a filter parameter or grammar supporting eq"
       },
       {
+        "check": "filter.and-composes-as-intersection",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
         "check": "filter.condition-cap-rejected",
         "entity": "job",
         "needs": "`maxFilterConditions` declared and a grammar that can group eq terms"
@@ -2464,6 +2719,11 @@
         "check": "filter.condition-cap-rejected",
         "entity": "row",
         "needs": "`maxFilterConditions` declared and a grammar that can group eq terms"
+      },
+      {
+        "check": "filter.condition-cap-rejected",
+        "entity": "webhook",
+        "needs": "a list operation"
       },
       {
         "check": "filter.contains-membership",
@@ -2481,6 +2741,11 @@
         "needs": "an array field that allows `contains` and a known element"
       },
       {
+        "check": "filter.contains-membership",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
         "check": "filter.empty-in",
         "entity": "job",
         "needs": "`emptyIn` declared and a field that allows `in`"
@@ -2494,6 +2759,11 @@
         "check": "filter.empty-in",
         "entity": "row",
         "needs": "`emptyIn` declared and a field that allows `in`"
+      },
+      {
+        "check": "filter.empty-in",
+        "entity": "webhook",
+        "needs": "a list operation"
       },
       {
         "check": "filter.equality-selects-exactly-one",
@@ -2501,9 +2771,19 @@
         "needs": "a `filter` parameter that accepts the identity field"
       },
       {
+        "check": "filter.equality-selects-exactly-one",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
         "check": "filter.gte-is-gt-or-eq",
         "entity": "notice",
         "needs": "an ordered field that allows `gte` and `gt`"
+      },
+      {
+        "check": "filter.gte-is-gt-or-eq",
+        "entity": "webhook",
+        "needs": "a list operation"
       },
       {
         "check": "filter.ilike-is-case-insensitive",
@@ -2519,6 +2799,11 @@
         "check": "filter.ilike-is-case-insensitive",
         "entity": "row",
         "needs": "a field that allows both `ilike` and `like`, and a string with a letter"
+      },
+      {
+        "check": "filter.ilike-is-case-insensitive",
+        "entity": "webhook",
+        "needs": "a list operation"
       },
       {
         "check": "filter.illegal-op-rejected",
@@ -2526,6 +2811,11 @@
         "needs": "a field with a closed operator list, or a declared filter grammar"
       },
       {
+        "check": "filter.illegal-op-rejected",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
         "check": "filter.in-is-union-of-eq",
         "entity": "job",
         "needs": "a field that allows `in` and at least two distinct values"
@@ -2539,6 +2829,11 @@
         "check": "filter.in-is-union-of-eq",
         "entity": "row",
         "needs": "a field that allows `in` and at least two distinct values"
+      },
+      {
+        "check": "filter.in-is-union-of-eq",
+        "entity": "webhook",
+        "needs": "a list operation"
       },
       {
         "check": "filter.in-over-limit-rejected",
@@ -2556,6 +2851,11 @@
         "needs": "`maxInValues` declared and a field that allows `in`"
       },
       {
+        "check": "filter.in-over-limit-rejected",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
         "check": "filter.is-null-selects-nulls",
         "entity": "job",
         "needs": "a field that allows `is` and a cohort that contains a null"
@@ -2569,6 +2869,11 @@
         "check": "filter.is-null-selects-nulls",
         "entity": "row",
         "needs": "a field that allows `is` and a cohort that contains a null"
+      },
+      {
+        "check": "filter.is-null-selects-nulls",
+        "entity": "webhook",
+        "needs": "a list operation"
       },
       {
         "check": "filter.like-metacharacters-escaped",
@@ -2576,9 +2881,19 @@
         "needs": "a `filter` parameter supporting a like operator"
       },
       {
+        "check": "filter.like-metacharacters-escaped",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
         "check": "filter.lte-is-lt-or-eq",
         "entity": "notice",
         "needs": "an ordered field that allows `lte` and `lt`"
+      },
+      {
+        "check": "filter.lte-is-lt-or-eq",
+        "entity": "webhook",
+        "needs": "a list operation"
       },
       {
         "check": "filter.malformed-term-rejected",
@@ -2586,9 +2901,19 @@
         "needs": "a declared filter grammar whose terms carry a conjunction or an operator"
       },
       {
+        "check": "filter.malformed-term-rejected",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
         "check": "filter.negation-partitions-the-set",
         "entity": "notice",
         "needs": "a `filter` parameter supporting eq and neq"
+      },
+      {
+        "check": "filter.negation-partitions-the-set",
+        "entity": "webhook",
+        "needs": "a list operation"
       },
       {
         "check": "filter.nested-and-or-distributes",
@@ -2596,6 +2921,11 @@
         "needs": "a postgrest-shaped grammar and two filterable fields"
       },
       {
+        "check": "filter.nested-and-or-distributes",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
         "check": "filter.nin-complements-in",
         "entity": "job",
         "needs": "a field that allows both `in` and `nin`"
@@ -2611,6 +2941,11 @@
         "needs": "a field that allows both `in` and `nin`"
       },
       {
+        "check": "filter.nin-complements-in",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
         "check": "filter.numeric-comparison-is-numeric",
         "entity": "job",
         "needs": "a `filter` parameter and a numeric field"
@@ -2619,6 +2954,11 @@
         "check": "filter.numeric-comparison-is-numeric",
         "entity": "notice",
         "needs": "a `filter` parameter and a numeric field"
+      },
+      {
+        "check": "filter.numeric-comparison-is-numeric",
+        "entity": "webhook",
+        "needs": "a list operation"
       },
       {
         "check": "filter.or-composes-as-union",
@@ -2626,9 +2966,19 @@
         "needs": "two filterable fields and an or() combinator (postgrest-shaped filter grammar)"
       },
       {
+        "check": "filter.or-composes-as-union",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
         "check": "filter.ordered-triple-partitions",
         "entity": "notice",
         "needs": "an ordered field that allows `lt`, `eq`, and `gt`"
+      },
+      {
+        "check": "filter.ordered-triple-partitions",
+        "entity": "webhook",
+        "needs": "a list operation"
       },
       {
         "check": "filter.unknown-field-rejected",
@@ -2636,14 +2986,29 @@
         "needs": "a way to express a filter — a filter expression parameter, or filterable fields"
       },
       {
+        "check": "filter.unknown-field-rejected",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
         "check": "filter.zero-match-returns-none",
         "entity": "notice",
         "needs": "a `filter` parameter that accepts the identity field"
       },
       {
+        "check": "filter.zero-match-returns-none",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
         "check": "idempotency.replay-does-not-duplicate",
         "entity": "notice",
         "needs": "a create operation declaring an idempotency-key header"
+      },
+      {
+        "check": "idempotency.replay-does-not-duplicate",
+        "entity": "webhook",
+        "needs": "a list operation"
       },
       {
         "check": "invalidation.declared-route-changes",
@@ -2658,6 +3023,11 @@
       {
         "check": "invalidation.declared-route-changes",
         "entity": "table",
+        "needs": "a create operation whose x-invalidate names another entity's read route"
+      },
+      {
+        "check": "invalidation.declared-route-changes",
+        "entity": "webhook",
         "needs": "a create operation whose x-invalidate names another entity's read route"
       },
       {
@@ -2676,9 +3046,19 @@
         "needs": "a list with no create and one listed row"
       },
       {
+        "check": "list.item-matches-listed-row",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
         "check": "list.read-after-write",
         "entity": "notice",
         "needs": "a record that carries its identity"
+      },
+      {
+        "check": "list.read-after-write",
+        "entity": "webhook",
+        "needs": "a list operation"
       },
       {
         "check": "pagination.bounds-handled",
@@ -2686,9 +3066,19 @@
         "needs": "a page-size or page-number parameter, and at least one record"
       },
       {
+        "check": "pagination.bounds-handled",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
         "check": "pagination.cursor-agrees-with-page",
         "entity": "notice",
         "needs": "both `cursor` and `page` parameters"
+      },
+      {
+        "check": "pagination.cursor-agrees-with-page",
+        "entity": "webhook",
+        "needs": "a list operation"
       },
       {
         "check": "pagination.has-more-is-accurate",
@@ -2696,14 +3086,29 @@
         "needs": "a way to page forward, and a more-pages signal in the body or a Link header"
       },
       {
+        "check": "pagination.has-more-is-accurate",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
         "check": "pagination.limit-bounds-enforced",
         "entity": "notice",
         "needs": "a declared limitOutOfRange: reject"
       },
       {
+        "check": "pagination.limit-bounds-enforced",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
         "check": "pagination.limit-bounds-page-size",
         "entity": "notice",
         "needs": "a page-size query parameter named `limit`"
+      },
+      {
+        "check": "pagination.limit-bounds-page-size",
+        "entity": "webhook",
+        "needs": "a list operation"
       },
       {
         "check": "pagination.limit-respects-documented-max",
@@ -2721,9 +3126,19 @@
         "needs": "a declared maxLimit, and more records than it"
       },
       {
+        "check": "pagination.limit-respects-documented-max",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
         "check": "pagination.page-walk-covers-set",
         "entity": "notice",
         "needs": "a way to page forward — a page number, a row offset or a cursor — and at least three records"
+      },
+      {
+        "check": "pagination.page-walk-covers-set",
+        "entity": "webhook",
+        "needs": "a list operation"
       },
       {
         "check": "patch.immutable-field-rejected",
@@ -2746,9 +3161,19 @@
         "needs": "a filterable field, a sortable field, and more than two records"
       },
       {
+        "check": "query.axes-compose",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
         "check": "query.filter-and-select-compose",
         "entity": "notice",
         "needs": "a filterable field, a select parameter, and more than two records"
+      },
+      {
+        "check": "query.filter-and-select-compose",
+        "entity": "webhook",
+        "needs": "a list operation"
       },
       {
         "check": "query.filter-search-select-compose",
@@ -2756,9 +3181,19 @@
         "needs": "a filterable field, a search parameter, a select parameter, and more than two records"
       },
       {
+        "check": "query.filter-search-select-compose",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
         "check": "query.filter-search-sort-compose",
         "entity": "notice",
         "needs": "a filterable field, a search parameter, a sortable field, and more than two records"
+      },
+      {
+        "check": "query.filter-search-sort-compose",
+        "entity": "webhook",
+        "needs": "a list operation"
       },
       {
         "check": "query.filter-search-sort-select-compose",
@@ -2766,9 +3201,19 @@
         "needs": "all four list axes declared and at least three records"
       },
       {
+        "check": "query.filter-search-sort-select-compose",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
         "check": "query.filter-selects-from-whole-set",
         "entity": "notice",
         "needs": "a filterable field and more than two records"
+      },
+      {
+        "check": "query.filter-selects-from-whole-set",
+        "entity": "webhook",
+        "needs": "a list operation"
       },
       {
         "check": "query.filter-sort-select-compose",
@@ -2776,9 +3221,19 @@
         "needs": "a filterable field, a sortable field, a select parameter, and more than two records"
       },
       {
+        "check": "query.filter-sort-select-compose",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
         "check": "query.search-and-filter-compose",
         "entity": "notice",
         "needs": "a filterable field, a free-text search parameter, and more than two records"
+      },
+      {
+        "check": "query.search-and-filter-compose",
+        "entity": "webhook",
+        "needs": "a list operation"
       },
       {
         "check": "query.search-and-select-compose",
@@ -2786,14 +3241,34 @@
         "needs": "searchable and selectable fields"
       },
       {
+        "check": "query.search-and-select-compose",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
         "check": "query.search-and-sort-compose",
         "entity": "notice",
         "needs": "searchable and sortable fields"
       },
       {
+        "check": "query.search-and-sort-compose",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
         "check": "query.sort-and-select-compose",
         "entity": "notice",
         "needs": "sortable and selectable fields"
+      },
+      {
+        "check": "query.sort-and-select-compose",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
+        "check": "query.unknown-parameter-consistent",
+        "entity": "webhook",
+        "needs": "a list operation"
       },
       {
         "check": "read.matches-caller-root",
@@ -2813,6 +3288,11 @@
       {
         "check": "read.matches-caller-root",
         "entity": "table",
+        "needs": "x-entity.identity: root and a read"
+      },
+      {
+        "check": "read.matches-caller-root",
+        "entity": "webhook",
         "needs": "x-entity.identity: root and a read"
       },
       {
@@ -2996,6 +3476,21 @@
         "needs": "a write that takes a JSON request body"
       },
       {
+        "check": "request.invalid-body-refused",
+        "entity": "webhook.create",
+        "needs": "a write other than its entity's create; webhook.create is webhook's create"
+      },
+      {
+        "check": "request.invalid-body-refused",
+        "entity": "webhook.delete",
+        "needs": "a write that takes a JSON request body"
+      },
+      {
+        "check": "request.invalid-body-refused",
+        "entity": "webhook.get",
+        "needs": "a write that takes a JSON request body"
+      },
+      {
         "check": "response.contract-call",
         "entity": "job",
         "needs": "an operation nothing else graded, with every path parameter resolvable"
@@ -3016,6 +3511,11 @@
         "needs": "an operation nothing else graded, with every path parameter resolvable"
       },
       {
+        "check": "response.contract-call",
+        "entity": "webhook",
+        "needs": "an operation nothing else graded, with every path parameter resolvable"
+      },
+      {
         "check": "response.no-server-error",
         "entity": "job",
         "needs": "a response from the backend"
@@ -3036,6 +3536,11 @@
         "needs": "a response from the backend"
       },
       {
+        "check": "response.no-server-error",
+        "entity": "webhook",
+        "needs": "a response from the backend"
+      },
+      {
         "check": "response.public-get-returns-success",
         "entity": "job",
         "needs": "a public GET or HEAD with no id, no query, and a documented success status"
@@ -3053,6 +3558,11 @@
       {
         "check": "response.public-get-returns-success",
         "entity": "table",
+        "needs": "a public GET or HEAD with no id, no query, and a documented success status"
+      },
+      {
+        "check": "response.public-get-returns-success",
+        "entity": "webhook",
         "needs": "a public GET or HEAD with no id, no query, and a documented success status"
       },
       {
@@ -3066,9 +3576,19 @@
         "needs": "a searchable string with a letter"
       },
       {
+        "check": "search.case-insensitive",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
         "check": "search.empty-q",
         "entity": "notice",
         "needs": "`searchEmpty` declared"
+      },
+      {
+        "check": "search.empty-q",
+        "entity": "webhook",
+        "needs": "a list operation"
       },
       {
         "check": "search.mode-accepted",
@@ -3076,9 +3596,19 @@
         "needs": "declared searchModes and a search-mode parameter"
       },
       {
+        "check": "search.mode-accepted",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
         "check": "search.q-narrows-result",
         "entity": "notice",
         "needs": "a free-text `q` parameter and declared searchable fields"
+      },
+      {
+        "check": "search.q-narrows-result",
+        "entity": "webhook",
+        "needs": "a list operation"
       },
       {
         "check": "search.tokens-and",
@@ -3086,6 +3616,11 @@
         "needs": "searchable fields and two tokens that split the cohort"
       },
       {
+        "check": "search.tokens-and",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
         "check": "select.nested-honoured",
         "entity": "job",
         "needs": "select.nested and a named relation"
@@ -3099,6 +3634,11 @@
         "check": "select.nested-honoured",
         "entity": "table",
         "needs": "select.nested and a named relation"
+      },
+      {
+        "check": "select.nested-honoured",
+        "entity": "webhook",
+        "needs": "a list operation"
       },
       {
         "check": "select.projection-honoured",
@@ -3106,11 +3646,21 @@
         "needs": "a `select` sparse-fieldset parameter"
       },
       {
+        "check": "select.projection-honoured",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
         "check": "select.requested-fields-present",
         "entity": "notice",
         "needs": "a select parameter and at least one selectable field"
       },
       {
+        "check": "select.requested-fields-present",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
         "check": "select.unknown-field-rejected",
         "entity": "job",
         "needs": "`select.unknown` declared"
@@ -3126,6 +3676,11 @@
         "needs": "`select.unknown` declared"
       },
       {
+        "check": "select.unknown-field-rejected",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
         "check": "softdelete.absent-from-default-list",
         "entity": "job",
         "needs": "a create, a delete operation and x-soft-delete"
@@ -3139,11 +3694,21 @@
         "check": "softdelete.absent-from-default-list",
         "entity": "row",
         "needs": "a create, a delete operation and x-soft-delete"
+      },
+      {
+        "check": "softdelete.absent-from-default-list",
+        "entity": "webhook",
+        "needs": "a list operation"
       },
       {
         "check": "sort.default-order-applied",
         "entity": "notice",
         "needs": "a declared defaultOrder and a complete walk"
+      },
+      {
+        "check": "sort.default-order-applied",
+        "entity": "webhook",
+        "needs": "a list operation"
       },
       {
         "check": "sort.invalid-direction-rejected",
@@ -3166,9 +3731,19 @@
         "needs": "a declared sort grammar with a token for each direction"
       },
       {
+        "check": "sort.invalid-direction-rejected",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
         "check": "sort.multi-key-tiebreak",
         "entity": "notice",
         "needs": "two sortable fields and rows that tie on the first and differ on the second"
+      },
+      {
+        "check": "sort.multi-key-tiebreak",
+        "entity": "webhook",
+        "needs": "a list operation"
       },
       {
         "check": "sort.nulls-first-last",
@@ -3186,6 +3761,11 @@
         "needs": "a declared nulls token, a dotted sort grammar, and a null in the cohort"
       },
       {
+        "check": "sort.nulls-first-last",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
         "check": "sort.numeric-order-is-numeric",
         "entity": "job",
         "needs": "a numeric sortable field whose lexical order disagrees with numeric order"
@@ -3194,6 +3774,11 @@
         "check": "sort.numeric-order-is-numeric",
         "entity": "notice",
         "needs": "a numeric sortable field whose lexical order disagrees with numeric order"
+      },
+      {
+        "check": "sort.numeric-order-is-numeric",
+        "entity": "webhook",
+        "needs": "a list operation"
       },
       {
         "check": "sort.order-is-applied",
@@ -3201,9 +3786,19 @@
         "needs": "an `order` parameter and a sortable field"
       },
       {
+        "check": "sort.order-is-applied",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
         "check": "sort.reverse-symmetry",
         "entity": "notice",
         "needs": "an `order` parameter supporting asc and desc"
+      },
+      {
+        "check": "sort.reverse-symmetry",
+        "entity": "webhook",
+        "needs": "a list operation"
       },
       {
         "check": "sort.stable-tiebreak",
@@ -3211,14 +3806,29 @@
         "needs": "a declared stableTiebreak and a tie on the primary key"
       },
       {
+        "check": "sort.stable-tiebreak",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
         "check": "sort.unknown-field-rejected",
         "entity": "notice",
         "needs": "an order parameter"
       },
       {
+        "check": "sort.unknown-field-rejected",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
         "check": "spec.declared-filterable-is-filterable",
         "entity": "notice",
         "needs": "x-query naming filterable fields"
+      },
+      {
+        "check": "spec.declared-filterable-is-filterable",
+        "entity": "webhook",
+        "needs": "a list operation"
       },
       {
         "check": "spec.declared-filterable-ops-accepted",
@@ -3236,8 +3846,18 @@
         "needs": "a closed operator list on at least one declared field"
       },
       {
+        "check": "spec.declared-filterable-ops-accepted",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
         "check": "spec.declared-rate-limit-is-honoured",
         "entity": "notice",
+        "needs": "an operation on this entity with a rate declared by x-rate-limit"
+      },
+      {
+        "check": "spec.declared-rate-limit-is-honoured",
+        "entity": "webhook",
         "needs": "an operation on this entity with a rate declared by x-rate-limit"
       },
       {
@@ -3246,9 +3866,19 @@
         "needs": "x-query naming selectable fields"
       },
       {
+        "check": "spec.declared-selectable-is-selectable",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
         "check": "spec.declared-sortable-is-sortable",
         "entity": "notice",
         "needs": "x-query naming sortable fields"
+      },
+      {
+        "check": "spec.declared-sortable-is-sortable",
+        "entity": "webhook",
+        "needs": "a list operation"
       },
       {
         "check": "spec.declared-sortable-nulls-accepted",
@@ -3264,6 +3894,11 @@
         "check": "spec.declared-sortable-nulls-accepted",
         "entity": "row",
         "needs": "a declared nulls token on a sortable field"
+      },
+      {
+        "check": "spec.declared-sortable-nulls-accepted",
+        "entity": "webhook",
+        "needs": "a list operation"
       },
       {
         "check": "tenant.denial-does-not-reveal-existence",
@@ -3274,6 +3909,11 @@
         "check": "tenant.filter-does-not-bypass-scope",
         "entity": "notice",
         "needs": "a second principal, a filter, and a tenant tagged or inferred from the path"
+      },
+      {
+        "check": "tenant.filter-does-not-bypass-scope",
+        "entity": "webhook",
+        "needs": "a list operation"
       },
       {
         "check": "tenant.item-not-readable-cross-tenant",
@@ -3301,6 +3941,11 @@
         "needs": "a parent below the tenant in the collection's path"
       },
       {
+        "check": "tenant.parent-not-reachable-from-another-root",
+        "entity": "webhook",
+        "needs": "a list operation"
+      },
+      {
         "check": "update.unique-conflict-rejected",
         "entity": "job",
         "needs": "x-unique, an update operation with a probeable set, a create, and a known row"
@@ -3314,6 +3959,11 @@
         "check": "update.unique-conflict-rejected",
         "entity": "row",
         "needs": "x-unique, an update operation with a probeable set, a create, and a known row"
+      },
+      {
+        "check": "update.unique-conflict-rejected",
+        "entity": "webhook",
+        "needs": "a list operation"
       },
       {
         "check": "validation.content-type-enforced",
@@ -3423,6 +4073,37 @@
             ],
             "inconclusive": [],
             "passed": [
+              "auth.alternative-accepted",
+              "auth.invalid-credential-refused",
+              "auth.missing-credential-refused",
+              "auth.rank-is-monotonic",
+              "auth.scope-enforced",
+              "concurrency.if-match-enforced",
+              "response.status-is-documented",
+              "schema.error-response-matches-document",
+              "tenant.denial-does-not-reveal-existence",
+              "tenant.item-not-readable-cross-tenant"
+            ],
+            "suppressed": []
+          },
+          "entity": "webhook",
+          "findings": 0,
+          "operationId": "webhook.get",
+          "reason": null,
+          "status": "passed",
+          "evidence": {},
+          "sufficiency": "verified",
+          "tier": "verified",
+          "why": "a later exchange shows what this call did"
+        },
+        {
+          "checks": {
+            "failed": [],
+            "gaps": [
+              "payload.string-survives"
+            ],
+            "inconclusive": [],
+            "passed": [
               "auth.invalid-credential-refused",
               "auth.missing-credential-refused",
               "auth.privileged-field-ignored",
@@ -3478,6 +4159,40 @@
           "entity": "row",
           "findings": 0,
           "operationId": "row.update",
+          "reason": null,
+          "status": "passed",
+          "evidence": {},
+          "sufficiency": "verified",
+          "tier": "verified",
+          "why": "a later exchange shows what this call did"
+        },
+        {
+          "checks": {
+            "failed": [],
+            "gaps": [
+              "payload.string-survives"
+            ],
+            "inconclusive": [],
+            "passed": [
+              "auth.invalid-credential-refused",
+              "auth.missing-credential-refused",
+              "auth.rank-is-monotonic-on-writes",
+              "auth.role-enforced",
+              "auth.scope-enforced",
+              "concurrency.if-match-enforced",
+              "concurrency.no-lost-update",
+              "patch.immutable-field-rejected",
+              "patch.minimality",
+              "request.invalid-body-refused",
+              "response.status-is-documented",
+              "schema.problem-json-shape",
+              "tenant.item-not-writable-cross-tenant"
+            ],
+            "suppressed": []
+          },
+          "entity": "webhook",
+          "findings": 0,
+          "operationId": "webhook.update",
           "reason": null,
           "status": "passed",
           "evidence": {},
@@ -4010,6 +4725,33 @@
             "passed": [
               "auth.invalid-credential-refused",
               "auth.missing-credential-refused",
+              "auth.rank-is-monotonic-on-writes",
+              "auth.role-enforced",
+              "auth.scope-enforced",
+              "delete.absent-record-returns-404",
+              "response.status-is-documented",
+              "tenant.item-not-writable-cross-tenant"
+            ],
+            "suppressed": []
+          },
+          "entity": "webhook",
+          "findings": 0,
+          "operationId": "webhook.delete",
+          "reason": null,
+          "status": "passed",
+          "evidence": {},
+          "sufficiency": "verified",
+          "tier": "verified",
+          "why": "a later exchange shows what this call did"
+        },
+        {
+          "checks": {
+            "failed": [],
+            "gaps": [],
+            "inconclusive": [],
+            "passed": [
+              "auth.invalid-credential-refused",
+              "auth.missing-credential-refused",
               "auth.self-is-the-caller",
               "auth.wrong-scheme-refused"
             ],
@@ -4244,6 +4986,33 @@
           "entity": "job",
           "findings": 0,
           "operationId": "job.create",
+          "reason": null,
+          "status": "passed",
+          "evidence": {},
+          "sufficiency": "verified",
+          "tier": "verified",
+          "why": "a later exchange shows what this call did"
+        },
+        {
+          "checks": {
+            "failed": [],
+            "gaps": [],
+            "inconclusive": [],
+            "passed": [
+              "auth.rank-is-monotonic-on-writes",
+              "create.persists-submitted-fields",
+              "create.status-matches-document",
+              "schema.success-response-matches-document",
+              "validation.content-type-enforced",
+              "validation.enum-enforced",
+              "validation.max-length-enforced",
+              "validation.required-enforced"
+            ],
+            "suppressed": []
+          },
+          "entity": "webhook",
+          "findings": 0,
+          "operationId": "webhook.create",
           "reason": null,
           "status": "passed",
           "evidence": {},
@@ -4533,7 +5302,8 @@
       "overview",
       "profile",
       "row",
-      "table"
+      "table",
+      "webhook"
     ],
     "teardown": {
       "failed": [],
@@ -5065,9 +5835,159 @@
           "id": "ID",
           "principal": "beta",
           "removed": true
+        },
+        {
+          "entity": "webhook",
+          "id": "ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "webhook",
+          "id": "ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "webhook",
+          "id": "ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "webhook",
+          "id": "ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "webhook",
+          "id": "ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "webhook",
+          "id": "ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "webhook",
+          "id": "ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "webhook",
+          "id": "ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "webhook",
+          "id": "ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "webhook",
+          "id": "ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "webhook",
+          "id": "ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "webhook",
+          "id": "ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "webhook",
+          "id": "ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "webhook",
+          "id": "ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "webhook",
+          "id": "ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "webhook",
+          "id": "ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "webhook",
+          "id": "ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "webhook",
+          "id": "ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "webhook",
+          "id": "ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "webhook",
+          "id": "ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "webhook",
+          "id": "ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "webhook",
+          "id": "ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "webhook",
+          "id": "ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "webhook",
+          "id": "ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "webhook",
+          "id": "ID",
+          "principal": "alpha_member",
+          "removed": true
         }
       ],
-      "removed": 88,
+      "removed": 113,
       "unidentified": [],
       "unsupported": []
     },
@@ -5091,6 +6011,18 @@
         "operations": [
           "table.get",
           "table.update"
+        ],
+        "evidence": [],
+        "summary": "12 of 159 payload cases sent to \"description\"",
+        "verdict": "COVERAGE_GAP"
+      },
+      {
+        "check": "payload.string-survives",
+        "detail": "the whole catalog already ran against this write path on job, so this field got one case of each family. Set `payloads: \"full\"` to send every case to every field.",
+        "entity": "webhook",
+        "operations": [
+          "webhook.get",
+          "webhook.update"
         ],
         "evidence": [],
         "summary": "12 of 159 payload cases sent to \"description\"",
@@ -5488,7 +6420,7 @@
       }
     ],
     "summary": {
-      "COVERAGE_GAP": 2
+      "COVERAGE_GAP": 3
     },
     "coverage": {
       "neverApplied": [
@@ -5498,596 +6430,601 @@
         {
           "check": "async.reaches-terminal-state",
           "ran": 3,
-          "skipped": 3
+          "skipped": 4
         },
         {
           "check": "async.receipt-identifies-the-job",
           "ran": 3,
-          "skipped": 3
+          "skipped": 4
         },
         {
           "check": "auth.alternative-accepted",
           "ran": 0,
-          "skipped": 36
+          "skipped": 39
         },
         {
           "check": "auth.anonymous-operation-open",
           "ran": 0,
-          "skipped": 35
+          "skipped": 39
         },
         {
           "check": "auth.cross-tenant-key-refused",
           "ran": 0,
-          "skipped": 39
+          "skipped": 43
         },
         {
           "check": "auth.destructive-spares-the-caller",
           "ran": 2,
-          "skipped": 4
+          "skipped": 5
         },
         {
           "check": "auth.invalid-credential-refused",
           "ran": 0,
-          "skipped": 25
+          "skipped": 26
         },
         {
           "check": "auth.invite-grants-then-revokes",
           "ran": 3,
-          "skipped": 3
+          "skipped": 4
         },
         {
           "check": "auth.missing-credential-refused",
           "ran": 0,
-          "skipped": 25
+          "skipped": 26
         },
         {
           "check": "auth.privileged-field-ignored",
           "ran": 0,
-          "skipped": 40
+          "skipped": 44
         },
         {
           "check": "auth.rank-is-monotonic-on-writes",
-          "ran": 5,
+          "ran": 6,
           "skipped": 1
         },
         {
           "check": "auth.refresh-reuse-refused",
           "ran": 0,
-          "skipped": 40
+          "skipped": 44
         },
         {
           "check": "auth.revoked-credential-refused",
           "ran": 0,
-          "skipped": 39
+          "skipped": 43
         },
         {
           "check": "auth.role-enforced",
           "ran": 0,
-          "skipped": 34
+          "skipped": 36
         },
         {
           "check": "auth.scope-enforced",
           "ran": 0,
-          "skipped": 30
+          "skipped": 31
         },
         {
           "check": "auth.self-is-the-caller",
           "ran": 2,
-          "skipped": 4
+          "skipped": 5
         },
         {
           "check": "auth.wrong-scheme-refused",
           "ran": 0,
-          "skipped": 36
+          "skipped": 40
         },
         {
           "check": "concurrency.if-match-enforced",
-          "ran": 5,
+          "ran": 6,
           "skipped": 1
         },
         {
           "check": "concurrency.no-lost-update",
-          "ran": 5,
+          "ran": 6,
           "skipped": 1
         },
         {
           "check": "consistency.projections-agree",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "count.consistent-with-returned-page",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "count.matches-filtered-set",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "create.keeps-submitted-identity",
           "ran": 3,
-          "skipped": 3
+          "skipped": 4
         },
         {
           "check": "create.persists-submitted-fields",
-          "ran": 5,
+          "ran": 6,
           "skipped": 1
         },
         {
           "check": "create.status-matches-document",
-          "ran": 5,
+          "ran": 6,
           "skipped": 1
         },
         {
           "check": "create.unique-conflict-rejected",
           "ran": 3,
-          "skipped": 3
+          "skipped": 4
         },
         {
           "check": "delete.absent-record-returns-404",
-          "ran": 5,
+          "ran": 6,
           "skipped": 1
         },
         {
           "check": "effects.declared-effect-occurs",
           "ran": 3,
-          "skipped": 3
+          "skipped": 4
         },
         {
           "check": "effects.side-effect-arrives",
           "ran": 3,
-          "skipped": 3
+          "skipped": 4
         },
         {
           "check": "error.malformed-filter-not-5xx",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "filter.alias-matches-canonical",
           "ran": 3,
-          "skipped": 3
+          "skipped": 4
         },
         {
           "check": "filter.and-composes-as-intersection",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "filter.condition-cap-rejected",
           "ran": 3,
-          "skipped": 3
+          "skipped": 4
         },
         {
           "check": "filter.contains-membership",
           "ran": 3,
-          "skipped": 3
+          "skipped": 4
         },
         {
           "check": "filter.empty-in",
           "ran": 3,
-          "skipped": 3
+          "skipped": 4
         },
         {
           "check": "filter.equality-selects-exactly-one",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "filter.gte-is-gt-or-eq",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "filter.ilike-is-case-insensitive",
           "ran": 3,
-          "skipped": 3
+          "skipped": 4
         },
         {
           "check": "filter.illegal-op-rejected",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "filter.in-is-union-of-eq",
           "ran": 3,
-          "skipped": 3
+          "skipped": 4
         },
         {
           "check": "filter.in-over-limit-rejected",
           "ran": 3,
-          "skipped": 3
+          "skipped": 4
         },
         {
           "check": "filter.is-null-selects-nulls",
           "ran": 3,
-          "skipped": 3
+          "skipped": 4
         },
         {
           "check": "filter.like-metacharacters-escaped",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "filter.lte-is-lt-or-eq",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "filter.malformed-term-rejected",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "filter.negation-partitions-the-set",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "filter.nested-and-or-distributes",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "filter.nin-complements-in",
           "ran": 3,
-          "skipped": 3
+          "skipped": 4
         },
         {
           "check": "filter.numeric-comparison-is-numeric",
           "ran": 4,
-          "skipped": 2
+          "skipped": 3
         },
         {
           "check": "filter.or-composes-as-union",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "filter.ordered-triple-partitions",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "filter.unknown-field-rejected",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "filter.zero-match-returns-none",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "idempotency.replay-does-not-duplicate",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "invalidation.declared-route-changes",
           "ran": 3,
-          "skipped": 3
+          "skipped": 4
         },
         {
           "check": "list.item-matches-listed-row",
           "ran": 3,
-          "skipped": 3
+          "skipped": 4
         },
         {
           "check": "list.read-after-write",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "pagination.bounds-handled",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "pagination.cursor-agrees-with-page",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "pagination.has-more-is-accurate",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "pagination.limit-bounds-enforced",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "pagination.limit-bounds-page-size",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "pagination.limit-respects-documented-max",
           "ran": 3,
-          "skipped": 3
+          "skipped": 4
         },
         {
           "check": "pagination.page-walk-covers-set",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "patch.immutable-field-rejected",
-          "ran": 5,
+          "ran": 6,
           "skipped": 1
         },
         {
           "check": "patch.minimality",
-          "ran": 5,
+          "ran": 6,
           "skipped": 1
         },
         {
           "check": "payload.string-survives",
-          "ran": 5,
+          "ran": 6,
           "skipped": 1
         },
         {
           "check": "query.axes-compose",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "query.filter-and-select-compose",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "query.filter-search-select-compose",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "query.filter-search-sort-compose",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "query.filter-search-sort-select-compose",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "query.filter-selects-from-whole-set",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "query.filter-sort-select-compose",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "query.search-and-filter-compose",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "query.search-and-select-compose",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "query.search-and-sort-compose",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "query.sort-and-select-compose",
           "ran": 5,
+          "skipped": 2
+        },
+        {
+          "check": "query.unknown-parameter-consistent",
+          "ran": 6,
           "skipped": 1
         },
         {
           "check": "read.matches-caller-root",
           "ran": 2,
-          "skipped": 4
+          "skipped": 5
         },
         {
           "check": "request.invalid-body-refused",
           "ran": 0,
-          "skipped": 36
+          "skipped": 39
         },
         {
           "check": "response.contract-call",
           "ran": 2,
-          "skipped": 4
+          "skipped": 5
         },
         {
           "check": "response.no-server-error",
           "ran": 2,
-          "skipped": 4
+          "skipped": 5
         },
         {
           "check": "response.public-get-returns-success",
           "ran": 2,
-          "skipped": 4
+          "skipped": 5
         },
         {
           "check": "schema.success-response-matches-document",
-          "ran": 5,
+          "ran": 6,
           "skipped": 1
         },
         {
           "check": "search.case-insensitive",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "search.empty-q",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "search.mode-accepted",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "search.q-narrows-result",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "search.tokens-and",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "select.nested-honoured",
           "ran": 3,
-          "skipped": 3
+          "skipped": 4
         },
         {
           "check": "select.projection-honoured",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "select.requested-fields-present",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "select.unknown-field-rejected",
           "ran": 3,
-          "skipped": 3
+          "skipped": 4
         },
         {
           "check": "softdelete.absent-from-default-list",
           "ran": 3,
-          "skipped": 3
+          "skipped": 4
         },
         {
           "check": "sort.default-order-applied",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "sort.invalid-direction-rejected",
           "ran": 2,
-          "skipped": 4
+          "skipped": 5
         },
         {
           "check": "sort.multi-key-tiebreak",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "sort.nulls-first-last",
           "ran": 3,
-          "skipped": 3
+          "skipped": 4
         },
         {
           "check": "sort.numeric-order-is-numeric",
           "ran": 4,
-          "skipped": 2
+          "skipped": 3
         },
         {
           "check": "sort.order-is-applied",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "sort.reverse-symmetry",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "sort.stable-tiebreak",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "sort.unknown-field-rejected",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "spec.declared-filterable-is-filterable",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "spec.declared-filterable-ops-accepted",
           "ran": 3,
-          "skipped": 3
+          "skipped": 4
         },
         {
           "check": "spec.declared-rate-limit-is-honoured",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "spec.declared-selectable-is-selectable",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "spec.declared-sortable-is-sortable",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "spec.declared-sortable-nulls-accepted",
           "ran": 3,
-          "skipped": 3
+          "skipped": 4
         },
         {
           "check": "tenant.denial-does-not-reveal-existence",
-          "ran": 5,
+          "ran": 6,
           "skipped": 1
         },
         {
           "check": "tenant.filter-does-not-bypass-scope",
           "ran": 5,
-          "skipped": 1
+          "skipped": 2
         },
         {
           "check": "tenant.item-not-readable-cross-tenant",
-          "ran": 5,
+          "ran": 6,
           "skipped": 1
         },
         {
           "check": "tenant.item-not-writable-cross-tenant",
-          "ran": 5,
+          "ran": 6,
           "skipped": 1
         },
         {
           "check": "tenant.parent-not-reachable-from-another-root",
           "ran": 3,
-          "skipped": 3
+          "skipped": 4
         },
         {
           "check": "update.unique-conflict-rejected",
           "ran": 3,
-          "skipped": 3
+          "skipped": 4
         },
         {
           "check": "validation.content-type-enforced",
-          "ran": 5,
+          "ran": 6,
           "skipped": 1
         },
         {
           "check": "validation.enum-enforced",
-          "ran": 4,
+          "ran": 5,
           "skipped": 2
         },
         {
           "check": "validation.max-length-enforced",
-          "ran": 5,
+          "ran": 6,
           "skipped": 1
         },
         {
           "check": "validation.required-enforced",
-          "ran": 5,
+          "ran": 6,
           "skipped": 1
         }
       ]

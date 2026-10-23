@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
 import { ASSERTED } from "../../../finding.ts"
 import { contextFor, modelOf, op, type Responder } from "../../__fixtures__/harness.ts"
-import type { CheckContext } from "../../core/context.ts"
+import type { Listed } from "../../core/context.ts"
 import {
 	baseDocument,
 	eachFixture,
@@ -36,7 +36,7 @@ withOperation(doc, "post /gated-notes", {
 const model = modelOf(doc)
 const sendNote = op(model, "sendNote")
 
-async function waited(respond: Responder, waitOps: OperationModel[] = [sendNote], fields: Partial<CheckContext> = {}) {
+async function waited(respond: Responder, waitOps: OperationModel[] = [sendNote], fields: Partial<Listed> = {}) {
 	const stage = contextFor(model, "listWidgets", { respond, fields: { waitOps, ...fields } })
 	const outcome = await check.run(stage.ctx, undefined)
 	return { ...stage, outcome }

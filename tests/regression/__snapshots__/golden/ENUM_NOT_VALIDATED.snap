@@ -7,7 +7,7 @@
         "was": 0
       },
       "reason": {
-        "now": "2 root-cause findings",
+        "now": "3 root-cause findings",
         "was": "no defects found in what was graded"
       },
       "result": {
@@ -69,6 +69,30 @@
             "entity": "job",
             "findings": 1,
             "operationId": "job.create",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "validation.enum-enforced"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "schema.success-response-matches-document",
+                "validation.content-type-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "webhook",
+            "findings": 1,
+            "operationId": "webhook.create",
             "reason": null,
             "status": "failed"
           }
@@ -133,6 +157,33 @@
             "sufficiency": "verified",
             "tier": "verified",
             "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "schema.success-response-matches-document",
+                "validation.content-type-enforced",
+                "validation.enum-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "webhook",
+            "findings": 0,
+            "operationId": "webhook.create",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
           }
         ]
       }
@@ -140,8 +191,8 @@
     "teardown": {
       "records": {},
       "removed": {
-        "now": 90,
-        "was": 88
+        "now": 116,
+        "was": 113
       }
     },
     "findings": {
@@ -179,12 +230,29 @@
           ],
           "summary": "a value outside the declared enum was accepted",
           "verdict": "BACKEND_BUG"
+        },
+        {
+          "check": "validation.enum-enforced",
+          "detail": "\"status\" declares [\"active\", \"paused\"] but the backend accepted \"oat-not-in-enum\" with 201. Clients generated from this document will assume the field only ever holds a declared member.",
+          "entity": "webhook",
+          "operations": [
+            "webhook.create"
+          ],
+          "evidence": [
+            {
+              "method": "POST",
+              "status": 201,
+              "url": "http://reference.test/v1/projects/proj_alpha/webhooks"
+            }
+          ],
+          "summary": "a value outside the declared enum was accepted",
+          "verdict": "BACKEND_BUG"
         }
       ]
     },
     "summary": {
       "BACKEND_BUG": {
-        "now": 2,
+        "now": 3,
         "was": null
       }
     }

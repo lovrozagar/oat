@@ -30,6 +30,7 @@ export const querySearchAndSortCompose: Check<{
 	},
 	dependsOn: ["pagination.page-walk-covers-set", "search.q-narrows-result", "sort.order-is-applied"],
 	id: "query.search-and-sort-compose",
+	lists: true,
 	needs: "searchable and sortable fields",
 	subjects: subjectsOf.list,
 	async run(ctx, { sortField, token }): Promise<Outcome> {

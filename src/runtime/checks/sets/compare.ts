@@ -1,7 +1,7 @@
 import type { FilterQuery } from "../../../spec/render/filter-types.ts"
 import type { SortValue } from "../../../spec/render/sort.ts"
 import type { Record_ } from "../../world/records.ts"
-import type { CheckContext } from "../core/context.ts"
+import type { Listed } from "../core/context.ts"
 import { conv, pageSize, type Query } from "../query/capabilities.ts"
 import { ids, type ListResult } from "./list.ts"
 import { memoTable, readSet, type SetRead } from "./read.ts"
@@ -13,7 +13,7 @@ export type Listing = ListResult & { complete: boolean }
  * A whole set, as a `Listing`. For checks written against a single page that reason about the
  * whole set; a refused page shows as the last exchange's status.
  */
-export async function listAll(ctx: CheckContext, query: Query): Promise<Listing> {
+export async function listAll(ctx: Listed, query: Query): Promise<Listing> {
 	return toListing(await readListing(ctx, query, false))
 }
 
@@ -21,7 +21,7 @@ export async function listAll(ctx: CheckContext, query: Query): Promise<Listing>
  * A repeat `listAll` that sees the collection as it is now, for `settlePair`. `null` when a page was
  * refused, so a refusal is not read as rows vanishing.
  */
-export async function listAgain(ctx: CheckContext, query: Query): Promise<Listing | null> {
+export async function listAgain(ctx: Listed, query: Query): Promise<Listing | null> {
 	const read = await readListing(ctx, query, true)
 	return read.status === "ok" ? toListing(read) : null
 }
@@ -36,7 +36,7 @@ function toListing(read: SetRead): Listing {
 }
 
 /** `readSet` for a query written as one page's: paging keys dropped, the order key taken apart. */
-function readListing(ctx: CheckContext, query: Query, fresh: boolean): Promise<SetRead> {
+function readListing(ctx: Listed, query: Query, fresh: boolean): Promise<SetRead> {
 	const c = conv(ctx)
 	const extra: Query = {}
 	let order: string | undefined
@@ -53,7 +53,7 @@ function readListing(ctx: CheckContext, query: Query, fresh: boolean): Promise<S
  * was refused, so the caller reports the check unresolved rather than reading "refused" as "empty".
  */
 export async function collectSet(
-	ctx: CheckContext,
+	ctx: Listed,
 	requested: number,
 	extra: FilterQuery = {},
 	/* `fresh`: a repeat read that must see the collection as it is now, not as an earlier read saw it. */
@@ -102,7 +102,7 @@ export async function settlePair<T extends { items: Record_[] }>(
  * the fresh reads repeat is the backend's, and those fresh reads are what is returned.
  */
 export async function readSettled(
-	ctx: CheckContext,
+	ctx: Listed,
 	terms: ReadonlyArray<Record<string, string>>,
 	agree: (reads: SetRead[]) => boolean,
 ): Promise<SetRead[] | "rejected" | "incomplete" | "moving"> {
@@ -151,7 +151,7 @@ export function sameSet(a: Set<string>, b: Set<string>): boolean {
  * search token. The cohort is never written after seeding, so the answer cannot go stale; keyed
  * by list operation too, because a fact about one listing's capabilities is not one about another.
  */
-export function cohortFact<T>(ctx: CheckContext, name: string, compute: () => T): T {
+export function cohortFact<T>(ctx: Listed, name: string, compute: () => T): T {
 	const facts = memoTable<unknown>(ctx.memo.entity, "cohortFacts")
 	const key = `${ctx.listOp.operationId}:${name}`
 	if (facts.has(key)) return facts.get(key) as T

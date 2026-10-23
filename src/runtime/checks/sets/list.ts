@@ -3,7 +3,7 @@ import type { ReadClient } from "../../../client/client.ts"
 import type { Exchange } from "../../exchange.ts"
 import { fillPath } from "../../fill-path.ts"
 import { idOf, type Record_, recordsFromList, type RowsAt } from "../../world/records.ts"
-import type { CheckContext } from "../core/context.ts"
+import { type CheckContext, isListed, type Listed } from "../core/context.ts"
 import { conv, type Query } from "../query/capabilities.ts"
 
 /**
@@ -14,11 +14,7 @@ import { conv, type Query } from "../query/capabilities.ts"
  * rather than by a boolean field. Both are answers to the same question, so both are resolved
  * here and every check that asks stays unaware of the difference.
  */
-export function envelopeValue(
-	ctx: CheckContext,
-	result: ListResult,
-	role: "total" | "hasMore" | "nextCursor",
-): unknown {
+export function envelopeValue(ctx: Listed, result: ListResult, role: "total" | "hasMore" | "nextCursor"): unknown {
 	const key = conv(ctx).envelope[role]
 	if (key !== undefined) return result.envelope[key]
 
@@ -56,7 +52,7 @@ export interface ListResult {
  * `scope` (the context's by default).
  */
 export async function list(
-	ctx: CheckContext,
+	ctx: Listed,
 	query: Query = {},
 	{
 		principal = ctx.actor.id,
@@ -79,8 +75,8 @@ export async function list(
 }
 
 /** The context as another entity's list operation sees it — for reading a set that is not ours. */
-export function forList<C extends ReadClient>(ctx: CheckContext<C>, op: OperationModel): CheckContext<C> {
-	if (op === ctx.listOp) return ctx
+export function forList<C extends ReadClient>(ctx: CheckContext<C>, op: OperationModel): Listed<C> {
+	if (isListed(ctx) && op === ctx.listOp) return ctx
 	const entity = ctx.model.entities.get(op.entity ?? "")
 	return {
 		...ctx,
@@ -92,7 +88,7 @@ export function forList<C extends ReadClient>(ctx: CheckContext<C>, op: Operatio
 }
 
 /** Where the context's own list keeps its records: under its collection key, each read at `within`. */
-export function rowsAt(ctx: CheckContext): RowsAt {
+export function rowsAt(ctx: Listed): RowsAt {
 	return { key: ctx.collectionKey, within: ctx.listOp.collection?.within ?? [] }
 }
 

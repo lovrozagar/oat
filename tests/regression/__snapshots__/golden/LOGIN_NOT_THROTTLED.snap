@@ -216,6 +216,26 @@
           "check": "auth.login-throttled",
           "entity": "table.update",
           "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "webhook.create",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "webhook.delete",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "webhook.get",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "webhook.update",
+          "needs": "the issue operation of a recipe; this check runs on auth.token"
         }
       ],
       "removed": [
@@ -423,6 +443,26 @@
           "check": "auth.login-throttled",
           "entity": "table.update",
           "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "webhook.create",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "webhook.delete",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "webhook.get",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
+        },
+        {
+          "check": "auth.login-throttled",
+          "entity": "webhook.update",
+          "needs": "opt in with checks: { \"auth.login-throttled\": true }"
         }
       ]
     },
@@ -554,7 +594,7 @@
           {
             "check": "auth.login-throttled",
             "ran": 0,
-            "skipped": 40
+            "skipped": 44
           }
         ]
       }

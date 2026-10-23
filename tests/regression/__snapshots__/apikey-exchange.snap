@@ -29,5 +29,10 @@
     "GET /v1/projects/proj_alpha/tables schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>] → 200",
     "GET /v1/projects/proj_alpha/tables schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>] → 401",
     "GET /v1/projects/proj_alpha/tables schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>] → 403"
+  ],
+  "webhook.get": [
+    "GET /v1/projects/proj_alpha/webhooks/webhook_ID schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>] → 200",
+    "GET /v1/projects/proj_alpha/webhooks/webhook_ID schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>] → 401",
+    "GET /v1/projects/proj_alpha/webhooks/webhook_ID schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>] → 403"
   ]
 }

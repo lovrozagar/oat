@@ -3,7 +3,7 @@ import type { Exchange } from "../../../../exchange.ts"
 import { SchemaValidator } from "../../../../validate.ts"
 import type { SpecModel } from "../../../../../spec/graph/types.ts"
 import type { OpenApiDocument } from "../../../../../spec/types.ts"
-import type { CheckContext } from "../../../core/context.ts"
+import type { Listed } from "../../../core/context.ts"
 import {
 	type Answer,
 	contextFor,
@@ -95,7 +95,7 @@ export function itemsDocument(options: ItemsOptions = {}): OpenApiDocument {
 }
 
 /** The item entity's operations, as `run()` would set them on the context. */
-export function itemOperations(model: SpecModel): Partial<CheckContext> {
+export function itemOperations(model: SpecModel): Partial<Listed> {
 	const by = (id: string) => model.byOperationId.get(id)
 	return {
 		createOp: by("item.create"),
@@ -124,7 +124,7 @@ export interface Transcript {
 	/** Bodies a read-back restores, by the exchange that lost its own. */
 	stored?: Map<Exchange, unknown>
 	respond?: Responder
-	fields?: Partial<CheckContext>
+	fields?: Partial<Listed>
 }
 
 /**

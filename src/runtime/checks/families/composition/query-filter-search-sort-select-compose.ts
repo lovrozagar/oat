@@ -38,6 +38,7 @@ export const queryFilterSearchSortSelectCompose: Check<
 			"pagination.page-walk-covers-set",
 		],
 		id: "query.filter-search-sort-select-compose",
+		lists: true,
 		needs: "all four list axes declared and at least three records",
 		subjects: subjectsOf.list,
 		async run(ctx, { projection, sortField, term, token }): Promise<Outcome> {

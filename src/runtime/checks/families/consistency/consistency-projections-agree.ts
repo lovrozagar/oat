@@ -8,7 +8,7 @@ import type { Exchange } from "../../../exchange.ts"
 import { fillPath } from "../../../fill-path.ts"
 import { ASSERTED, type Outcome, standDown } from "../../../finding.ts"
 import { idOf, type Record_ } from "../../../world/records.ts"
-import type { CheckContext } from "../../core/context.ts"
+import type { Listed } from "../../core/context.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { readRecord } from "../../isolation/scratch.ts"
 import { itemParamFor, NO_IDENTITY, subjectsOf } from "../../planning/subjects.ts"
@@ -85,6 +85,7 @@ export const projectionsAgree: Check<{
 		"sort.order-is-applied",
 	],
 	id: "consistency.projections-agree",
+	lists: true,
 	needs: "an item route and a record with a comparable field",
 	subjects: subjectsOf.readAndList,
 	async run(ctx, { field, id, readOp }): Promise<Outcome> {
@@ -135,11 +136,7 @@ interface Seen {
  * The field as the collection, a sparse fieldset and a sorted page each return it. A projection
  * the record does not appear on says nothing, so it adds no entry.
  */
-async function readProjections(
-	ctx: CheckContext,
-	field: string,
-	id: string,
-): Promise<{ plain: ListResult; seen: Seen[] }> {
+async function readProjections(ctx: Listed, field: string, id: string): Promise<{ plain: ListResult; seen: Seen[] }> {
 	const limit = pageSize(ctx)
 	const seen: Seen[] = []
 	const record = (result: ListResult): Record_ | undefined =>
@@ -167,7 +164,7 @@ async function readProjections(
 
 /** The filter projection: an equality filter on the value the item route serves must return the record. */
 async function filterMembership(
-	ctx: CheckContext,
+	ctx: Listed,
 	check: string,
 	probe: { detail: Exchange; field: string; id: string; value: unknown },
 ): Promise<Outcome> {

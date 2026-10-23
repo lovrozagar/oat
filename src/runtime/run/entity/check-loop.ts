@@ -1,5 +1,6 @@
 import type { WriteContext } from "../../checks/core/context.ts"
 import { entityChecks } from "../../checks/core/registry.ts"
+import { planOn } from "../../checks/core/run.ts"
 import { CHECKS } from "../../checks/registry.ts"
 import { isRootCause } from "../../finding.ts"
 import { type Check, type CheckLoop, type PlannedCheck, runCheck, withLostVariants } from "./run-check.ts"
@@ -73,7 +74,7 @@ function planned(loop: CheckLoop, check: Check): string[] | null {
 		ctx.state.checksOutOfScope.push({ check: check.id, entity: entity.name })
 		return null
 	}
-	const plan = check.plan(loop.context)
+	const plan = planOn(check, loop.context)
 	if (plan.ok) {
 		loop.plans.set(check.id, plan.value)
 		return graded
