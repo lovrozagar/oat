@@ -1,28 +1,44 @@
 import { NODE_FLOOR } from "../../errors/node-floor.ts"
 import { type Args, str } from "../flags.ts"
+import { POSTGRES_RANGE } from "../../reference/stores/postgres-driver.ts"
 import type { Writer } from "../writer.ts"
 import type { BackendName } from "./conformance-matrix.ts"
 import type { Toolkit } from "./conformance-toolkit.ts"
+
+/** A local engine a full run went without; `noDriver` when it was Postgres and this install lacks its driver. */
+export interface SkippedBackend {
+	backend: BackendName
+	noDriver?: boolean
+}
+
+/* Why the engine is missing, and what makes it present. */
+function absence({ backend, noDriver }: SkippedBackend): { why: string; fix: string } {
+	if (backend === "sqlite")
+		return {
+			fix: "Start it",
+			why: `node:sqlite unavailable on Node ${process.version}; oat needs ${NODE_FLOOR} or later`,
+		}
+	if (noDriver === true) return { fix: `Run npm install postgres (${POSTGRES_RANGE})`, why: "driver not installed" }
+	return { fix: "Start it", why: "no Postgres server reachable on the default connection" }
+}
 
 /**
  * An engine that is not there is not a pass: the SQL-only defects and every engine difference go
  * untested. Leaving one out has to be asked for by name. Returns the failures.
  */
-export function judgeSkipped(writer: Writer, flags: Args["flags"], skipped: readonly BackendName[]): number {
+export function judgeSkipped(writer: Writer, flags: Args["flags"], skipped: readonly SkippedBackend[]): number {
 	if (skipped.length === 0) return 0
 	const allowed = new Set(str(flags, "skip-backend")?.split(",") ?? [])
 	let failures = 0
-	for (const backend of skipped) {
-		const why =
-			backend === "sqlite"
-				? `node:sqlite unavailable on Node ${process.version}; oat needs ${NODE_FLOOR} or later`
-				: "no Postgres server reachable on the default connection"
+	for (const entry of skipped) {
+		const { backend } = entry
+		const { why, fix } = absence(entry)
 		if (allowed.has(backend)) {
 			writer.out(`  note: ${backend} backend skipped as asked — ${why}\n`)
 			continue
 		}
 		failures += 1
-		writer.out(`  ✗ ${backend} backend unavailable — ${why}. Start it, or pass --skip-backend ${backend}\n`)
+		writer.out(`  ✗ ${backend} backend unavailable — ${why}. ${fix}, or pass --skip-backend ${backend}\n`)
 	}
 	writer.out("\n")
 	return failures

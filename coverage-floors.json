@@ -288,6 +288,7 @@
 	"src/reference/store-api.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/reference/stores/memory.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/reference/stores/postgres.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/reference/stores/postgres-driver.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/reference/stores/sql-compile.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/reference/stores/sqlite-driver.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/reference/stores/sqlite.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },

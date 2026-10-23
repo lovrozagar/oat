@@ -140,3 +140,15 @@ describe("commandConformance questions", () => {
 		expect(unseeded.log).toContain('fuzz {"backend":"memory","cases":3,"dialect":"postgrest","maxDefects":4,"seed":1}')
 	})
 })
+
+describe("commandConformance without the Postgres driver", () => {
+	it("tells a missing Postgres driver apart: skipped as asked on a full run, a usage error when asked for", async () => {
+		const full = await conformance({ "skip-backend": "sqlite,postgres" }, { postgres: "no-driver" })
+		expect(full.code).toBe(0)
+		expect(full.text).toContain("note: postgres backend skipped as asked — driver not installed")
+		const asked = await conformance({ backend: "postgres" }, { postgres: "no-driver" })
+		expect(asked.code).toBe(2)
+		expect(asked.text).toContain("oat: --backend postgres needs the postgres package (^3.4): npm install postgres\n")
+		expect(asked.log.some((entry) => entry.startsWith("task"))).toBe(false)
+	})
+})

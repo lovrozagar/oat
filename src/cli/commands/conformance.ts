@@ -1,3 +1,5 @@
+import type { PostgresStatus } from "../../conformance/matrix/engines.ts"
+import { MISSING_POSTGRES } from "../../reference/stores/postgres-driver.ts"
 import { EXIT } from "../../runtime/exit.ts"
 import { type Args, list, str } from "../flags.ts"
 import type { Writer } from "../writer.ts"
@@ -40,11 +42,16 @@ export async function commandConformance(
 	const dir = str(flags, "aggregate")
 	if (dir !== undefined) return aggregate(writer, toolkit, dir)
 	const legs = legsOf(flags)
-	const passes = await passesOf(flags, toolkit, legs)
+	const postgres = probesPostgres(flags, legs) ? await toolkit.suite.postgresStatus() : undefined
+	if (postgres === "no-driver" && str(flags, "backend") === "postgres") {
+		writer.err(`${MISSING_POSTGRES}\n`)
+		return EXIT.usage
+	}
+	const passes = passesOf(flags, legs, await availableBackends(toolkit, postgres))
 	const suites = legs.has("suites") ? await runSuites(writer, toolkit, !includesDefault(passes)) : 0
 	if (flags.precision !== undefined) return verdict(suites + (await precision(writer, flags, toolkit)))
 	if (flags.fuzz !== undefined) return verdict(suites + (await fuzz(writer, flags, toolkit)))
-	return verdict(suites + (await legsRun({ flags, toolkit, writer }, { legs, passes })))
+	return verdict(suites + (await legsRun({ flags, postgres, toolkit, writer }, { legs, passes })))
 }
 
 function verdict(failures: number): number {
@@ -109,27 +116,29 @@ function includesDefault(passes: readonly Pass[]): boolean {
 	return passes.some((pass) => pass.backend === "memory" && pass.dialect === "postgrest")
 }
 
+/* Postgres is probed only where a pass may need it: a run over every engine, or one that names it. */
+function probesPostgres(flags: Args["flags"], legs: ReadonlySet<Leg>): boolean {
+	const backend = str(flags, "backend")
+	return backend === "postgres" || (backend === undefined && legs.has("passes"))
+}
+
 /**
  * The passes a run makes: every local engine that answers, or the one asked for. The scope leg
  * judges from the default pass's runs, so it brings that pass when the passes leg is not taken.
  */
-async function passesOf(flags: Args["flags"], toolkit: Toolkit, legs: ReadonlySet<Leg>): Promise<Pass[]> {
+function passesOf(flags: Args["flags"], legs: ReadonlySet<Leg>, available: BackendName[]): Pass[] {
 	if (legs.has("passes")) {
 		const requested = str(flags, "backend") as BackendName | undefined
-		return planPasses(
-			requested === undefined ? await availableBackends(toolkit) : [requested],
-			requested,
-			str(flags, "dialect"),
-		)
+		return planPasses(requested === undefined ? available : [requested], requested, str(flags, "dialect"))
 	}
 	return legs.has("scope") ? [{ backend: "memory", dialect: "postgrest" }] : []
 }
 
-/** The local engines that answer: memory always; SQLite and Postgres when they are there. */
-async function availableBackends(toolkit: Toolkit): Promise<BackendName[]> {
+/** The local engines that answer: memory always; SQLite when the runtime has it; Postgres when it answered. */
+async function availableBackends(toolkit: Toolkit, postgres: PostgresStatus | undefined): Promise<BackendName[]> {
 	const available: BackendName[] = ["memory"]
 	if (await toolkit.suite.sqliteAvailable()) available.push("sqlite")
-	if (await toolkit.suite.postgresAvailable()) available.push("postgres")
+	if (postgres === "ready") available.push("postgres")
 	return available
 }
 
@@ -167,6 +176,8 @@ interface Invocation {
 	writer: Writer
 	flags: Args["flags"]
 	toolkit: Toolkit
+	/** What the Postgres probe found, when this run made one. */
+	postgres?: PostgresStatus | undefined
 }
 
 /**
@@ -192,10 +203,12 @@ async function legsRun(invocation: Invocation, run: { legs: ReadonlySet<Leg>; pa
 	const full = isFull(flags)
 	if (full) {
 		const available = new Set(passes.map((pass) => pass.backend))
+		const missing = BACKENDS.filter((backend) => backend !== "d1" && !available.has(backend))
+		const noDriver = invocation.postgres === "no-driver"
 		failures += judgeSkipped(
 			writer,
 			flags,
-			BACKENDS.filter((backend) => backend !== "d1" && !available.has(backend)),
+			missing.map((backend) => (backend === "postgres" && noDriver ? { backend, noDriver } : { backend })),
 		)
 	}
 	if (legs.has("fuzz")) failures += await runCombinations(writer, flags, toolkit)

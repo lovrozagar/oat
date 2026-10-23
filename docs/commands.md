@@ -255,7 +255,7 @@ Dialects are **reference-backend shapes**, not something you configure against y
 | `jsonapi`   | postgrest                   | `-name`    | `fields[table]=` | `page` + `size`     | `{ data, total, has_more }`       |
 | `plain`     | `?status=active` (equality) | `name:asc` | `fields=`        | `page` + `limit`    | `{ items, total, has_more }`      |
 
-`postgres` needs a server on the default `postgres` database (local, default `postgres` driver connection). `sqlite` needs Node's `node:sqlite`, built in with no flag on oat's floor, Node 22.18. Missing backends fail at serve time rather than falling back.
+`postgres` needs the `postgres` driver, an optional peer dependency oat does not install (`npm install postgres`, `^3.4`), and a server on the default `postgres` database (local, default driver connection). Without the driver, `serve --backend postgres` exits `2` saying so. `sqlite` needs Node's `node:sqlite`, built in with no flag on oat's floor, Node 22.18. Missing backends fail at serve time rather than falling back.
 
 ### `oat conformance`
 
@@ -297,7 +297,7 @@ A default `oat conformance` runs every leg: the suites (hostile documents, the `
 
 Selecting a `--backend`, `--dialect` or `--only` runs the suites and those passes alone; `--legs` runs exactly the legs named (the `scope` leg brings the default memory pass it judges from); `--parser` runs the suites alone. Each pass prints its time, recall prints a line per shape as it finishes, and the run ends with the largest worker's memory. Set `OAT_HEAP_SNAPSHOTS=<dir>` to write a worker heap snapshot after every task.
 
-D1 needs `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_D1_DATABASE_ID`, `CLOUDFLARE_API_TOKEN`; it never runs unless asked for by name. Postgres needs a reachable server on the default connection (`database: "postgres"`). A full run fails on a local backend it cannot reach unless `--skip-backend` names it. Exit `1` if any suite, pass, shape, recall, fuzz or precision case fails, or a full run leaves a check unproven.
+D1 needs `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_D1_DATABASE_ID`, `CLOUDFLARE_API_TOKEN`; it never runs unless asked for by name. Postgres needs the optional `postgres` driver (`npm install postgres`, `^3.4`) and a reachable server on the default connection (`database: "postgres"`). A full run fails on a local backend it cannot reach unless `--skip-backend` names it; for Postgres it says whether the driver is not installed or no server answered. `--backend postgres` on an install without the driver exits `2`. Exit `1` if any suite, pass, shape, recall, fuzz or precision case fails, or a full run leaves a check unproven.
 
 #### Sharded
 

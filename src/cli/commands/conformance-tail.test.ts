@@ -2,12 +2,15 @@ import { describe, expect, it } from "vitest"
 import { NODE_FLOOR } from "../../errors/node-floor.ts"
 import { bufferWriter } from "../writer.ts"
 import { fakeToolkit } from "../__fixtures__/toolkit.ts"
+import { POSTGRES_RANGE } from "../../reference/stores/postgres-driver.ts"
 import { judgeSkipped, noteD1, runCombinations } from "./conformance-tail.ts"
 
 describe("judgeSkipped", () => {
 	it("fails a missing engine unless it was left out by name, and says nothing when none is missing", () => {
 		const writer = bufferWriter()
-		expect(judgeSkipped(writer, { "skip-backend": "postgres" }, ["sqlite", "postgres"])).toBe(1)
+		expect(judgeSkipped(writer, { "skip-backend": "postgres" }, [{ backend: "sqlite" }, { backend: "postgres" }])).toBe(
+			1,
+		)
 		expect(writer.text()).toContain("✗ sqlite backend unavailable")
 		expect(writer.text()).toContain("note: postgres backend skipped as asked")
 		const none = bufferWriter()
@@ -17,7 +20,7 @@ describe("judgeSkipped", () => {
 
 	it("names the Node floor", () => {
 		const writer = bufferWriter()
-		judgeSkipped(writer, {}, ["sqlite"])
+		judgeSkipped(writer, {}, [{ backend: "sqlite" }])
 		expect(writer.text()).toContain(
 			`✗ sqlite backend unavailable — node:sqlite unavailable on Node ${process.version}; oat needs ${NODE_FLOOR} or later.`,
 		)
@@ -25,8 +28,19 @@ describe("judgeSkipped", () => {
 
 	it("fails every missing engine when none was left out", () => {
 		const writer = bufferWriter()
-		expect(judgeSkipped(writer, {}, ["postgres"])).toBe(1)
-		expect(writer.text()).toContain("✗ postgres backend unavailable")
+		expect(judgeSkipped(writer, {}, [{ backend: "postgres" }])).toBe(1)
+		expect(writer.text()).toContain("✗ postgres backend unavailable — no Postgres server reachable")
+	})
+
+	it("says the Postgres driver is not installed, not that the server is unreachable", () => {
+		const writer = bufferWriter()
+		expect(judgeSkipped(writer, {}, [{ backend: "postgres", noDriver: true }])).toBe(1)
+		expect(writer.text()).toContain(
+			`✗ postgres backend unavailable — driver not installed. Run npm install postgres (${POSTGRES_RANGE}), or pass --skip-backend postgres`,
+		)
+		const asked = bufferWriter()
+		expect(judgeSkipped(asked, { "skip-backend": "postgres" }, [{ backend: "postgres", noDriver: true }])).toBe(0)
+		expect(asked.text()).toContain("note: postgres backend skipped as asked — driver not installed")
 	})
 })
 

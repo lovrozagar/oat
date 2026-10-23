@@ -109,6 +109,14 @@
 		"typescript": "^5.7.2",
 		"vitest": "4.1.10"
 	},
+	"peerDependencies": {
+		"postgres": "^3.4"
+	},
+	"peerDependenciesMeta": {
+		"postgres": {
+			"optional": true
+		}
+	},
 	"engines": {
 		"node": ">=22.18.0"
 	},

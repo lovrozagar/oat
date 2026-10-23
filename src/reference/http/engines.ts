@@ -9,6 +9,7 @@ import type { DefectSet } from "../defects/defect-set.ts"
 import type { EntityDef } from "../model/types.ts"
 import type { Store } from "../store-api.ts"
 import type { PgConnect } from "../stores/postgres.ts"
+import { loadPostgres } from "../stores/postgres-driver.ts"
 import { createReference, type Reference, type StoreFactory } from "./reference.ts"
 import { createReferenceServer, type ReferenceServer } from "./server.ts"
 import type { ReferenceOptions } from "./state.ts"
@@ -35,7 +36,7 @@ export async function postgresStore(
 	entities: readonly EntityDef[],
 	connect?: PgConnect,
 ): Promise<Store> {
-	const { PgStore } = await import("../stores/postgres.ts")
+	const { PgStore } = await loadPostgres(() => import("../stores/postgres.ts"))
 	return PgStore.create(defects, entities, connect)
 }
 

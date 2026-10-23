@@ -52,7 +52,7 @@ Requires **Node.js 22.18 or later**. The published CLI is compiled JavaScript; `
 
 The unscoped name `oat` on npm is a different project. Always install `@lovrozagar/oat`. The binary on PATH is still `oat`.
 
-That floor is the first Node where everything oat uses works under plain `node`, with no flag: `node:sqlite` for SQLite conformance, a `.ts` config such as the one `oat init` writes, and the HTTP `QUERY` method. Node 22 still prints an `ExperimentalWarning` for `node:sqlite`; it is harmless.
+That floor is the first Node where everything oat uses works under plain `node`, with no flag: `node:sqlite` for SQLite conformance, a `.ts` config such as the one `oat init` writes, and the HTTP `QUERY` method. Node 22 still prints an `ExperimentalWarning` for `node:sqlite`; it is harmless. The Postgres reference backend (`oat serve --backend postgres`, Postgres conformance) also needs its driver, an optional peer oat does not install: `npm i -D postgres`.
 
 ```bash
 oat init --spec ./openapi.json            # writes oat.config.ts from the document's security schemes

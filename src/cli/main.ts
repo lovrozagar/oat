@@ -2,6 +2,7 @@ import { realpathSync } from "node:fs"
 import { resolve } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 import { messageOf } from "../errors/message.ts"
+import { UsageError } from "../errors/usage-error.ts"
 import { EXIT } from "../runtime/exit.ts"
 import { commandBaseline } from "./commands/baseline.ts"
 import { commandConformance } from "./commands/conformance.ts"
@@ -71,9 +72,10 @@ export function start(deps: CliDeps = { writer: processWriter }): Promise<void> 
 		(code) => {
 			process.exitCode = code
 		},
+		/* A usage error is the caller's to fix and names the mistake; anything else is oat failing. */
 		(error: unknown) => {
-			deps.writer.err(`oat: ${messageOf(error)}\n`)
-			process.exitCode = EXIT.failed
+			deps.writer.err(`oat: ${messageOf(error).replace(/^oat: /, "")}\n`)
+			process.exitCode = error instanceof UsageError ? EXIT.usage : EXIT.failed
 		},
 	)
 }

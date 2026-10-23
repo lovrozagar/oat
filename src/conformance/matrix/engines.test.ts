@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { connectProbe, d1Available, postgresAvailable, sqliteAvailable } from "./engines.ts"
+import { connectProbe, d1Available, postgresStatus, sqliteAvailable } from "./engines.ts"
 
 const D1 = ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_D1_DATABASE_ID", "CLOUDFLARE_API_TOKEN"] as const
 const saved = { ...process.env }
@@ -24,21 +24,28 @@ describe("engines", () => {
 		expect(d1Available()).toBe(false)
 	})
 
-	it("calls Postgres unavailable when no server answers", async () => {
+	it("calls Postgres unreachable when no server answers", async () => {
 		process.env.PGHOST = "127.0.0.1"
 		process.env.PGPORT = "1"
-		expect(await postgresAvailable()).toBe(false)
+		expect(await postgresStatus()).toBe("unreachable")
 	})
 
-	it("calls Postgres available when a server answers, and closes the session either way", async () => {
+	it("tells a missing driver from a server that does not answer", async () => {
+		const missing = Object.assign(new Error("Cannot find package 'postgres' imported from /app/x.js"), {
+			code: "ERR_MODULE_NOT_FOUND",
+		})
+		expect(await postgresStatus(() => Promise.reject(missing))).toBe("no-driver")
+	})
+
+	it("calls Postgres ready when a server answers, and closes the session either way", async () => {
 		const ended: number[] = []
 		const answering = {
 			end: async ({ timeout }: { timeout: number }) => void ended.push(timeout),
 			unsafe: async () => [],
 		}
-		expect(await postgresAvailable(async () => answering)).toBe(true)
+		expect(await postgresStatus(async () => answering)).toBe("ready")
 		const refusing = { ...answering, unsafe: () => Promise.reject(new Error("refused")) }
-		expect(await postgresAvailable(async () => refusing)).toBe(false)
+		expect(await postgresStatus(async () => refusing)).toBe("unreachable")
 		expect(ended).toEqual([3, 3])
 	})
 

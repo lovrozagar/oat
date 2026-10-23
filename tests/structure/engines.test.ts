@@ -31,7 +31,7 @@ describe("the Node floor", () => {
 			new RegExp(`^Requires \\*\\*Node\\.js ${NODE_FLOOR.replace(".", "\\.")} or later\\*\\*`, "m"),
 		)
 		const writer = bufferWriter()
-		judgeSkipped(writer, {}, ["sqlite"])
+		judgeSkipped(writer, {}, [{ backend: "sqlite" }])
 		expect(writer.text()).toContain(`oat needs ${NODE_FLOOR} or later`)
 	})
 

@@ -16,7 +16,8 @@ export interface ToolkitOptions {
 	/** Cases every suite reports. */
 	cases?: Case[]
 	sqlite?: boolean
-	postgres?: boolean
+	/** A reachable server, none, or an install without the driver. */
+	postgres?: boolean | "no-driver"
 	d1?: boolean
 	/** The shapes, each as its own task judges it: `shape:<name>`, with its problems. */
 	shapes?: Array<{ label: string; problems: string[] }>
@@ -108,7 +109,8 @@ function fakeSuite(options: ToolkitOptions, log: string[]) {
 			proven: options.proven ?? [],
 			text: `leg ${backend}/${dialect} ${results.length}\n`,
 		}),
-		postgresAvailable: async () => options.postgres === true,
+		postgresStatus: async () =>
+			options.postgres === true ? "ready" : options.postgres === "no-driver" ? "no-driver" : "unreachable",
 		renderParserSuite: (results: Case[]) => rendered(results),
 		requestLines,
 		renderUnproven: (proven: Set<string>) => ({

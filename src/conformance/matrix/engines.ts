@@ -1,4 +1,5 @@
 import type postgres from "postgres"
+import { isMissingPostgres } from "../../reference/stores/postgres-driver.ts"
 
 export type Backend = "memory" | "sqlite" | "postgres" | "d1"
 
@@ -42,17 +43,20 @@ export async function connectProbe(): Promise<ReturnType<typeof postgres>> {
 	return connect({ connect_timeout: 3, database: "postgres", max: 1, onnotice: () => {} })
 }
 
-/** Whether a Postgres server is reachable. Requires a running server, not just the driver. */
-export async function postgresAvailable(connect: () => Promise<ProbeConnection> = connectProbe): Promise<boolean> {
+/** Whether Postgres can host a pass: a server answers, none does, or this install lacks the driver. */
+export type PostgresStatus = "ready" | "unreachable" | "no-driver"
+
+/** Whether a Postgres server is reachable through the installed driver. */
+export async function postgresStatus(connect: () => Promise<ProbeConnection> = connectProbe): Promise<PostgresStatus> {
 	try {
 		const sql = await connect()
 		try {
 			await sql.unsafe("select 1")
-			return true
+			return "ready"
 		} finally {
 			await sql.end({ timeout: 3 })
 		}
-	} catch {
-		return false
+	} catch (error) {
+		return isMissingPostgres(error) ? "no-driver" : "unreachable"
 	}
 }

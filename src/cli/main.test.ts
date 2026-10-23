@@ -3,6 +3,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { pathToFileURL } from "node:url"
 import { afterEach, describe, expect, it } from "vitest"
+import { UsageError } from "../errors/usage-error.ts"
 import { EXIT } from "../runtime/exit.ts"
 import { invokedDirectly, main, start } from "./main.ts"
 import { bufferWriter } from "./writer.ts"
@@ -85,6 +86,18 @@ describe("start", () => {
 		await start({ serve: broken, writer })
 		expect(writer.text()).toBe("oat: no ports left\n")
 		expect(process.exitCode).toBe(EXIT.failed)
+	})
+
+	it("exits 2 on a usage error a command threw, saying it once", async () => {
+		process.argv = ["node", "oat", "serve", "--backend", "postgres"]
+		const writer = bufferWriter()
+		const refused = {
+			factoryFor: async () => Promise.reject(new UsageError("oat: --backend postgres needs the postgres package")),
+			stopped: async () => undefined,
+		}
+		await start({ serve: refused, writer })
+		expect(writer.text()).toBe("oat: --backend postgres needs the postgres package\n")
+		expect(process.exitCode).toBe(EXIT.usage)
 	})
 
 	it("writes to the process's own streams by default", async () => {
