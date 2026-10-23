@@ -37,6 +37,8 @@ describe("ownRecordsOf", () => {
 		expect(records.signIn).toEqual(new Set(["email", "password", "secret"]))
 		expect(records.identityOf("alpha")).toEqual({ email: "ann@x.io", password: "p" })
 		expect(records.identityOf("alpha#probe-1")).toEqual({ email: "ann@x.io", password: "p" })
+		records.learn?.("alpha", { id: "u-1" })
+		expect(records.identityOf("alpha")).toEqual({ email: "ann@x.io", id: "u-1", password: "p" })
 		expect(records.identityOf("disposable-own-record")).toBeUndefined()
 	})
 

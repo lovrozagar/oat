@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest"
-import type { Client } from "../client/client.ts"
+import { Client } from "../client/client.ts"
+import { json, transport } from "../client/__fixtures__/transport.ts"
+import { Redactor } from "../security/redact.ts"
 import type { RequestOptions } from "../client/types.ts"
 import { probeOwner } from "../credentials/probe-principal.ts"
 import type { SpecModel } from "../spec/graph/types.ts"
 import type { Exchange } from "./exchange.ts"
 import {
 	guardedClient,
+	ownRecordsFrom,
 	guardWrite,
 	type OwnRecords,
 	ownRecord,
@@ -170,5 +173,87 @@ describe("guardedClient", () => {
 			"GET /users/me",
 			"PATCH /elsewhere",
 		])
+	})
+})
+
+const REACH_OPS = [
+	{ identity: "self", method: "GET", operationId: "me.get", path: "/me", pathParams: [] },
+	{ identity: null, method: "PUT", operationId: "me.update", path: "/users/me", pathParams: [] },
+	{ identity: null, method: "PUT", operationId: "user.update", path: "/users/{id}", pathParams: ["id"] },
+].map((one) => ({ ...one, statuses: { exact: [200], ranges: [] } }))
+const REACH_MODEL = {
+	byOperationId: new Map(REACH_OPS.map((one) => [one.operationId, one])),
+	operations: REACH_OPS,
+} as unknown as SpecModel
+/* alpha's config names only how it signs in: its own server-side id is learned from the self read. */
+const learning = (): OwnRecords =>
+	ownRecordsFrom({
+		disposable: () => Promise.resolve({ blocked: "no signup" }),
+		identityOf: (principal) => (probeOwner(principal) === "alpha" ? { email: "ann@x.io" } : undefined),
+		signIn: new Set(["email"]),
+	})
+
+describe("guardedClient's reach", () => {
+	it("refuses a protected field however deep the body nests it", async () => {
+		const sent: string[] = []
+		const inner = {
+			request: (m: string, p: string) => (sent.push(`${m} ${p}`), Promise.resolve({} as Exchange)),
+			view: () => inner,
+		}
+		const client = guardedClient(inner as unknown as Client, learning(), REACH_MODEL)
+		for (const body of [{ user: { password: "p" } }, { data: { attributes: { email: "e" } } }]) {
+			await expect(client.request("PUT", "/users/me", { as: { principal: "alpha" }, body })).rejects.toThrow(
+				ProtectedWriteError,
+			)
+		}
+		expect(sent).toEqual([])
+	})
+
+	it("learns the principal's own id from its self read, and guards a write to that record", async () => {
+		const answers = new Map([["GET /me", { id: "u-9", name: "Ann" }]])
+		const inner = {
+			request: (method: string, path: string) =>
+				Promise.resolve({ responseBody: answers.get(`${method} ${path}`), status: 200 } as unknown as Exchange),
+			view: () => inner,
+		}
+		const client = guardedClient(inner as unknown as Client, learning(), REACH_MODEL)
+		await client.request("GET", "/me", { as: { principal: "alpha" } })
+		await expect(
+			client.request("PUT", "/users/u-9", { as: { principal: "alpha" }, body: { password: "p" } }),
+		).rejects.toThrow("user.update would change password on alpha's own record")
+		await expect(
+			client.request("PUT", "/users/u-8", { as: { principal: "alpha" }, body: { password: "p" } }),
+		).resolves.toBeDefined()
+	})
+})
+
+describe("guardedClient learning and every way it sends", () => {
+	it("learns nothing for a principal it does not guard, or from an answer that is no record", () => {
+		const guard = learning()
+		guard.learn?.("disposable-0", { id: "d-1" })
+		guard.learn?.("alpha", "u-9")
+		guard.learn?.("alpha", { id: "u-9", name: "Ann", project_id: "p-1", tags: ["x"], user_id: 4 })
+		expect(guard.identityOf("disposable-0")).toBeUndefined()
+		/* A foreign key names the tenant, not the caller's own record. */
+		expect(guard.identityOf("alpha")).toEqual({ email: "ann@x.io", id: "u-9", user_id: 4 })
+	})
+
+	it("refuses through every way a real client sends: request, its views, and views of views", async () => {
+		const wire = transport(() => json({}))
+		const real = new Client({
+			baseUrl: "http://api.test",
+			network: { fetchImpl: wire.fetch },
+			redactor: new Redactor(),
+		})
+		const client = guardedClient(real, learning(), REACH_MODEL)
+		const write = { as: { principal: "alpha" }, body: { email: "e" } } as const
+		const senders = [
+			() => client.request("PUT", "/users/me", write),
+			() => client.view({}).request("PUT", "/users/me", write),
+			() => client.view({}).view({}).request("PUT", "/users/me", write),
+			() => (client.readOnlyView({}) as unknown as Client).request("PUT", "/users/me", write),
+		]
+		for (const send of senders) await expect(send()).rejects.toThrow(/would change email|does not mutate/)
+		expect(wire.sent).toEqual([])
 	})
 })

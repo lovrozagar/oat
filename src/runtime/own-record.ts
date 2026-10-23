@@ -29,6 +29,36 @@ export interface OwnRecords {
 	identityOf: (principal: string) => Readonly<Record<string, unknown>> | undefined
 	/** A principal the run signs up to throw away, once: what a write that needs a protected field is sent as. */
 	disposable: () => Promise<string | { blocked: string }>
+	/** Takes what the principal's self read answered: its own ids, which no config names, join its identity. */
+	learn?: (principal: string, answer: unknown) => void
+}
+
+/*
+ * The fields of a self read that name the caller's own record: its id, or its login name. A foreign
+ * key (`project_id`, `org_id`) names another record, the tenant the caller belongs to, never its own.
+ */
+const IDENTIFIER = /^(id|uuid|guid|username|login|handle|user_?id|userId|account_?id|accountId)$/
+
+/**
+ * `base`, learning as the run goes: a self read's identifiers join the identity of the configured
+ * principal that read it, so a write to `/users/<its own id>` is guarded though the config named only
+ * how it signs in.
+ */
+export function ownRecordsFrom(base: Omit<OwnRecords, "learn">): OwnRecords {
+	const learned = new Map<string, Record<string, unknown>>()
+	return {
+		...base,
+		identityOf: (principal) => {
+			const configured = base.identityOf(principal)
+			return configured === undefined ? undefined : { ...configured, ...learned.get(probeOwner(principal)) }
+		},
+		learn: (principal, answer) => {
+			if (base.identityOf(principal) === undefined || !isPlain(answer)) return
+			const ids = Object.entries(answer).filter(([key, value]) => IDENTIFIER.test(key) && scalarText(value).length > 0)
+			const owner = probeOwner(principal)
+			learned.set(owner, { ...learned.get(owner), ...Object.fromEntries(ids) })
+		},
+	}
 }
 
 /** A write refused before it was sent: it would change how a principal signs in. Its message names the fields. */
@@ -133,19 +163,22 @@ function scalarText(value: unknown): string[] {
  */
 export function guardedClient(client: Client, records: OwnRecords, model: SpecModel): Client {
 	const resolve = operationResolver(model)
-	const request = (method: string, path: string, options: RequestOptions): Promise<Exchange> => {
+	const request = async (method: string, path: string, options: RequestOptions): Promise<Exchange> => {
 		const principal = "principal" in options.as ? options.as.principal : undefined
 		const identity = principal === undefined ? undefined : records.identityOf(principal)
 		const resolved = identity === undefined ? null : resolve(method, path)
 		const op = resolved === null ? undefined : model.byOperationId.get(resolved.operationId)
 		if (op !== undefined && resolved !== null && isPlain(options.body)) {
 			const write = { identity: identity as Readonly<Record<string, unknown>>, op, path: resolved.pathParams }
-			const fields = [...protectedFields(records.signIn, write, Object.keys(options.body))]
-			if (fields.length > 0) {
-				return Promise.reject(new ProtectedWriteError(protectedReason(op.operationId, principal as string, fields)))
-			}
+			/* Deep, as guardWrite drops: `{ user: { password } }` changes the password as surely as `{ password }`. */
+			const fields = [...protectedFields(records.signIn, write, keysOf(options.body))]
+			if (fields.length > 0) throw new ProtectedWriteError(protectedReason(op.operationId, principal as string, fields))
 		}
-		return client.request(method, path, options)
+		const exchange = await client.request(method, path, options)
+		if (op?.identity === SELF_IDENTITY && SAFE.has(method.toUpperCase()) && exchange.status < 300) {
+			records.learn?.(principal as string, exchange.responseBody)
+		}
+		return exchange
 	}
 	return new Proxy(client, {
 		get(target, property, receiver) {

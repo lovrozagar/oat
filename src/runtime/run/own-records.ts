@@ -1,6 +1,6 @@
 import { probeOwner } from "../../credentials/probe-principal.ts"
 import { signInFields } from "../../credentials/sign-in-fields.ts"
-import type { OwnRecords } from "../own-record.ts"
+import { type OwnRecords, ownRecordsFrom } from "../own-record.ts"
 import type { RunContext } from "./context.ts"
 import { enrollerOf } from "./disposable.ts"
 import { recipesOf } from "./floor-credentials.ts"
@@ -19,12 +19,19 @@ export function ownRecordsOf(ctx: RunContext): OwnRecords {
 
 function build(ctx: RunContext): OwnRecords {
 	let disposable: Promise<string | { blocked: string }> | undefined
-	return {
+	/*
+	 * A configured principal's identity as its config states it. What its sign-in binds (its tenant,
+	 * a project in its scope) names records it belongs to, not its own; its own id comes from its self
+	 * read, which `ownRecordsFrom` learns.
+	 */
+	const identityOf = (principal: string): Readonly<Record<string, unknown>> | undefined =>
+		ctx.principals.byId.get(probeOwner(principal))?.identity
+	return ownRecordsFrom({
 		disposable: () => {
 			disposable ??= enrollerOf(ctx)("own-record").then((enrolled) => ("blocked" in enrolled ? enrolled : enrolled.id))
 			return disposable
 		},
-		identityOf: (principal) => ctx.principals.byId.get(probeOwner(principal))?.identity,
+		identityOf,
 		signIn: new Set(recipesOf(ctx).flatMap((recipe) => [...signInFields(recipe)])),
-	}
+	})
 }
