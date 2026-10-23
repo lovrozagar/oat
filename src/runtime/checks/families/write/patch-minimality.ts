@@ -146,8 +146,7 @@ async function controlBaseline(ctx: WriteContext, read: Read, id: string): Promi
  */
 function driftingFields(writes: OperationModel[], original: Record_, baseline: Record_): Set<string> {
 	const drifting = new Set<string>([
-		"updated_at",
-		"modified_at",
+		...Object.keys(original).filter(isServerTimestamp),
 		/* A job's progress counter advances on GET without this PATCH having written it. */
 		"progress",
 		/*
@@ -163,6 +162,14 @@ function driftingFields(writes: OperationModel[], original: Record_, baseline: R
 		if (JSON.stringify(original[key]) !== JSON.stringify(baseline[key])) drifting.add(key)
 	}
 	return drifting
+}
+
+/**
+ * Whether `key` names the timestamp a server stamps on every write, in any naming convention:
+ * `updated_at`, `updatedAt`, `UpdatedAt`, `modified-at`, `lastModified`, `updated`.
+ */
+function isServerTimestamp(key: string): boolean {
+	return /^(last)?(updated|modified)(at|on)?$/.test(key.replace(/[_-]/g, "").toLowerCase())
 }
 
 /* Whatever also moved on the untouched control record was not caused by this PATCH. */

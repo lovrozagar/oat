@@ -58,6 +58,19 @@ const ticking: Override = (server) => (method, path, options) => {
 	return answer
 }
 
+/* Every write stamps `key` on every record; with no control record nothing else excuses it. */
+const stamping =
+	(key: string): Override =>
+	(server) =>
+	(method, path, options) => {
+		if (method === "GET") return undefined
+		const answer = server.respond(method, path, options)
+		for (const record of server.records.values()) record[key] = Number(record[key] ?? 0) + 1
+		return answer
+	}
+const stamped = async (key: string) =>
+	(await runCheck(patchMinimality, backend(stamping(key), { records: [] }).ctx)).kind
+
 /* `answer` for the `nth` request of `method` on the scratch record. */
 const onTarget =
 	(method: string, answer: { status: number; body?: unknown }, nth = 1): Override =>
@@ -130,6 +143,27 @@ describe("patch.minimality fields that move on their own", () => {
 		const model = notesModel({ generated: { create: ["rev"], update: ["tick"] } })
 		const { ctx } = backend(ticking, { records: [] }, model)
 		expect(await runCheck(patchMinimality, ctx)).toEqual({ kind: "asserted" })
+	})
+
+	it.each([
+		"updated_at",
+		"updatedAt",
+		"UpdatedAt",
+		"updated-at",
+		"modified_at",
+		"modifiedAt",
+		"lastModified",
+		"last_modified",
+		"LastModifiedAt",
+		"lastUpdated",
+		"modified",
+		"updated",
+	])("ignores the server timestamp %s moving on a write", async (key) => {
+		expect(await stamped(key)).toBe("asserted")
+	})
+
+	it.each(["createdAt", "updater", "modifiedBy", "rev"])("still reports %s moving on a write", async (key) => {
+		expect(await stamped(key)).toBe("finding")
 	})
 
 	it("compares against the first read when the second is refused", async () => {
