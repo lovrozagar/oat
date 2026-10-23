@@ -9,8 +9,8 @@ export function renderFuzz(results: FuzzCase[]): { text: string; failures: numbe
 	lines.push("  combination fuzzing — random defect sets, one run each")
 	lines.push("  ─────────────────────────────────────────────────────────────────────────")
 
-	for (const result of failed) {
-		lines.push(`  ✗ seed ${result.seed}  [${result.injected.join(" + ")}]`)
+	for (const result of results.filter((candidate) => !candidate.ok || candidate.excused.length > 0)) {
+		lines.push(`  ${result.ok ? "✓" : "✗"} seed ${result.seed}  [${result.injected.join(" + ")}]`)
 		if (result.error !== undefined) lines.push(`      run failed: ${result.error}`)
 		for (const miss of result.missed) {
 			lines.push(`      missed   ${miss.defect} — expected ${miss.primary}, nothing fired`)
@@ -22,13 +22,19 @@ export function renderFuzz(results: FuzzCase[]): { text: string; failures: numbe
 			 * timing artefact, and a rare case may never reproduce on demand. */
 			lines.push(`               ${extra.detail.replace(/\s+/g, " ").slice(0, 200)}`)
 		}
+		for (const excusal of result.excused) {
+			lines.push(`      excused ${excusal.defect}: ${excusal.check} stood down — ${excusal.reason}`)
+		}
 	}
 
+	const missed = results.reduce((sum, result) => sum + result.missed.length, 0)
+	const excused = results.reduce((sum, result) => sum + result.excused.length, 0)
 	const cascaded = results.reduce((sum, result) => sum + result.cascaded.length, 0)
 	const unresolved = results.reduce((sum, result) => sum + result.unresolved.length, 0)
 	lines.push("")
 	lines.push(
 		`  ${results.length - failed.length}/${results.length} combinations diagnosed correctly` +
+			` · ${missed} missed · ${excused} excused` +
 			` · ${cascaded} suppressed as cascades` +
 			` · ${unresolved} reported as inconclusive`,
 	)

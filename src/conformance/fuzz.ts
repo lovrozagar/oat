@@ -133,7 +133,18 @@ async function runOneCase(target: Target, injected: DefectName[], seed: number):
 	const outcome = await runAgainst(target, injected, 42)
 	if ("error" in outcome) {
 		const { error } = outcome
-		return { cascaded: [], error, findings: 0, injected, missed: [], ok: false, seed, spurious: [], unresolved: [] }
+		return {
+			cascaded: [],
+			error,
+			excused: [],
+			findings: 0,
+			injected,
+			missed: [],
+			ok: false,
+			seed,
+			spurious: [],
+			unresolved: [],
+		}
 	}
 	return { injected, seed, ...diagnose(injected, outcome.result) }
 }

@@ -34,6 +34,11 @@ export interface FuzzCase {
 	 * from a clean result, and that is the one worth failing the suite over.
 	 */
 	unresolved: Array<{ defect: DefectName; reason: string }>
+	/**
+	 * Injected defects whose check stood down everywhere it ran, saying why: another defect took away
+	 * all it could judge. Diagnosed correctly, and printed every time, so an excusal is never silent.
+	 */
+	excused: Array<{ defect: DefectName; check: string; reason: string }>
 	findings: number
 	ok: boolean
 	error?: string
@@ -53,7 +58,10 @@ export type Reported = Pick<RunResult, "findings" | "inconclusive"> &
 type Finding = Reported["findings"][number]
 
 /** What one fuzz case concluded, short of the case's own seed and defects. */
-export type Diagnosis = Pick<FuzzCase, "cascaded" | "findings" | "missed" | "ok" | "spurious" | "unresolved">
+export type Diagnosis = Pick<
+	FuzzCase,
+	"cascaded" | "excused" | "findings" | "missed" | "ok" | "spurious" | "unresolved"
+>
 
 /** Every check id reachable from `id` by following `dependsOn`, transitively. */
 export function ancestorsOf(id: string, seen: Set<string> = new Set<string>()): Set<string> {
@@ -85,7 +93,10 @@ export function falsePositives(reported: Reported): PrecisionCase["findings"] {
 export function diagnose(injected: readonly DefectName[], reported: Reported): Diagnosis {
 	const findings = reported.findings.filter(real)
 	const fired = new Set(findings.map((finding) => finding.check))
-	const recall = recallOf(injected, fired, statedReasons(reported))
+	const recall = recallOf(injected, fired, {
+		inconclusive: new Map(reported.inconclusive.map((entry) => [entry.check, entry.reason])),
+		stoodDown: stoodDownEverywhere(reported),
+	})
 	/* Anything the injected set can justify — the primaries plus their documented
 	 * consequences. A finding outside this union is oat inventing a defect. */
 	const justified = new Set(injected.flatMap((defect) => acceptableOf(EXPECTED[defect])))
@@ -96,34 +107,41 @@ export function diagnose(injected: readonly DefectName[], reported: Reported): D
 }
 
 /**
- * Why each check that reached no verdict said it could not: an inconclusive's reason, or a stand-down's
- * when the check stood down everywhere it ran. One that passed somewhere had a chance and took it.
+ * Why each check stood down, for a check that stood down everywhere it ran: one that passed on some
+ * operation had something to judge, and stays a miss.
  */
-function statedReasons(reported: Reported): Map<string, string> {
+function stoodDownEverywhere(reported: Reported): Map<string, string> {
 	const passed = new Set((reported.scope?.operations ?? []).flatMap((op) => op.checks.passed))
-	const stated = new Map<string, string>()
-	for (const skip of reported.checksSkipped ?? []) if (!passed.has(skip.check)) stated.set(skip.check, skip.needs)
-	for (const entry of reported.inconclusive) stated.set(entry.check, entry.reason)
-	return stated
+	const reasons = new Map<string, string>()
+	for (const skip of reported.checksSkipped ?? []) if (!passed.has(skip.check)) reasons.set(skip.check, skip.needs)
+	return reasons
 }
 
 /** Each injected defect whose primary check did not fire: cascaded, unresolved, or missed. */
 function recallOf(
 	injected: readonly DefectName[],
 	fired: ReadonlySet<string>,
-	stated: ReadonlyMap<string, string>,
-): Pick<FuzzCase, "cascaded" | "missed" | "unresolved"> {
-	const recall: Pick<FuzzCase, "cascaded" | "missed" | "unresolved"> = { cascaded: [], missed: [], unresolved: [] }
+	stated: { inconclusive: ReadonlyMap<string, string>; stoodDown: ReadonlyMap<string, string> },
+): Pick<FuzzCase, "cascaded" | "excused" | "missed" | "unresolved"> {
+	const recall: Pick<FuzzCase, "cascaded" | "excused" | "missed" | "unresolved"> = {
+		cascaded: [],
+		excused: [],
+		missed: [],
+		unresolved: [],
+	}
 	for (const defect of injected) {
 		const want = primaryOf(EXPECTED[defect])
 		if (fired.has(want)) continue
-		/* Not fired. Acceptable in exactly two cases: something `want` depends on is itself
-		 * broken — cascade suppression working — or the check ran and reported *why* it could
-		 * not conclude. Anything else is oat going quiet, which is the real failure. */
+		/* Not fired. Acceptable in three cases: something `want` depends on is itself broken —
+		 * cascade suppression working —, the check ran and reported *why* it could not conclude, or
+		 * it stood down everywhere it ran, saying why. Anything else is oat going quiet, which is the
+		 * real failure. */
 		const broken = [...ancestorsOf(want)].find((ancestor) => fired.has(ancestor))
-		const reason = stated.get(want)
+		const reason = stated.inconclusive.get(want)
+		const stood = stated.stoodDown.get(want)
 		if (broken !== undefined) recall.cascaded.push({ because: broken, defect })
 		else if (reason !== undefined) recall.unresolved.push({ defect, reason })
+		else if (stood !== undefined) recall.excused.push({ check: want, defect, reason: stood })
 		else recall.missed.push({ defect, primary: want })
 	}
 	return recall

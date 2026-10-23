@@ -8,9 +8,19 @@ const clean: FuzzCase = {
 	injected: ["STALE_LIST", "OFF_BY_ONE_PAGE"],
 	missed: [],
 	ok: true,
+	excused: [],
 	seed: 11,
 	spurious: [],
 	unresolved: [{ defect: "ORDER_IGNORED", reason: "one row" }],
+}
+
+/* Diagnosed correctly, but only because a check stood down everywhere: shown, never silent. */
+const excused: FuzzCase = {
+	...clean,
+	cascaded: [],
+	excused: [{ check: "schema.problem-json-shape", defect: "PROBLEM_JSON_MALFORMED", reason: "a problem+json answer" }],
+	seed: 44,
+	unresolved: [],
 }
 
 const wrong: FuzzCase = {
@@ -30,7 +40,7 @@ const crashed: FuzzCase = { ...clean, cascaded: [], error: "fetch failed", ok: f
 
 describe("renderFuzz", () => {
 	it("lists each failed combination with what it missed and invented, then the totals", () => {
-		const { failures, text } = renderFuzz([clean, wrong, crashed])
+		const { failures, text } = renderFuzz([clean, wrong, crashed, excused])
 		expect(failures).toBe(2)
 		expect(text.split("\n")).toEqual([
 			"",
@@ -46,8 +56,11 @@ describe("renderFuzz", () => {
 			`               ${"x".repeat(200)}`,
 			"  ✗ seed 33  [STALE_LIST + OFF_BY_ONE_PAGE]",
 			"      run failed: fetch failed",
+			"  ✓ seed 44  [STALE_LIST + OFF_BY_ONE_PAGE]",
+			"      excused PROBLEM_JSON_MALFORMED: schema.problem-json-shape stood down — a problem+json answer",
 			"",
-			"  1/3 combinations diagnosed correctly · 1 suppressed as cascades · 1 reported as inconclusive",
+			"  2/4 combinations diagnosed correctly · 1 missed · 1 excused · 1 suppressed as cascades · " +
+				"1 reported as inconclusive",
 			"",
 		])
 	})

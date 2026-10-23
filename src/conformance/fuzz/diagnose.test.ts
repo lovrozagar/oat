@@ -39,7 +39,15 @@ describe("diagnose", () => {
 			["STALE_LIST", "ORDER_IGNORED"],
 			reported([finding("list.read-after-write"), finding("sort.order-is-applied"), finding("x.y", "COVERAGE_GAP")]),
 		)
-		expect(diagnosis).toEqual({ cascaded: [], findings: 2, missed: [], ok: true, spurious: [], unresolved: [] })
+		expect(diagnosis).toEqual({
+			cascaded: [],
+			excused: [],
+			findings: 2,
+			missed: [],
+			ok: true,
+			spurious: [],
+			unresolved: [],
+		})
 	})
 
 	it("excuses a defect whose check a broken dependency suppressed", () => {
@@ -55,27 +63,11 @@ describe("diagnose", () => {
 		expect(diagnosis.ok).toBe(true)
 	})
 
-	it("counts a check that stood down everywhere it ran, and said why, as unresolved", () => {
-		const checksSkipped = [
-			{ check: "schema.problem-json-shape", entity: "widget", needs: "a problem+json answer" },
-			{ check: "schema.problem-json-shape", entity: "gadget", needs: "a problem+json answer" },
-		]
-		const diagnosis = diagnose(["PROBLEM_JSON_MALFORMED"], reported([], [], { checksSkipped, scope: passing([]) }))
-		expect(diagnosis.unresolved).toEqual([{ defect: "PROBLEM_JSON_MALFORMED", reason: "a problem+json answer" }])
-		expect(diagnosis.ok).toBe(true)
-	})
-
-	it("misses a defect whose check passed somewhere, though it stood down elsewhere", () => {
-		const checksSkipped = [{ check: "schema.problem-json-shape", entity: "gadget", needs: "a problem+json answer" }]
-		const scope = passing(["schema.problem-json-shape"])
-		const diagnosis = diagnose(["PROBLEM_JSON_MALFORMED"], reported([], [], { checksSkipped, scope }))
-		expect(diagnosis.missed).toEqual([{ defect: "PROBLEM_JSON_MALFORMED", primary: "schema.problem-json-shape" }])
-	})
-
 	it("fails a defect nothing reported, and a finding no defect justifies", () => {
 		const diagnosis = diagnose(["ORDER_IGNORED"], reported([finding("search.q-narrows-result")]))
 		expect(diagnosis).toEqual({
 			cascaded: [],
+			excused: [],
 			findings: 1,
 			missed: [{ defect: "ORDER_IGNORED", primary: "sort.order-is-applied" }],
 			ok: false,
@@ -89,6 +81,27 @@ describe("diagnose", () => {
 			],
 			unresolved: [],
 		})
+	})
+})
+
+describe("diagnose, a check that stood down", () => {
+	it("excuses a defect whose check stood down everywhere it ran, saying why", () => {
+		const checksSkipped = [
+			{ check: "schema.problem-json-shape", entity: "widget", needs: "a problem+json answer" },
+			{ check: "schema.problem-json-shape", entity: "gadget", needs: "a problem+json answer" },
+		]
+		const diagnosis = diagnose(["PROBLEM_JSON_MALFORMED"], reported([], [], { checksSkipped, scope: passing([]) }))
+		expect(diagnosis.excused).toEqual([
+			{ check: "schema.problem-json-shape", defect: "PROBLEM_JSON_MALFORMED", reason: "a problem+json answer" },
+		])
+		expect([diagnosis.unresolved, diagnosis.ok]).toEqual([[], true])
+	})
+
+	it("misses a defect whose check passed somewhere, though it stood down elsewhere", () => {
+		const checksSkipped = [{ check: "schema.problem-json-shape", entity: "gadget", needs: "a problem+json answer" }]
+		const scope = passing(["schema.problem-json-shape"])
+		const diagnosis = diagnose(["PROBLEM_JSON_MALFORMED"], reported([], [], { checksSkipped, scope }))
+		expect(diagnosis.missed).toEqual([{ defect: "PROBLEM_JSON_MALFORMED", primary: "schema.problem-json-shape" }])
 	})
 })
 
