@@ -109,7 +109,7 @@ async function recordCreate(tracker: Tracker, exchange: Exchange, owned: Tracked
 	const { ledger } = input
 	const create = exchange.operationId === undefined ? undefined : routes.creates.get(exchange.operationId)
 	/* The account a sign-up makes is the account ledger's, which removes it as itself or names it. */
-	if (create !== undefined && makesAccount(create.op)) return
+	if (create !== undefined && makesAccount(create.op, input.model)) return
 	if (create === undefined) {
 		await recordInferred(tracker, exchange, owned)
 		return

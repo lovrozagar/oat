@@ -1,3 +1,4 @@
+import { SIGN_IN } from "../../spec/sign-in.ts"
 import { rootsOf } from "../../report/console/roots.ts"
 import { prefixRoots } from "../../spec/graph/roots.ts"
 import { buildModel } from "../../spec/graph/build.ts"
@@ -33,7 +34,6 @@ export interface InitConfig {
 const UNTESTED = "Operations that need only it are reported untested."
 const OWNED_GRANTS = "oat performs only clientCredentials and password grants; supply a token obtained elsewhere"
 const HOLDS = "the scopes this credential carries; operations needing scopes it lacks are untested"
-const SIGN_IN = /login|token|session/i
 
 /** Each scheme's env var stem, `OAT_<NAME>`, with `_2`, `_3` for a later scheme whose stem is taken. */
 function envStems(): (scheme: string) => string {

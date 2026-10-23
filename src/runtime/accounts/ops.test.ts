@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest"
 import { buildModel } from "../../spec/graph/build.ts"
 import { accountsDoc } from "../run/__fixtures__/accounts.ts"
+import { modelOf } from "../../spec/graph/__fixtures__/operations.ts"
 import { accountOps, makesAccount } from "./ops.ts"
+import { OPEN } from "./__fixtures__/open.ts"
 
 /* Which operations make an account, and which remove one: as itself, or by an admin, by id. */
 
@@ -37,10 +39,15 @@ describe("accountOps", () => {
 		expect(accountOps(model).adminDelete("auth.signup")?.identity).toBe("id")
 	})
 
+	it("counts an unmarked sign-up as making an account", () => {
+		const model = modelOf({ "/v1/register": { post: { operationId: "auth.register", ...OPEN } } })
+		expect(accountOps(model).creates("auth.register")).toBe(true)
+	})
+
 	it("counts a create of the caller's own record as making an account", () => {
 		const model = buildModel(accountsDoc())
 		const read = model.byOperationId.get("me.read")
-		expect(read === undefined ? undefined : makesAccount({ ...read, action: "create" })).toBe(true)
-		expect(read === undefined ? undefined : makesAccount(read)).toBe(false)
+		expect(read === undefined ? undefined : makesAccount({ ...read, action: "create" }, model)).toBe(true)
+		expect(read === undefined ? undefined : makesAccount(read, model)).toBe(false)
 	})
 })

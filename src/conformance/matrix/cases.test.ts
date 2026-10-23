@@ -56,6 +56,11 @@ describe("runSuite", () => {
 		const [tagged, untagged, defect] = results
 		expect(tagged).toMatchObject({ bystanders: [], leaked: 0, strayLedger: [], unreported: [] })
 		expect(untagged?.leaked).toBeUndefined()
+		/* Its register is untagged: the account oat made there is a leftover it names, never one it keeps quiet. */
+		expect(untagged).toMatchObject({
+			reported: expect.arrayContaining([expect.stringMatching(/^account oat-\S+@example\.test$/)]),
+			unreported: [],
+		})
 		expect(defect).toMatchObject({
 			acceptable: expect.arrayContaining(["list.read-after-write"]),
 			expected: "list.read-after-write",

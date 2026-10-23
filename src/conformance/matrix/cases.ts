@@ -31,6 +31,8 @@ export interface CaseResult {
 	strayLedger?: string[]
 	/** Records left behind that teardown neither named as failed nor counted as unidentified. */
 	unreported?: string[]
+	/** What teardown named as left behind, as `entity id`: each one a leftover the run reported. */
+	reported?: string[]
 	/** Checks that would have sent a value oat did not have (the text "undefined"), as `check@entity`. */
 	missingValues?: string[]
 	/** Checks that ran and could not reach a verdict, as `check@entity: reason`. */
@@ -51,6 +53,7 @@ interface Observed {
 	strayLedger: string[]
 	missingValues: string[]
 	unreported: string[]
+	reported: string[]
 }
 
 /**
@@ -93,6 +96,7 @@ async function observe(defects: DefectName[], target: Target, untagged: boolean)
 			inconclusive: result.inconclusive,
 			leaked: leakedRecords.length,
 			missingValues: missingValuesOf(result.inconclusive),
+			reported: (result.teardown?.failed ?? []).map((failure) => `${failure.entity} ${failure.id}`),
 			strayLedger: ledgeredNotCreated(result.teardown?.records ?? [], server.createdIds()),
 			/* Whatever the defect let through, a record oat leaves behind is one it must name. */
 			unreported: unreportedLeftovers(leakedRecords, result.teardown),

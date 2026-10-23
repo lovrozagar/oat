@@ -5,6 +5,7 @@
 
 import type { OperationModel, SpecModel } from "../../spec/graph/types.ts"
 import { SELF_IDENTITY } from "../self/operations.ts"
+import { unmarkedSignUp } from "./unmarked.ts"
 
 /** How a run makes and removes accounts, read once from the document. */
 export interface AccountOps {
@@ -20,15 +21,15 @@ export interface AccountOps {
 }
 
 /**
- * The operation the document marks `x-fresh-principal`, and any create of the `identity: self`
- * entity, make an account; whatever check, scene or sign-in sends one.
+ * The operation the document marks `x-fresh-principal`, any create of the `identity: self` entity,
+ * and a sign-up the document leaves unmarked make an account; whatever check, scene or sign-in sends one.
  */
-export function makesAccount(op: OperationModel): boolean {
-	return op.freshPrincipal || (op.action === "create" && op.identity === SELF_IDENTITY)
+export function makesAccount(op: OperationModel, model: SpecModel): boolean {
+	return op.freshPrincipal || (op.action === "create" && op.identity === SELF_IDENTITY) || unmarkedSignUp(op, model)
 }
 
 export function accountOps(model: SpecModel): AccountOps {
-	const creating = new Set(model.operations.filter(makesAccount).map((op) => op.operationId))
+	const creating = new Set(model.operations.filter((op) => makesAccount(op, model)).map((op) => op.operationId))
 	const deleteSelf = model.operations.find(
 		(op) => op.identity === SELF_IDENTITY && op.action === "delete" && op.pathParams.length === 0,
 	)
