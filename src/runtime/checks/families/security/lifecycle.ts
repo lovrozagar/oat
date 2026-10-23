@@ -124,12 +124,15 @@ function pathValues(
 
 /*
  * Lower is better: a read that needs no parameter at all, then the caller's own read or a list, which
- * any credential of the scheme should be let into, over a read of one record it may not reach.
+ * any credential of the scheme should be let into, over a read of one record it may not reach. A GET
+ * breaks a tie with a HEAD: some stacks answer HEAD outside their auth middleware (an automatic
+ * HEAD, a static or proxy layer), and its 2xx would read a revoked credential as accepted.
  */
 function rankOf(operation: OperationModel, raw: OperationObject): number {
 	const bare = operation.pathParams.length === 0 && !(raw.parameters ?? []).some((param) => param.required === true)
 	const open = operation.identity === SELF_IDENTITY || operation.action === "list"
-	return (bare ? 0 : 2) + (open ? 0 : 1)
+	const head = operation.method.toUpperCase() === "HEAD"
+	return (bare ? 0 : 4) + (open ? 0 : 2) + (head ? 1 : 0)
 }
 
 /** One scheme a lifecycle check runs for, the read it proves the credential on, and whose credential it is. */

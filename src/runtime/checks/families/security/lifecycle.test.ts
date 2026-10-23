@@ -158,11 +158,16 @@ describe("readRoute picks a read oat can send", () => {
 		).toMatchObject({ operation: { operationId: "d.declared" } })
 	})
 
-	it("fills a path parameter from a declared enum, and takes a HEAD as readily as a GET", () => {
+	it("fills a path parameter from a declared enum, and takes a HEAD only when no GET of its rank exists", () => {
 		const region = required("path", "region", { enum: ["eu", "us"], type: "string" })
 		expect(
 			routeIn({ "/regions/{region}": { get: { operationId: "regions.get", parameters: [region], responses: OK } } }),
 		).toMatchObject({ path: "/regions/eu" })
+		const pings = {
+			"/ping": { head: { operationId: "ping.head", responses: OK } },
+			"/pong": { get: { operationId: "pong.get", responses: OK } },
+		}
+		expect(routeIn(pings)).toMatchObject({ method: "GET", operation: { operationId: "pong.get" } })
 		expect(routeIn({ "/ping": { head: { operationId: "ping.head", responses: OK } } })).toMatchObject({
 			method: "HEAD",
 			operation: { operationId: "ping.head" },
