@@ -99,11 +99,14 @@ export async function resolveRequest(
 	}
 }
 
-/* A `{name}` left in what a step sends would reach the backend as written and read as its fault. */
+/*
+ * A `{name}` the step writes that nothing fills would reach the backend as written and read as its
+ * fault. Read from the step, not from what it sends: a bound value may hold `{id}`-shaped text, a
+ * saved URL template say, and is sent as it is.
+ */
 function filled(value: unknown, scope: Record<string, string>, index: number): unknown {
-	const out = interpolate(value, scope)
-	const name = placeholderNames(out)[0]
-	if (name === undefined) return out
+	const name = placeholderNames(value).find((each) => scope[each] === undefined)
+	if (name === undefined) return interpolate(value, scope)
 	throw new Error(
 		`oat: step ${index + 1}'s placeholder {${name}} has no value: no bind, saveAs or earlier step fills it`,
 	)

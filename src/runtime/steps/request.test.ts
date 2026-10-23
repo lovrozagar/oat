@@ -80,6 +80,13 @@ describe("resolveRequest: a raw step", () => {
 		expect(manual).toEqual({ client: ctx.client, method: "GET", path: "/r", redirect: "manual" })
 	})
 
+	it("sends a bound value as written though it holds {name}-shaped text, as a saved URL template does", async () => {
+		const { ctx } = stepStage(answered)
+		const scope = { next: "/users/{id}" }
+		const sent = await resolveRequest(ctx, { body: { link: "{next}" }, method: "PUT", path: "/r{next}" }, scope, 0)
+		expect([sent.path, sent.body]).toEqual(["/r/users/{id}", { link: "/users/{id}" }])
+	})
+
 	it("refuses a placeholder nothing fills rather than send it as written", async () => {
 		const { ctx } = stepStage(answered)
 		const scope = { "user-id": "u1" }
