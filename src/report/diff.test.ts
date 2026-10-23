@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import { RUN_A, RUN_B } from "./__fixtures__/runs.ts"
 import { diffReports, renderDiff, type SavedFinding, type SavedReport } from "./diff.ts"
 
 const finding = (check: string, entity: string, extra: Partial<SavedFinding> = {}): SavedFinding => ({
@@ -126,5 +127,24 @@ describe("renderDiff", () => {
 		expect(text).toBe(
 			["", "  0 new · 1 fixed · 0 persisting", "", "  FIXED", `    ${"a".padEnd(40)} b — a on b`, "", ""].join("\n"),
 		)
+	})
+})
+
+describe("diffReports, two runs of one backend", () => {
+	it("splits root causes into new, fixed and persisting, by a key that survives run-specific values", () => {
+		const diff = diffReports(RUN_A, RUN_B)
+		expect(diff.new.map((f) => f.check)).toEqual(["filter.unknown-field-rejected"])
+		expect(diff.fixed.map((f) => f.check)).toEqual(["pagination.limit-bounds-page-size"])
+		expect(diff.persisting.map((f) => f.check)).toEqual(["list.read-after-write"])
+	})
+
+	it("lists operations whose status changed, and both target versions", () => {
+		const diff = diffReports(RUN_A, RUN_B)
+		expect(diff.coverage).toEqual([{ from: "passed", operationId: "table.get", to: "failed" }])
+		expect(diff.versions).toEqual({ a: "1.0.88", b: "1.0.89" })
+	})
+
+	it("says coverage cannot be compared when a report has no scope", () => {
+		expect(diffReports({ findings: [] }, RUN_B).coverage).toBeNull()
 	})
 })

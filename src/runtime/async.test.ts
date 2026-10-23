@@ -118,6 +118,8 @@ const answers =
 		return json(body, status)
 	}
 
+const getJob = (id: string) => (id === "job.get" ? { method: "get", path: "/jobs/{id}" } : undefined)
+
 describe("driveAsync, reaching a terminal state", () => {
 	it("binds the receipt's id to the poll path and polls until until matches", async () => {
 		const { outcome, sent } = drive(answers([200, "busy"], [200, { status: "running" }], [200, { status: "done" }]), {
@@ -126,6 +128,16 @@ describe("driveAsync, reaching a terminal state", () => {
 		expect(await outcome).toMatchObject({ polls: 3, state: "terminal", succeeded: true, terminal: { status: "done" } })
 		expect(sent.map((request) => request.url)).toEqual(Array(3).fill("http://api.test/jobs/job%201"))
 		expect(sent[0]?.headers.authorization).toBe("Bearer t")
+	})
+
+	it("polls the operation poll names by its operationId through to the terminal state", async () => {
+		const { outcome, sent } = drive(answers([200, { status: "done" }]), {
+			operation: getJob,
+			receipt: { id: "done" },
+			spec: { poll: "job.get" },
+		})
+		expect(await outcome).toMatchObject({ state: "terminal" })
+		expect(sent.map((request) => `${request.method} ${request.url}`)).toEqual(["GET http://api.test/jobs/done"])
 	})
 
 	it("names the successWhen a terminal state did not meet", async () => {
@@ -186,6 +198,13 @@ describe("driveAsync, when the job does not finish", () => {
 	it("tells a job that vanished after it was served", async () => {
 		const { outcome } = drive(answers([404, {}], [200, { status: "running" }], [404, {}]))
 		expect(await outcome).toMatchObject({ polls: 3, state: "vanished", succeeded: false, timedOut: false })
+	})
+
+	it("tells a job served running and then gone from one still running at the deadline", async () => {
+		const vanished = drive(answers([200, { status: "running" }], [404, {}]))
+		expect(await vanished.outcome).toMatchObject({ state: "vanished" })
+		const slow = drive(answers([200, { status: "running" }]), { spec: { timeoutMs: 60 } })
+		expect(await slow.outcome).toMatchObject({ state: "timed-out" })
 	})
 
 	it("times out on a job that never ends", async () => {

@@ -46,6 +46,16 @@ describe("operationResolver", () => {
 		expect(resolve("GET", "/tables/t1/rows/r1")?.redirects).toBe(true)
 	})
 
+	it("reads the path parameters off the operation the request resolved to", () => {
+		const tables = operationResolver(
+			modelOf({
+				"/projects/{project_id}/tables": { get: { operationId: "table.list", responses: ok(member) } },
+				"/projects/{project_id}/tables/{table_id}": { get: { operationId: "table.read", responses: ok(member) } },
+			}),
+		)
+		expect(tables("GET", "/projects/a/tables/t1")?.pathParams).toEqual({ project_id: "a", table_id: "t1" })
+	})
+
 	it("is null for a method or a path the document does not have", () => {
 		expect(resolve("DELETE", "/tables/t1")).toBeNull()
 		expect(resolve("GET", "/chairs")).toBeNull()

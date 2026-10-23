@@ -68,6 +68,10 @@ describe("placeholders and values", () => {
 
 	it("refuses to write a missing value as text", () => {
 		expect(() => scalar(postgrest, undefined as unknown as string)).toThrow(MissingValueError)
+		const value = undefined as unknown as string
+		expect(() => renderTerm(FILTER_PRESETS.colon, "filter", { field: "ID", op: "eq", value })).toThrow(
+			MissingValueError,
+		)
 	})
 })
 

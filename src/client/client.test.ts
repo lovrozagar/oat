@@ -5,7 +5,10 @@ import { describe, expect, it } from "vitest"
 import type { Exchange } from "../runtime/exchange.ts"
 import { RateLimiter } from "../runtime/rate-limit/limiter.ts"
 import { Redactor } from "../security/redact.ts"
-import { type Answer, json, refused, sequence, transport } from "./__fixtures__/transport.ts"
+import { member, ok } from "../spec/__fixtures__/documents.ts"
+import { modelOf } from "../spec/graph/__fixtures__/operations.ts"
+import { operationResolver } from "../spec/graph/resolver.ts"
+import { type Answer, json, refused, reset, sequence, transport } from "./__fixtures__/transport.ts"
 import { fixedSource, sendingHeaders } from "./__fixtures__/source.ts"
 import { Client } from "./client.ts"
 import type { Actor } from "./credential-source.ts"
@@ -207,5 +210,56 @@ describe("a request the backend pushes back on", () => {
 		})
 		expect((await client.get("/rows", { as: ANON })).status).toBe(200)
 		expect(client.transcript.map((exchange) => exchange.status)).toEqual([0, 200])
+	})
+})
+
+/*
+ * What oat learns from an answer, a record a create made, is learned before the request returns,
+ * from every view alike. The callback runs once the in-flight slot is free, so a callback that
+ * reads back what it saw does not wait on the slot its own request holds.
+ */
+const echo: Answer = (request) => json({ path: new URL(request.url).pathname })
+
+describe("afterExchange", () => {
+	it("is awaited before the request returns, and may send its own request at maxInFlight 1", async () => {
+		const { client } = clientOf(echo, { maxInFlight: 1 })
+		const seen: string[] = []
+		client.setAfterExchange(async (exchange) => {
+			seen.push(client.relativePath(exchange.url))
+			if (client.relativePath(exchange.url) === "/made") await client.get("/read-back", { as: ANON })
+		})
+		await client.request("POST", "/made", { as: ANON, body: {} })
+		expect(seen).toEqual(["/made", "/read-back"])
+	})
+
+	it("fires for a view's requests, with the view's purpose", async () => {
+		const { client } = clientOf(echo)
+		const purposes: Array<string | undefined> = []
+		client.setAfterExchange(async (exchange) => void purposes.push(exchange.purpose))
+		await client.view({ purpose: "probe" }).get("/a", { as: ANON })
+		await client.readOnlyView({ purpose: "assertion" }).get("/b", { as: ANON })
+		expect(purposes).toEqual(["probe", "assertion"])
+	})
+
+	it("never fires for a request that threw", async () => {
+		const { client } = clientOf(() => Promise.reject(reset()))
+		let calls = 0
+		client.setAfterExchange(async () => void (calls += 1))
+		await expect(client.request("POST", "/broken", { as: ANON, body: {} })).rejects.toThrow(
+			/^POST http:\/\/api\.test\/v1\/broken failed \(/,
+		)
+		expect(calls).toBe(0)
+	})
+})
+
+describe("an exchange's path parameters", () => {
+	it("are stamped from the operation the request resolved to, URI-decoded", async () => {
+		const model = modelOf({
+			"/projects/{project_id}/tables": { get: { operationId: "table.list", responses: ok(member) } },
+			"/projects/{project_id}/tables/{table_id}": { get: { operationId: "table.read", responses: ok(member) } },
+		})
+		const { client } = clientOf(() => json({}), { operationResolver: operationResolver(model) })
+		const exchange = await client.get("/projects/b/tables/t%209", { as: ANON })
+		expect(exchange.pathParams).toEqual({ project_id: "b", table_id: "t 9" })
 	})
 })

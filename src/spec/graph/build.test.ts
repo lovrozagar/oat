@@ -64,6 +64,21 @@ describe("buildModel", () => {
 		expect(model.hasAuthOperations).toBe(false)
 		expect(model.securitySchemes).toEqual([])
 	})
+
+	it("marks an operation whose only body is multipart as taking a request body", () => {
+		const upload = { schema: { properties: { file: { format: "binary", type: "string" } }, type: "object" } }
+		const model = modelOf({
+			"/extract": {
+				post: {
+					operationId: "extract.once",
+					requestBody: { content: { "multipart/form-data": upload }, required: true },
+					responses: ok({ type: "object" }),
+					"x-entity": { action: "action", identity: "id", name: "extract" },
+				},
+			},
+		})
+		expect(model.byOperationId.get("extract.once")?.hasRequestBody).toBe(true)
+	})
 })
 
 describe("create per noun", () => {

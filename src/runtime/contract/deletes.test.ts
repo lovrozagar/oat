@@ -178,3 +178,47 @@ describe("confirmDeletes when a read-back cannot be sent", () => {
 		await expect(confirmDeletes(input)).rejects.toThrow("socket hang up")
 	})
 })
+
+/*
+ * A delete of a whole collection (forget every trusted device) has no item to read back. The read
+ * on its path is the list, and the list it leaves empty is the proof.
+ */
+const device = { properties: { id: { type: "string" } }, required: ["id"], type: "object" }
+const devices = doc({
+	"/v1/devices": {
+		delete: { operationId: "devices.forgetAll", responses: { "200": { description: "forgotten" } } },
+		get: {
+			operationId: "devices.list",
+			responses: ok({
+				properties: { devices: { items: device, type: "array" } },
+				required: ["devices"],
+				type: "object",
+			}),
+		},
+	},
+})
+
+/** Forgets every device, keeping them when `keeps`, then confirms the delete. */
+async function forgetAll(keeps: boolean) {
+	const rows = [{ id: "d1" }, { id: "d2" }]
+	const { input } = stage(devices, (method) => {
+		if (method === "DELETE" && !keeps) rows.splice(0)
+		return { body: method === "DELETE" ? { forgotten: 2 } : { devices: rows }, status: 200 }
+	})
+	await input.client.request("DELETE", "/v1/devices", { as: { principal: "alpha" }, operationId: "devices.forgetAll" })
+	await confirmDeletes(input)
+	return { evidence: input.grades.evidence.get("devices.forgetAll"), findings: input.findings.findings }
+}
+
+describe("confirmDeletes on a delete of a whole collection", () => {
+	it("is proven by the empty list it leaves", async () => {
+		const { evidence, findings } = await forgetAll(false)
+		expect(findings).toEqual([])
+		expect(evidence?.observation).toBeDefined()
+	})
+
+	it("is a defect when the list still holds rows", async () => {
+		const { findings } = await forgetAll(true)
+		expect(findings.map((finding) => finding.check)).toEqual([CHECK])
+	})
+})

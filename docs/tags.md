@@ -6,6 +6,8 @@
 
 Vendor-neutral `x-*` extensions. Every one is optional. Precedence: **explicit tag → heuristic → skip with a coverage gap**.
 
+`x-oat-*` is oat's reserved namespace: the keys the loader writes into its working copy of the document (bundled files, recursive schemas, discriminator branches). It is not a tag, and a document must not use it.
+
 A complete document with every tag in place is shipped as `labs/annotated-openapi.yaml` (also in the npm package). `oat conformance` asserts the derived model matches that file.
 
 ```bash

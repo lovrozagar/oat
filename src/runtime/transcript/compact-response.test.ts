@@ -37,6 +37,7 @@ describe("compactResponseBody, event streams", () => {
 			bodyRef(utf8Encode(`: ${long}`), "text/event-stream"),
 		)
 		expect(await compactResponseBody(["a"], SSE)).toEqual(["a"])
+		expect(await compactResponseBody([1, 2], { "content-type": "text/event-stream" })).toEqual([1, 2])
 	})
 
 	it("reads frames only under text/event-stream", async () => {

@@ -272,12 +272,20 @@ async function judgeRecall(run: MatrixRun, recall: Promise<Tallied<ShapeCase>>):
 	const rendered = toolkit.shapes.renderShapeSuite(cases, true)
 	writer.out(`${rendered.text}${toolkit.suite.requestLines(requests)}  done in ${seconds(run.started)}s\n`)
 	run.failures += rendered.failures
-	const expected = toolkit.suite.EXPECTED as Record<string, string | string[]>
+	for (const id of recalledChecks(cases, toolkit.suite.EXPECTED)) run.proven.add(id)
+}
+
+/** The checks clean recall cases prove: each recalled defect's primary check, the first it names. */
+export function recalledChecks(
+	cases: ReadonlyArray<{ label: string; problems: readonly string[] }>,
+	expected: Readonly<Record<string, string | string[]>>,
+): string[] {
+	const proven: string[] = []
 	for (const recalled of cases) {
 		const defect = /^recall:[^:]+:(.+)$/.exec(recalled.label)?.[1]
 		const check = defect === undefined ? undefined : expected[defect]
 		if (check === undefined || recalled.problems.length > 0) continue
-		/* The check a defect proves is the first it names. */
-		for (const id of [check].flat().slice(0, 1)) run.proven.add(id)
+		proven.push(...[check].flat().slice(0, 1))
 	}
+	return proven
 }

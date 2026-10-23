@@ -1,17 +1,14 @@
-import { createServer, type ServerResponse } from "node:http"
-import type { AddressInfo } from "node:net"
-import { afterEach, describe, expect, it } from "vitest"
-import { runCheck } from "../../src/runtime/checks/core/run.ts"
-import { entityChecks } from "../../src/runtime/checks/core/registry.ts"
-import { CHECKS } from "../../src/runtime/checks/registry.ts"
-import { Client } from "../../src/client/client.ts"
-import { FindingCollector } from "../../src/runtime/finding.ts"
-import type { Record_ } from "../../src/runtime/world/records.ts"
-import { buildModel } from "../../src/spec/graph/build.ts"
-import { dereference } from "../../src/spec/load/dereference.ts"
-import type { OpenApiDocument } from "../../src/spec/types.ts"
-import { checkContext } from "../support/check-context.ts"
-import { Redactor } from "../../src/security/redact.ts"
+import { describe, expect, it } from "vitest"
+import type { OpenApiDocument } from "../../../../spec/types.ts"
+import type { Record_ } from "../../../world/records.ts"
+import { type Serve, wireStage } from "../../__fixtures__/wire.ts"
+import type { Check } from "../../core/check.ts"
+import { runCheck } from "../../core/run.ts"
+import { filterAliasMatchesCanonical } from "./filter-alias-matches-canonical.ts"
+import { filterInIsUnionOfEq } from "./filter-in-is-union-of-eq.ts"
+import { filterIsNullSelectsNulls } from "./filter-is-null-selects-nulls.ts"
+import { filterNinComplementsIn } from "./filter-nin-complements-in.ts"
+import { filterOrderedTriplePartitions } from "./filter-ordered-triple-partitions.ts"
 
 /*
  * Checks run side by side, and one may change a record while another reads the collection term
@@ -26,15 +23,6 @@ const COHORT: Record_[] = [
 	{ amount: 5, category: "general", id: "w2", note: null },
 	{ amount: 9, category: "special", id: "w3", note: "c" },
 ]
-
-const closers: Array<() => Promise<void>> = []
-afterEach(async () => {
-	await Promise.all(closers.splice(0).map((close) => close()))
-})
-
-function send(res: ServerResponse, body: unknown): void {
-	res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(body))
-}
 
 /* One filter term against one field: the stored value, the raw operand, its list and number forms. */
 type Term = { list: string[]; number: number; raw: string; value: unknown }
@@ -67,27 +55,24 @@ const SCRATCH: Record_ = { amount: 7, category: "general", id: "s1", note: "x" }
 /* A correct backend, and one other writer: right after the first filtered read it moves its row. */
 type Move = "update" | "create" | "delete"
 
-async function serve(after: number, move: Move): Promise<string> {
+function moving(after: number, move: Move): Serve {
 	const store = [...COHORT, SCRATCH].map((row) => ({ ...row }))
 	let filtered = 0
-	const server = createServer((req, res) => {
-		const url = new URL(req.url ?? "/", "http://x")
+	return (url) => {
 		const filter = url.searchParams.get("filter")
 		const rows = filter === null ? store : store.filter((row) => matches(row, filter))
-		send(res, { widgets: rows.map((row) => ({ ...row })) })
+		const body = { widgets: rows.map((row) => ({ ...row })) }
 		if (filter !== null && ++filtered === after) {
 			const at = store.findIndex((row) => row.id === "s1")
 			if (move === "update") Object.assign(store[at] ?? {}, { amount: 70, category: "special", note: null })
 			if (move === "create") store.push({ amount: 3, category: "general", id: "s2", note: null })
 			if (move === "delete") store.splice(at, 1)
 		}
-	})
-	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
-	closers.push(() => new Promise((resolve) => server.close(() => resolve())))
-	return `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+		return body
+	}
 }
 
-function spec(): OpenApiDocument {
+function movingDoc(): OpenApiDocument {
 	const item = {
 		properties: {
 			amount: { type: "integer" },
@@ -99,6 +84,7 @@ function spec(): OpenApiDocument {
 		type: "object",
 	}
 	const ops = ["eq", "ne", "neq", "in", "nin", "gt", "lt", "gte", "lte", "is"]
+	const schema = { properties: { widgets: { items: item, type: "array" } }, type: "object" }
 	return {
 		info: { title: "moving", version: "1" },
 		openapi: "3.1.0",
@@ -110,16 +96,7 @@ function spec(): OpenApiDocument {
 						{ in: "query", name: "filter", schema: { type: "string" } },
 						{ in: "query", name: "limit", schema: { default: 50, maximum: 100, minimum: 1, type: "integer" } },
 					],
-					responses: {
-						"200": {
-							content: {
-								"application/json": {
-									schema: { properties: { widgets: { items: item, type: "array" } }, type: "object" },
-								},
-							},
-							description: "ok",
-						},
-					},
+					responses: { "200": { content: { "application/json": { schema } }, description: "ok" } },
 					"x-entity": { action: "list", identity: "id", name: "widget" },
 					"x-query": {
 						aliases: { ne: "neq" },
@@ -137,45 +114,27 @@ function spec(): OpenApiDocument {
 	} as unknown as OpenApiDocument
 }
 
-async function judge(checkId: string, after: number, move: Move): Promise<{ findings: string[] }> {
-	const check = entityChecks(CHECKS).find((candidate) => candidate.id === checkId)
-	if (check === undefined) throw new Error(`no check ${checkId}`)
-	const model = buildModel(dereference(spec()).doc)
-	const listOp = model.byOperationId.get("widget.list")
-	if (listOp === undefined) throw new Error("no list")
-	const findings = new FindingCollector()
-	const ctx = checkContext({
-		client: new Client({
-			baseUrl: await serve(after, move),
-			/* The served document declares no security: every request goes as nobody. */
-			credentials: { resolve: async () => ({ kind: "anonymous" }) },
-			redactor: new Redactor(),
-		}),
-		collectionKey: "widgets",
-		entityName: "widget",
-		findings,
-		listOp,
-		model,
-		query: listOp.query,
-		records: COHORT.map((row) => ({ ...row })),
+async function judge(check: Check, after: number, move: Move): Promise<string[]> {
+	const { ctx, findings } = wireStage(movingDoc(), "widget.list", {
+		fields: { collectionKey: "widgets", records: COHORT.map((row) => ({ ...row })) },
+		serve: moving(after, move),
 	})
 	await runCheck(check, ctx)
-	return { findings: findings.findings.map((finding) => `${finding.check}: ${finding.summary}`) }
+	return findings.findings.map((finding) => `${finding.check}: ${finding.summary}`)
 }
 
 describe("a filter check whose collection moves between its reads", () => {
-	for (const id of [
-		"filter.alias-matches-canonical",
-		"filter.in-is-union-of-eq",
-		"filter.nin-complements-in",
-		"filter.ordered-triple-partitions",
-		"filter.is-null-selects-nulls",
-	]) {
+	for (const check of [
+		filterAliasMatchesCanonical,
+		filterInIsUnionOfEq,
+		filterNinComplementsIn,
+		filterOrderedTriplePartitions,
+		filterIsNullSelectsNulls,
+	] as Check[]) {
 		for (const move of ["update", "create", "delete"] as const) {
 			for (const after of [1, 2, 3]) {
-				it(`${id} blames nothing on the backend after a ${move} following read ${after}`, async () => {
-					const { findings } = await judge(id, after, move)
-					expect(findings).toEqual([])
+				it(`${check.id} blames nothing on the backend after a ${move} following read ${after}`, async () => {
+					expect(await judge(check, after, move)).toEqual([])
 				})
 			}
 		}

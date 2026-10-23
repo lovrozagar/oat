@@ -1,38 +1,21 @@
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
-import type { AddressInfo } from "node:net"
-import { afterAll, beforeAll, describe, expect, it } from "vitest"
-import { Client } from "../../src/client/client.ts"
-import type { CredentialSource, Resolution } from "../../src/client/credential-source.ts"
-import { isBodyRef } from "../../src/runtime/exchange.ts"
-import { Redactor } from "../../src/security/redact.ts"
+import { describe, expect, it } from "vitest"
+import { isBodyRef } from "../runtime/exchange.ts"
+import { Redactor } from "../security/redact.ts"
+import { type Answer, json, transport } from "./__fixtures__/transport.ts"
+import { Client } from "./client.ts"
+import type { CredentialSource, Resolution } from "./credential-source.ts"
+import type { ClientOptions } from "./types.ts"
 
-let url = ""
-let close = async (): Promise<void> => {}
-let unauthorizedOnce = true
+/* What the client records of an exchange: what it resolved to, who asked and why, and what it kept. */
 
-beforeAll(async () => {
-	const server = createServer((req: IncomingMessage, res: ServerResponse) => {
-		const path = new URL(req.url ?? "/", "http://x").pathname
-		if (path === "/api/v1/big") {
-			const body = JSON.stringify({ items: "x".repeat(300 * 1024) })
-			res.writeHead(200, { "content-type": "application/json" })
-			res.end(body)
-			return
-		}
-		if (path === "/api/v1/guarded" && unauthorizedOnce) {
-			unauthorizedOnce = false
-			res.writeHead(401, { "content-type": "application/json" })
-			res.end("{}")
-			return
-		}
-		res.writeHead(200, { "content-type": "application/json" })
-		res.end(JSON.stringify({ path }))
-	})
-	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
-	url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api`
-	close = () => new Promise((resolve) => server.close(() => resolve()))
-})
-afterAll(() => close())
+const BASE = "http://api.test/api"
+
+function clientOf(answer: Answer, more: Partial<ClientOptions> = {}): Client {
+	const wire = transport(answer)
+	return new Client({ baseUrl: BASE, network: { fetchImpl: wire.fetch }, redactor: new Redactor(), ...more })
+}
+
+const echo: Answer = (request) => json({ path: new URL(request.url).pathname })
 
 /* alpha's bearer token `value`, renewed by `refresh`. */
 function bearer(value: string, refresh: () => Promise<Resolution>): Resolution {
@@ -57,23 +40,21 @@ const alphaSource = (resolution: Resolution): CredentialSource => ({
 
 /* A client below the base path that sends alpha's token and resolves the table read. */
 function resolvingClient(): Client {
-	return new Client({
-		baseUrl: url,
+	return clientOf(echo, {
 		credentials: alphaSource(bearer("a", async () => ({ kind: "anonymous" }))),
 		operationResolver: (method, path) =>
 			method === "GET" && /^\/v1\/tables\/[^/]+$/.test(path)
 				? { operationId: "table.get", template: "/v1/tables/{table_id}" }
 				: null,
-		redactor: new Redactor(),
 	})
 }
 
 describe("exchange model", () => {
 	it("resolves operations below the base path and stamps who asked and why", async () => {
 		const client = resolvingClient()
-		expect(client.relativePath(`${url}/v1/tables/1`)).toBe("/v1/tables/1")
+		expect(client.relativePath(`${BASE}/v1/tables/1`)).toBe("/v1/tables/1")
 		/* A sibling path that merely starts with the same letters is not below the base. */
-		const sibling = new URL(url)
+		const sibling = new URL(BASE)
 		sibling.pathname = `${sibling.pathname.replace(/\/$/, "")}v2/v1/tables/1`
 		expect(client.relativePath(sibling.toString())).toBe(sibling.pathname)
 
@@ -95,7 +76,7 @@ describe("exchange model", () => {
 	})
 
 	it("hands the caller the real body and keeps a compact copy", async () => {
-		const client = new Client({ baseUrl: url, redactor: new Redactor() })
+		const client = clientOf(() => json({ items: "x".repeat(300 * 1024) }))
 		const exchange = await client.get("/v1/big", { as: { anonymous: true } })
 		expect(typeof (exchange.responseBody as { items: string }).items).toBe("string")
 		expect(isBodyRef(client.transcript.at(-1)?.responseBody)).toBe(true)
@@ -108,7 +89,13 @@ describe("exchange model", () => {
 			refreshed++
 			return renewed
 		})
-		const client = new Client({ baseUrl: url, credentials: alphaSource(stale), redactor: new Redactor() })
+		/* The guarded read is refused once, and answered after that. */
+		const client = clientOf(
+			(_sent, index) => json(index === 0 ? {} : { path: "/api/v1/guarded" }, index === 0 ? 401 : 200),
+			{
+				credentials: alphaSource(stale),
+			},
+		)
 		const exchange = await client.get("/v1/guarded", { as: { principal: "alpha" } })
 		expect(refreshed).toBe(1)
 		expect(exchange.requestHeaders.authorization).not.toBe(client.transcript[0]?.requestHeaders.authorization)

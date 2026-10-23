@@ -25,6 +25,12 @@ describe("isFilePart", () => {
 		expect(isFilePart({ oneOf: [{ type: "string" }, { format: "binary" }] })).toBe(true)
 		expect(isFilePart({ anyOf: [{ type: "string" }] })).toBe(false)
 	})
+
+	it("knows a string file by format binary or a PDF media type, and a plain string as no file", () => {
+		expect(isFilePart({ format: "binary", type: "string" })).toBe(true)
+		expect(isFilePart({ contentMediaType: "application/pdf", type: "string" })).toBe(true)
+		expect(isFilePart({ type: "string" })).toBe(false)
+	})
 })
 
 describe("contentMediaTypeOf", () => {

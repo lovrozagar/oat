@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
+import { failing } from "./__fixtures__/failures.ts"
 import { probeOrigin } from "./probe.ts"
 
 const answering = (response: Response) => vi.fn<typeof fetch>(async () => response)
@@ -52,5 +53,25 @@ describe("probeOrigin", () => {
 		expect(await probeOrigin("http://h.test", { online: () => true })).toBe(true)
 		expect(global).toHaveBeenCalledTimes(1)
 		expect(typeof (await probeOrigin("http://h.test", { fetchImpl: global }))).toBe("boolean")
+	})
+})
+
+/* A fetch that fails with a programming error, not a network one. */
+const bug = async (): Promise<Response> => {
+	throw new SyntaxError("bug")
+}
+
+describe("probeOrigin, by what the origin answers", () => {
+	it("treats a reachable host as up and a refused port as down", async () => {
+		expect(await probeOrigin("http://x.test", { online: () => false })).toBe(false)
+		expect(await probeOrigin("not a url")).toBe(false)
+		expect(await probeOrigin("http://x.test", { fetchImpl: async () => new Response(null, { status: 404 }) })).toBe(
+			true,
+		)
+		expect(await probeOrigin("http://x.test", { fetchImpl: failing("ECONNREFUSED") })).toBe(false)
+		expect(await probeOrigin("http://x.test", { fetchImpl: bug })).toBe(true)
+		expect(await probeOrigin("http://x.test", { fetchImpl: async () => new Response(null, { status: 204 }) })).toBe(
+			true,
+		)
 	})
 })

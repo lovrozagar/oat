@@ -1,5 +1,8 @@
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
+import { RUN_A, RUN_B } from "../../report/__fixtures__/runs.ts"
+import { parseArgs } from "../flags.ts"
+import { main } from "../main.ts"
 import { bufferWriter } from "../writer.ts"
 import { folder, savedRun } from "../__fixtures__/files.ts"
 import { commandDiff } from "./diff.ts"
@@ -52,5 +55,32 @@ describe("commandDiff", () => {
 		expect(newer.text()).toBe(
 			`oat: ${join(dir, "newer", "oat-report.json")} is report schemaVersion 2; this oat reads 1 — upgrade oat\n`,
 		)
+	})
+})
+
+/* The command line's way in: two folders as positionals, a report that exits 0 unless it cannot read them. */
+describe("oat diff", () => {
+	it("takes two run folders as positionals", () => {
+		expect(parseArgs(["diff", "a", "b", "--json"]).positionals).toEqual(["a", "b"])
+		expect(parseArgs(["run", "--config", "x.json"]).positionals).toBeUndefined()
+	})
+
+	it("prints the comparison, as text or JSON, and exits 0", async () => {
+		const dir = folder()
+		const runs = [savedRun(dir, "a", RUN_A), savedRun(dir, "b", RUN_B)]
+		const text = bufferWriter()
+		expect(await main(["diff", ...runs], { writer: text })).toBe(0)
+		expect(text.text()).toContain("1 new")
+		expect(text.text()).toContain("filter.unknown-field-rejected")
+		expect(text.text()).toContain("1.0.88 → 1.0.89")
+		const machine = bufferWriter()
+		expect(await main(["diff", ...runs, "--json"], { writer: machine })).toBe(0)
+		expect(JSON.parse(machine.text()).new).toHaveLength(1)
+	})
+
+	it("exits 2 when it cannot read a run", async () => {
+		const missing = join(folder(), "gone")
+		expect(await main(["diff", join(missing, "a"), join(missing, "b")], { writer: bufferWriter() })).toBe(2)
+		expect(await main(["diff", join(missing, "a")], { writer: bufferWriter() })).toBe(2)
 	})
 })

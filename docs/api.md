@@ -65,4 +65,14 @@ const { doc: resolved, externalRefs } = dereference(doc)
 const model = buildModel(resolved)
 ```
 
-Types exported: `OatConfig`, `SecurityConfig` (one `Recipe` per scheme), `PrincipalsConfig` (a `PrincipalEntry` per id), `AuthStep`, `Hooks`, `Uploads`, `UploadRequest`, `UploadFile`, `HeaderRequest`, `InputRequest`, `OriginSpec`, `OutOfBandConfig`, `OutOfBandRequest`, `TeardownPrincipalContext`, `RunOptions`, `RunResult`, `Finding`, `Verdict`, `Actor`, `SpecModel`, `EntityModel`, `OperationModel`, `OpenApiDocument`, `loadPersistedPrincipals`, `worstCaseWaitMs`, `allocateRunDir`, `DEFAULT_RUNS_ROOT`, matrix types.
+Types exported, by what they describe:
+
+- **Config.** `OatConfig`; `EntityConfig` (an `entities` entry, today only its `query`); `PayloadPolicy` (`payloads`: `"full"` or `"per-write-path"`); `ProfileSpec` (a `profiles` entry); `RateLimitSpec` (a `rateLimits` entry); `OriginSpec`; `OutOfBandConfig`; `Uploads` and `UploadFile`.
+- **Security.** `SecurityConfig` (one `Recipe` per scheme) and `PrincipalsConfig` (a `PrincipalEntry` per id).
+- **Steps and scenarios.** `AuthStep` is an `OperationStep`, a `RequestStep` or an `OutOfBandStep`. A `Scenario` runs `ScenarioStep`s: a `ScenarioRequestStep` (an operation or request step with its `ScenarioAssert`s), an `OutOfBandStep` or an `ExternalStep`.
+- **Query catalog.** `QueryCapabilities` is what `x-query` or a config's `query` declares for a list: `FilterableField`s, each a field with its `FieldType` and `FilterOp`s, and `FilterableFrom`, the read that `filterableFrom` and its siblings harvest names from.
+- **Hooks.** `Hooks`, and what each hook receives: `HeaderRequest` (`resolveHeaders`), `InputRequest` (`resolveInput`), `UploadRequest` (`resolveUpload`, which answers an `UploadResolution`), `PathValueRequest` (`resolvePathValue`), `QueryCapabilitiesRequest` (`resolveQueryCapabilities`), `SideEffectRequest` (`awaitSideEffect`), `OutOfBandRequest` (`resolveOutOfBand`) and `TeardownPrincipalContext` (`teardownPrincipal`).
+- **Runs and reports.** `RunOptions`, `RunResult`, `Finding`, `Verdict`, `Actor` and `ReportInput`.
+- **The model.** `SpecModel`, `EntityModel`, `OperationModel` and `OpenApiDocument`.
+
+Also exported: `loadPersistedPrincipals`, `worstCaseWaitMs`, `allocateRunDir` and `DEFAULT_RUNS_ROOT`.

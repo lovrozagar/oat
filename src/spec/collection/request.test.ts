@@ -49,3 +49,18 @@ describe("hasRequestBody and requestSchema", () => {
 		expect(requestSchema({} as OperationObject)).toBeNull()
 	})
 })
+
+describe("requestContent for an upload", () => {
+	it("prefers multipart, with its file part, over JSON listed beside it, and sees urlencoded as a body", () => {
+		const extract = body({
+			"application/json": { schema: { properties: { text: { type: "string" } }, type: "object" } },
+			"multipart/form-data": {
+				schema: { properties: { file: { format: "binary", type: "string" }, text: { type: "string" } } },
+			},
+		})
+		expect(requestContent(extract)?.mediaType).toBe("multipart/form-data")
+		expect(requestSchema(extract)?.properties).toHaveProperty("file")
+		const login = body({ "application/x-www-form-urlencoded": { schema: { type: "object" } } })
+		expect(requestContent(login)?.mediaType).toBe("application/x-www-form-urlencoded")
+	})
+})

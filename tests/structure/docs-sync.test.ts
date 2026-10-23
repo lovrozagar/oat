@@ -23,12 +23,15 @@ function sourcesUnder(dir: string): string[] {
 		.map((entry) => readFileSync(join(entry.parentPath, entry.name), "utf8"))
 }
 
-/* The tags oat reads: every `"x-…"` literal in the spec layer, less the one media type. */
+/* `x-oat-*` is oat's own namespace: keys the loader writes into the working document, never a tag a user writes. */
+const reserved = (tag: string): boolean => tag === "x-oat" || tag.startsWith("x-oat-")
+
+/* The tags oat reads: every `"x-…"` literal in the spec layer, less the one media type and the reserved namespace. */
 function tagsRead(): string[] {
 	const tags = sourcesUnder("src/spec").flatMap((text) =>
 		[...text.matchAll(/"(x-[a-z0-9-]+)"/g)].map((m) => m[1] ?? ""),
 	)
-	return [...new Set(tags)].filter((tag) => tag !== "x-www-form-urlencoded").toSorted()
+	return [...new Set(tags)].filter((tag) => tag !== "x-www-form-urlencoded" && !reserved(tag)).toSorted()
 }
 
 /* The names `src/index.ts` exports, values and types alike. */
@@ -64,14 +67,7 @@ const SURFACES: Readonly<Record<string, Surface>> = {
 		doc: "checks.md",
 		names: () => CHECKS.map((check) => check.id),
 		written: code,
-		undocumented: [
-			"auth.destructive-spares-the-caller",
-			"auth.self-is-the-caller",
-			"list.item-matches-listed-row",
-			"read.matches-caller-root",
-			"response.contract-call",
-			"response.public-get-returns-success",
-		],
+		undocumented: [],
 	},
 	"run-level finding ids": {
 		doc: "checks.md",
@@ -83,38 +79,7 @@ const SURFACES: Readonly<Record<string, Surface>> = {
 		doc: "reference-defects.md",
 		names: () => Object.keys(DEFECTS),
 		written: code,
-		undocumented: [
-			"CALLER_UPDATE_DROPPED",
-			"CONTAINS_MATCHES_SUBSTRING",
-			"CREATE_500_ON_NON_ASCII",
-			"DEFAULT_ORDER_IGNORED",
-			"DISPOSABLE_KILLS_CALLER",
-			"FILTER_ALIAS_MISMAPPED",
-			"FILTER_CONDITION_CAP_IGNORED",
-			"FILTER_DROPPED_WHEN_SORTED_SEARCHED_AND_SELECTED",
-			"FILTER_IN_CAP_IGNORED",
-			"FILTER_LTE_IS_LT",
-			"FILTER_LT_IS_LTE",
-			"FILTER_NESTED_COMBINATOR_LEAKS",
-			"FILTER_NIN_FIRST_ONLY",
-			"LISTED_GET_DIFFERS",
-			"NESTED_SELECT_IGNORED",
-			"ORDER_DROPPED_WHEN_SELECTED",
-			"PUBLIC_GET_NOT_SUCCESS",
-			"ROOT_READ_OPEN",
-			"SEARCH_CASE_SENSITIVE",
-			"SEARCH_DROPPED_WHEN_SELECTED",
-			"SEARCH_DROPPED_WHEN_SORTED",
-			"SEARCH_EMPTY_MATCHES_NONE",
-			"SEARCH_MODE_REJECTED",
-			"SEARCH_ONLY_FIRST_TOKEN",
-			"SELECT_UNKNOWN_IGNORED",
-			"SIDE_EFFECT_NEVER_ARRIVES",
-			"SORT_NULLS_MODIFIER_IGNORED",
-			"SORT_UNKNOWN_FIELD_IGNORED",
-			"SPEC_OVERCLAIMS_FILTER_OP",
-			"TOKEN_EXPIRY_AS_STRING",
-		],
+		undocumented: [],
 	},
 	"CLI flags": {
 		doc: "commands.md",
@@ -126,42 +91,20 @@ const SURFACES: Readonly<Record<string, Surface>> = {
 		doc: "configuration.md",
 		names: () => Object.keys(configRules()),
 		written: code,
-		undocumented: ["ops", "profiles"],
+		undocumented: [],
 	},
 	"x-* tags": {
 		doc: "tags.md",
 		names: tagsRead,
 		written: code,
-		undocumented: ["x-oat-defs", "x-oat-discriminator", "x-oat-external"],
+		undocumented: [],
 	},
 	"public exports": {
 		doc: "api.md",
 		names: publicExports,
 		/* An export may be named in prose or in an example's code. */
 		written: (name) => name,
-		undocumented: [
-			"EntityConfig",
-			"ExternalStep",
-			"FieldType",
-			"FilterOp",
-			"FilterableField",
-			"FilterableFrom",
-			"OperationStep",
-			"OutOfBandStep",
-			"PathValueRequest",
-			"PayloadPolicy",
-			"ProfileSpec",
-			"QueryCapabilities",
-			"QueryCapabilitiesRequest",
-			"RateLimitSpec",
-			"RequestStep",
-			"Scenario",
-			"ScenarioAssert",
-			"ScenarioRequestStep",
-			"ScenarioStep",
-			"SideEffectRequest",
-			"UploadResolution",
-		],
+		undocumented: [],
 	},
 }
 
@@ -187,6 +130,6 @@ describe("docs name nothing the code lacks", () => {
 		const mentioned = new Set(
 			[...doc("tags.md").matchAll(/(?<![\w-])(x-[a-z0-9]+(?:-[a-z0-9]+)*)/g)].map((m) => m[1] ?? ""),
 		)
-		expect([...mentioned].filter((tag) => !read.has(tag))).toEqual([])
+		expect([...mentioned].filter((tag) => !read.has(tag) && !reserved(tag))).toEqual([])
 	})
 })

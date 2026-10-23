@@ -87,6 +87,35 @@ describe("createFresh", () => {
 	})
 })
 
+/* A client-chosen integer identity in a small range, as a server whose id space spans tenants takes them. */
+const WITH_INTEGER_ID = {
+	properties: { id: { maximum: 999, minimum: 1, type: "integer" }, name: { minLength: 1, type: "string" } },
+	required: ["id", "name"],
+	type: "object",
+}
+
+const idsOf = (sent: ReturnType<typeof setup>["sent"]) =>
+	sent.map((request) => (request.options.body as { id: number }).id)
+
+describe("createFresh with a bounded integer identity", () => {
+	it("sends another identity when the first is taken", async () => {
+		const { createOp, ctx, sent } = setup(answering(409, 201), true)
+		const made = sentOf(await createFresh(ctx, createOp, WITH_INTEGER_ID, ctx.actor.id))
+		const ids = idsOf(sent)
+		expect(made.exchange.status).toBe(201)
+		expect(sent).toHaveLength(2)
+		expect(ids[1]).not.toBe(ids[0])
+		expect(made.sent.id).toBe(ids[1])
+	})
+
+	it("gives up after three distinct identities, answering the last 409", async () => {
+		const { createOp, ctx, sent } = setup(answering(...Array<number>(10).fill(409)), true)
+		const made = sentOf(await createFresh(ctx, createOp, WITH_INTEGER_ID, ctx.actor.id))
+		expect(made.exchange.status).toBe(409)
+		expect(new Set(idsOf(sent)).size).toBe(3)
+	})
+})
+
 describe("createFresh as a principal a higher rank outranks", () => {
 	it("withholds a create a higher rank alone may send, sending nothing", async () => {
 		const { createOp, ctx, sent } = setup(answering(201), false)

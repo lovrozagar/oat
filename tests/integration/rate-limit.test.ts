@@ -1,7 +1,10 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
-import { afterEach, describe, expect, it } from "vitest"
+import { join } from "node:path"
+import { afterAll, afterEach, describe, expect, it } from "vitest"
 import { Client } from "../../src/client/client.ts"
+import { createMemoryServer } from "../../src/reference/http/engines.ts"
+import { EXIT } from "../../src/runtime/exit.ts"
 import { buildRateLimitRules } from "../../src/runtime/rate-limit/rules.ts"
 import {
 	MAX_429_RETRIES,
@@ -16,6 +19,7 @@ import { buildModel } from "../../src/spec/graph/build.ts"
 import { dereference } from "../../src/spec/load/dereference.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 import { Redactor } from "../../src/security/redact.ts"
+import { latestJournal, latestReport, oat, referenceConfig, tempDirs } from "../support/cli-run.ts"
 
 /* A JSON answer, or a bare status; headers a test sets on `res` first go out with it. */
 function send(res: ServerResponse, status: number, body?: unknown): void {
@@ -290,4 +294,47 @@ describe("rate-limit rules for a documented operation", () => {
 		/* Unresolved, as for an absolute URL: method and path are all there is. */
 		expect(rule?.test("POST", "/v1/things")).toBe(true)
 	})
+})
+
+const dirs = tempDirs("oat-rate-limit-")
+afterAll(dirs.removeAll)
+
+/* `oat run --only table` against a reference whose listings declare `x-rate-limit`. */
+async function runDeclared(defects: string[]) {
+	const server = await createMemoryServer({ defects })
+	try {
+		const dir = await dirs.make()
+		const config = await referenceConfig(dir, server.url)
+		const runs = join(dir, "runs")
+		const { code, out } = await oat(["run", "--config", config, "--out", runs, "--only", "table", "--quiet"])
+		return { code, runs, text: out }
+	} finally {
+		await server.close()
+	}
+}
+
+describe("a declared rate limit, on the CLI", () => {
+	it("is graded as honoured on a backend that keeps it", async () => {
+		const { code, runs } = await runDeclared([])
+		expect(code).toBe(EXIT.clean)
+		const list = (await latestReport(runs)).scope.operations.find((op) => op.operationId === "table.list")
+		expect(list?.status).toBe("passed")
+		expect((await latestJournal(runs)).filter((line) => line.status === 429)).toEqual([])
+	}, 60_000)
+
+	it("fails the run when the backend throttles well inside it, and retries the 429", async () => {
+		const { code, runs, text } = await runDeclared(["RATE_LIMIT_STRICTER_THAN_DECLARED"])
+		expect(code).toBe(EXIT.defects)
+		expect(text).toContain('the declared "table.list" rate limit is not honoured')
+		expect(text).toMatch(/✗ table\.list\s+failed .*spec\.declared-rate-limit-is-honoured/)
+		const report = await latestReport(runs)
+		expect(report.findings).toContainEqual(
+			expect.objectContaining({ check: "spec.declared-rate-limit-is-honoured", verdict: "SPEC_BUG" }),
+		)
+		/* The throttled listing was sent again and answered: the 429 blocked nothing. */
+		const lists = (await latestJournal(runs)).filter((line) => line.operationId === "table.list")
+		const throttled = lists.findIndex((line) => line.status === 429)
+		expect(throttled).toBeGreaterThanOrEqual(0)
+		expect(lists.slice(throttled + 1).some((line) => line.status === 200)).toBe(true)
+	}, 60_000)
 })

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import { DIALECTS } from "../reference/dialect/presets.ts"
 import { COMMANDS, FLAGS, isKnownFlag, list, parseArgs, str, unknownFlag, USAGE } from "./flags.ts"
 
 /*
@@ -30,6 +31,12 @@ describe("USAGE", () => {
 	it("documents --parser, which the hand-written help left out", () => {
 		expect(USAGE).toMatch(/--parser\s+conformance: the document and suite checks only/)
 		expect(isKnownFlag("parser")).toBe(true)
+	})
+
+	/* A dialect `--dialect` accepts but the help does not name is one nobody finds. */
+	it("names every dialect the reference speaks on the --dialect line", () => {
+		const line = USAGE.split("\n").find((text) => text.trimStart().startsWith("--dialect")) ?? ""
+		for (const name of Object.keys(DIALECTS)) expect(line).toContain(name)
 	})
 })
 

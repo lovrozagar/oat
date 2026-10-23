@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest"
 import type { Record_ } from "../../../world/records.ts"
 import type { Responder } from "../../__fixtures__/harness.ts"
+import { wireStage } from "../../__fixtures__/wire.ts"
+import { runCheck } from "../../core/run.ts"
+import type { OpenApiDocument } from "../../../../spec/types.ts"
 import { backend, NOTES, PARAMS, queryDoc, queryOf, REJECT, stage } from "../composition/__fixtures__/query-api.ts"
 import { sortMultiKeyTiebreak } from "./sort-multi-key-tiebreak.ts"
 
@@ -96,5 +99,52 @@ describe("sort.multi-key-tiebreak plans", () => {
 			needs: "a sort grammar that joins keys",
 			ok: false,
 		})
+	})
+})
+
+/*
+ * A field a listing does not carry is no value to tie on. A public listing declared `created_at`
+ * sortable but left it out of every row; oat read the rows as tied on it and blamed the second
+ * key for an order the server took from a `created_at` it never showed (prod, 2026-10-16).
+ */
+
+const PROFILES: Record_[] = [
+	{ handle: "a", updated_at: 100 },
+	{ handle: "b", updated_at: 300 },
+	{ handle: "c", updated_at: 200 },
+]
+
+function profilesDoc(): OpenApiDocument {
+	const item = { properties: { handle: { type: "string" }, updated_at: { type: "integer" } }, type: "object" }
+	const schema = { properties: { profiles: { items: item, type: "array" } }, type: "object" }
+	return {
+		info: { title: "profiles", version: "1" },
+		openapi: "3.1.0",
+		paths: {
+			"/v1/profiles": {
+				get: {
+					operationId: "profile.list",
+					parameters: [
+						{ in: "query", name: "order", schema: { type: "string" } },
+						{ in: "query", name: "limit", schema: { default: 50, maximum: 100, minimum: 1, type: "integer" } },
+					],
+					responses: { "200": { content: { "application/json": { schema } }, description: "ok" } },
+					"x-entity": { action: "list", identity: "handle", name: "profile" },
+					"x-query": { grammar: "postgrest", maxLimit: 100, sortable: ["created_at", "updated_at"] },
+				},
+			},
+		},
+	} as unknown as OpenApiDocument
+}
+
+describe("sort.multi-key-tiebreak on a field the rows do not carry", () => {
+	it("does not read the missing field as a tie", async () => {
+		/* Sorted by a creation time the rows do not show: whatever order is asked, this one comes back. */
+		const { ctx, findings } = wireStage(profilesDoc(), "profile.list", {
+			fields: { collectionKey: "profiles", identity: "handle", records: PROFILES.map((row) => ({ ...row })) },
+			serve: () => ({ profiles: PROFILES }),
+		})
+		await runCheck(sortMultiKeyTiebreak, ctx)
+		expect(findings.findings.map((finding) => `${finding.check}: ${finding.summary}`)).toEqual([])
 	})
 })

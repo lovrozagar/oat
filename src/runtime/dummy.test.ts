@@ -31,6 +31,19 @@ describe("extensions", () => {
 })
 
 describe("dummyFile", () => {
+	it("emits a sniffable PDF, magic to %%EOF, named for its field, variant and index", () => {
+		const pdf = dummyFile({
+			contentMediaType: "application/pdf",
+			field: "file",
+			index: 0,
+			seed: 1,
+			variant: "baseline",
+		})
+		expect([pdf.filename, pdf.mediaType]).toEqual(["file-baseline-0.pdf", "application/pdf"])
+		expect(Buffer.from(pdf.bytes.subarray(0, 5)).toString("ascii")).toBe("%PDF-")
+		expect(Buffer.from(pdf.bytes).toString("ascii")).toContain("%%EOF")
+	})
+
 	it("serves the known bytes of a declared type, named after the field", () => {
 		const pdf = file("application/pdf; version=1")
 		expect(pdf.filename).toBe("doc-a-2.pdf")

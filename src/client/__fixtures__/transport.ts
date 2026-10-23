@@ -45,6 +45,13 @@ export function sequence(...answers: Array<() => Response>): Answer {
 	return (_sent, index) => (answers[Math.min(index, answers.length - 1)] as () => Response)()
 }
 
+/** What `fetch` throws when the server drops the connection mid-request. */
+export function reset(): Error {
+	return Object.assign(new TypeError("fetch failed"), {
+		cause: Object.assign(new Error("other side closed"), { code: "UND_ERR_SOCKET" }),
+	})
+}
+
 /** What `fetch` throws when the connection is refused. */
 export function refused(): Error {
 	return Object.assign(new TypeError("fetch failed"), {
