@@ -31,6 +31,12 @@ describe("unfilledIn", () => {
 		})
 	})
 
+	it("reads a name that holds a hyphen, and leaves `{principal.<key>}` to the principal", () => {
+		const user = { method: "GET", path: "/users/{user-id}", query: { email: "{principal.e-mail}" } }
+		expect(unfilledIn([user], [])).toEqual({ name: "user-id", step: 1 })
+		expect(unfilledIn([user], ["user-id"])).toBeUndefined()
+	})
+
 	it("reads a step's binds in order, before its request, and its saveAs addresses after", () => {
 		const bound = { bind: { a: "x", b: "{a}-{c}" }, operationId: "auth.token" }
 		expect(unfilledIn([bound], ["c"])).toBeUndefined()

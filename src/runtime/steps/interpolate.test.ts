@@ -1,19 +1,16 @@
 import { describe, expect, it } from "vitest"
-import { interpolate, isBytes } from "./interpolate.ts"
-
-describe("isBytes", () => {
-	it("knows a buffer, a typed view and a blob, and nothing else", () => {
-		expect(isBytes(new ArrayBuffer(2))).toBe(true)
-		expect(isBytes(new Uint8Array([1]))).toBe(true)
-		expect(isBytes(new Blob(["x"]))).toBe(true)
-		expect(isBytes("x")).toBe(false)
-		expect(isBytes({ length: 1 })).toBe(false)
-	})
-})
+import { interpolate } from "./interpolate.ts"
 
 describe("interpolate", () => {
 	it("fills known names in text and keeps unknown ones as written", () => {
 		expect(interpolate("{who}/{what}", { who: "oat" })).toBe("oat/{what}")
+	})
+
+	it("fills a name that holds a hyphen, as path parameters and saveAs names often do", () => {
+		expect(interpolate({ id: "{user-id}", path: "/users/{user-id}" }, { "user-id": "u1" })).toEqual({
+			id: "u1",
+			path: "/users/u1",
+		})
 	})
 
 	it("walks arrays and objects, and hands bytes and other values on as they are", () => {

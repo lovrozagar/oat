@@ -38,6 +38,7 @@ describe("withObjects", () => {
 		const kept = new Map<string, unknown>([
 			["credential", { id: "c1" }],
 			["count", 3],
+			["user-rep", { id: "u1" }],
 		])
 		const bytes = new Uint8Array([1, 2])
 		expect(
@@ -47,6 +48,7 @@ describe("withObjects", () => {
 				nested: { value: "{credential}" },
 				none: null,
 				on: true,
+				user: "{user-rep}",
 			}),
 		).toEqual({
 			bytes,
@@ -54,6 +56,7 @@ describe("withObjects", () => {
 			nested: { value: { id: "c1" } },
 			none: null,
 			on: true,
+			user: { id: "u1" },
 		})
 		expect(withObjects(kept, bytes)).toBe(bytes)
 	})

@@ -1,12 +1,11 @@
 import type { CredentialPrincipal } from "../config/types/hooks.ts"
+import { PRINCIPAL_PLACEHOLDER } from "../config/types/placeholder.ts"
 
 /*
  * `{principal.<key>}` in a recipe's strings and step bodies is the principal's identity data, filled
  * before anything runs. `{principal.id}` falls back to the principal's id. Other `{name}` placeholders
  * are the step runner's flow scope, and stay as they are.
  */
-
-const PLACEHOLDER = /\{principal\.([A-Za-z0-9_]+)\}/g
 
 /** A `{principal.<key>}` placeholder the principal has no text value for. */
 export class MissingIdentityError extends Error {
@@ -25,7 +24,7 @@ export function fillPrincipal<T>(principal: CredentialPrincipal, value: T): T {
 }
 
 function fill(principal: CredentialPrincipal, value: unknown): unknown {
-	if (typeof value === "string") return value.replace(PLACEHOLDER, (_, key: string) => textOf(principal, key))
+	if (typeof value === "string") return value.replace(PRINCIPAL_PLACEHOLDER, (_, key: string) => textOf(principal, key))
 	if (Array.isArray(value)) return value.map((item) => fill(principal, item))
 	if (value === null || typeof value !== "object") return value
 	return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, fill(principal, item)]))
@@ -53,7 +52,7 @@ export function principalValues(principal: CredentialPrincipal, value: unknown):
 
 /** The identity keys `text`'s `{principal.<key>}` placeholders read, in order. */
 export function principalKeysIn(text: string): string[] {
-	return [...text.matchAll(PLACEHOLDER)].map(([, key]) => key as string)
+	return [...text.matchAll(PRINCIPAL_PLACEHOLDER)].map(([, key]) => key as string)
 }
 
 /** The value with the credential wherever `{credential}` stands, deep through arrays and plain objects. */

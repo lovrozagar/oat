@@ -80,6 +80,27 @@ describe("resolveRequest: a raw step", () => {
 		expect(manual).toEqual({ client: ctx.client, method: "GET", path: "/r", redirect: "manual" })
 	})
 
+	it("refuses a placeholder nothing fills rather than send it as written", async () => {
+		const { ctx } = stepStage(answered)
+		const scope = { "user-id": "u1" }
+		const filled = await resolveRequest(ctx, { method: "GET", path: "/users/{user-id}" }, scope, 0)
+		expect(filled.path).toBe("/users/u1")
+		const sends = [
+			{ method: "GET", path: "/realms/{realm-name}/users" },
+			{ body: { id: "{realm-name}" }, method: "PUT", path: "/r" },
+			{ headers: { h: "{realm-name}" }, method: "GET", path: "/r" },
+			{ method: "GET", path: "/r", query: { q: "{realm-name}" } },
+		]
+		for (const step of sends) {
+			await expect(resolveRequest(ctx, step, scope, 1)).rejects.toThrow(
+				"oat: step 2's placeholder {realm-name} has no value: no bind, saveAs or earlier step fills it",
+			)
+		}
+		await expect(resolveRequest(ctx, { operationId: "orgs.get" }, {}, 0)).rejects.toThrow(
+			"oat: step 1's placeholder {org} has no value",
+		)
+	})
+
 	it("refuses a step that is neither an operation nor a request", async () => {
 		const { ctx } = stepStage(answered)
 		const wait: AuthStep = { outOfBand: { address: "a", as: "t", kind: "otp" } }

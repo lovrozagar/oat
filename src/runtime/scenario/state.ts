@@ -4,7 +4,7 @@
  */
 
 import type { Scenario } from "../../config/types/steps.ts"
-import { isBytes } from "../steps/interpolate.ts"
+import { isBytes, WHOLE_PLACEHOLDER } from "../../config/types/placeholder.ts"
 import type { ScenarioInput, ScenarioPrincipal, ScenarioRun } from "./types.ts"
 
 /** The configured principal `id`; a scenario that names another is refused. */
@@ -47,7 +47,7 @@ export function startScenario(
 /** `value` with every field that is exactly `{name}` of a kept value replaced by that value. */
 export function withObjects(objects: ReadonlyMap<string, unknown>, value: unknown): unknown {
 	if (typeof value === "string") {
-		const name = /^\{([A-Za-z0-9_]+)\}$/.exec(value)?.[1]
+		const name = WHOLE_PLACEHOLDER.exec(value)?.[1]
 		return name !== undefined && objects.has(name) ? objects.get(name) : value
 	}
 	if (Array.isArray(value)) return value.map((item) => withObjects(objects, item))

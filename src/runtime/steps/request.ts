@@ -1,17 +1,19 @@
 /*
  * A step resolved to the request it sends: an operation named in the document, or a raw method
  * and path for an endpoint the document does not describe, on the primary origin or a named one,
- * with `{name}` placeholders filled and the body encoded the way the operation documents it.
+ * with `{name}` placeholders filled (one nothing fills is refused, never sent as written) and the body
+ * encoded the way the operation documents it.
  */
 
 import type { Client } from "../../client/client.ts"
 import type { Hooks } from "../../config/types/hooks.ts"
+import { isBytes, placeholderNames } from "../../config/types/placeholder.ts"
 import type { AuthStep, OperationStep, RequestStep } from "../../config/types/steps.ts"
 import { requestContent } from "../../spec/collection/request.ts"
 import type { SpecModel } from "../../spec/graph/types.ts"
 import { encodeRequest } from "../body/encode.ts"
 import type { BackoffConfig } from "../poll.ts"
-import { interpolate, isBytes } from "./interpolate.ts"
+import { interpolate } from "./interpolate.ts"
 
 /** A named origin's client and the document it serves. */
 export interface OriginClient {
@@ -59,6 +61,7 @@ export async function resolveRequest(
 	index: number,
 ): Promise<ResolvedRequest> {
 	const target = targetOf(ctx, step, index)
+	const fill = (value: unknown): unknown => filled(value, scope, index)
 	/* Two shapes, distinguished structurally: name an operation from the document, or give a raw
 	 * method and path for an endpoint the document does not describe. */
 	if (isOperationStep(step)) {
@@ -67,7 +70,7 @@ export async function resolveRequest(
 			throw new Error(`oat: auth step ${index + 1} names operation "${step.operationId}", which is not in the document`)
 		}
 		const raw = target.model.rawOperations.get(step.operationId)
-		const interpolated = step.body === undefined ? undefined : interpolate(step.body, scope)
+		const interpolated = step.body === undefined ? undefined : fill(step.body)
 		const encoded = await encodeAuthBody(raw, interpolated, {
 			mediaType: step.mediaType,
 			operationId: step.operationId,
@@ -75,10 +78,10 @@ export async function resolveRequest(
 		return {
 			client: target.client,
 			method: op.method,
-			path: String(interpolate(op.path, scope)),
+			path: String(fill(op.path)),
 			...encoded,
-			...(step.headers === undefined ? {} : { headers: interpolate(step.headers, scope) as Record<string, string> }),
-			...(step.query === undefined ? {} : { query: interpolate(step.query, scope) as Record<string, string> }),
+			...(step.headers === undefined ? {} : { headers: fill(step.headers) as Record<string, string> }),
+			...(step.query === undefined ? {} : { query: fill(step.query) as Record<string, string> }),
 		}
 	}
 
@@ -88,12 +91,22 @@ export async function resolveRequest(
 	return {
 		client: target.client,
 		method: step.method,
-		path: String(interpolate(step.path, scope)),
+		path: String(fill(step.path)),
 		redirect: step.redirect ?? "follow",
-		...(step.body === undefined ? {} : { body: interpolate(step.body, scope) }),
-		...(step.headers === undefined ? {} : { headers: interpolate(step.headers, scope) as Record<string, string> }),
-		...(step.query === undefined ? {} : { query: interpolate(step.query, scope) as Record<string, string> }),
+		...(step.body === undefined ? {} : { body: fill(step.body) }),
+		...(step.headers === undefined ? {} : { headers: fill(step.headers) as Record<string, string> }),
+		...(step.query === undefined ? {} : { query: fill(step.query) as Record<string, string> }),
 	}
+}
+
+/* A `{name}` left in what a step sends would reach the backend as written and read as its fault. */
+function filled(value: unknown, scope: Record<string, string>, index: number): unknown {
+	const out = interpolate(value, scope)
+	const name = placeholderNames(out)[0]
+	if (name === undefined) return out
+	throw new Error(
+		`oat: step ${index + 1}'s placeholder {${name}} has no value: no bind, saveAs or earlier step fills it`,
+	)
 }
 
 /** The named origin a step goes to, if it names one. */

@@ -13,6 +13,11 @@ describe("fillPrincipal", () => {
 		).toEqual({ body: { email: "ann@x.io", tags: ["30", 1, null, "true"] }, path: "/users/ann@x.io/{id}" })
 	})
 
+	it("fills a key that holds a hyphen", () => {
+		const keyed = { id: "ann", identity: { "given-name": "Ann" } }
+		expect(fillPrincipal(keyed, "/users/{principal.given-name}")).toBe("/users/Ann")
+	})
+
 	it("fills `{principal.id}` with the principal's id unless its identity names one", () => {
 		expect(fillPrincipal(principal, "{principal.id}")).toBe("ann")
 		expect(fillPrincipal({ id: "ann", identity: { id: "u-1" } }, "{principal.id}")).toBe("u-1")

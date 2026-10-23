@@ -329,7 +329,7 @@ oat tells the hook when the request this value answers was sent (`since`): the l
 { outOfBand: { address: "{offerEmail}", as: "offerToken", kind: "upsell-offer", sentEarlier: true } }
 ```
 
-Later steps interpolate `{name}` from the flow scope, `saveAs` addresses included (`cookie:rt.{userId}` reads a per-user cookie). `saveAs` addresses:
+Later steps interpolate `{name}` from the flow scope, `saveAs` addresses included (`cookie:rt.{userId}` reads a per-user cookie). A name is letters, digits and `_`, with single hyphens between them, as path parameters are written: `{user-id}`. A `{name}` still unfilled when a step is sent, in its path, body, headers or query, fails the step as oat's own error naming the placeholder; it never reaches the backend. `saveAs` addresses:
 
 - `$.foo.bar` / `$.orgs.0.id` — JSON body (dot + numeric index only; no JSON Pointer, no filters)
 - `cookie:<name>` — that cookie on `Set-Cookie` for this hop, including followed hops

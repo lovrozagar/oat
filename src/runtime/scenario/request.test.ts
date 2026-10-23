@@ -97,12 +97,21 @@ describe("requestStep: on another origin", () => {
 describe("requestStep: failures", () => {
 	it("passes the statuses a step expects, and fails the rest", async () => {
 		const run = runOf(notes())
+		run.scope["id"] = "none"
 		await requestStep(run, { expect: [404], operationId: "notes.get" }, 0)
 		const refused = await failure(requestStep(run, { expect: [200], operationId: "notes.create" }, 1))
 		expect(refused.message).toBe("POST /notes returned 201")
 		expect(refused.blames).toEqual(["notes.create"])
 		const raw = await failure(requestStep(run, { method: "GET", path: "/nowhere" }, 2))
 		expect(raw.blames).toEqual([])
+	})
+
+	it("refuses a placeholder nothing fills before anything is sent", async () => {
+		const run = runOf(notes())
+		await expect(requestStep(run, { operationId: "notes.get" }, 0)).rejects.toThrow(
+			"oat: step 1's placeholder {id} has no value: no bind, saveAs or earlier step fills it",
+		)
+		expect(run.sent).toEqual([])
 	})
 
 	it("fails an assert it never saw, blaming what it would have proved", async () => {

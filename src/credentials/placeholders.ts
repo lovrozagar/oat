@@ -6,6 +6,7 @@
  * before a request leaves. `{principal.<key>}` is the principal's identity, filled apart.
  */
 
+import { placeholderNames } from "../config/types/placeholder.ts"
 import { isRaw, isRawUnion, isRecord, type RawOf, type RawOfUnion } from "../config/types/raw.ts"
 import type { AuthStep, OutOfBandStep, RequestStep } from "../config/types/steps.ts"
 
@@ -25,17 +26,10 @@ const outOfBandOf = (step: Step): RawOf<OutOfBandStep["outOfBand"]> =>
 const claimsOf = (step: Step): RawOf<NonNullable<RequestStep["saveClaimsFrom"]>> =>
 	isRaw<NonNullable<RequestStep["saveClaimsFrom"]>>(step.saveClaimsFrom) ? step.saveClaimsFrom : {}
 
-/** Every `{name}` in the text of a value, deep through arrays and plain objects, in order. */
-function namesIn(value: unknown): string[] {
-	if (typeof value === "string") return [...value.matchAll(/\{([A-Za-z0-9_]+)\}/g)].map(([, name]) => String(name))
-	if (Array.isArray(value)) return value.flatMap(namesIn)
-	return isRecord(value) ? Object.values(value).flatMap(namesIn) : []
-}
-
 /* What a step's request reads: a raw step's path, and its body, headers and query. An operation's path is the document's. */
 function requestReads(step: Step): string[] {
-	if (step.outOfBand !== undefined) return namesIn(outOfBandOf(step).address)
-	return namesIn([step.method === undefined ? null : step.path, step.body, step.headers, step.query])
+	if (step.outOfBand !== undefined) return placeholderNames(outOfBandOf(step).address)
+	return placeholderNames([step.method === undefined ? null : step.path, step.body, step.headers, step.query])
 }
 
 /* Each `[name, template]` binding of a map, in order: a template may read the names bound before it. */
@@ -46,7 +40,7 @@ function bindingsOf(value: unknown): Array<[string, unknown]> {
 /** The first placeholder in `steps` that neither `given` nor an earlier binding fills. */
 export function unfilledIn(steps: readonly unknown[], given: Iterable<string>): Unfilled | undefined {
 	const bound = new Set(given)
-	const missing = (value: unknown): string | undefined => namesIn(value).find((name) => !bound.has(name))
+	const missing = (value: unknown): string | undefined => placeholderNames(value).find((name) => !bound.has(name))
 	for (const [index, value] of steps.entries()) {
 		const step = stepOf(value)
 		const name = unfilledStep(step, { bound, missing })

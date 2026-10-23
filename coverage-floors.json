@@ -68,6 +68,7 @@
 	"src/config/types/config.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/config/types/hooks.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/config/types/query.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/config/types/placeholder.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/config/types/raw.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/config/types/security.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/config/types/steps.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
