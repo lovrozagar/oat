@@ -38,14 +38,32 @@ interface Walk {
 	/** Rows served so far, repeats included: what an offset counts. */
 	served: number
 	cursor: string | undefined
+	/** Whether the last page read showed the list ends there. */
+	ended: boolean
+}
+
+/** What a re-list saw: the records still listed, and whether it read to the list's proven end. */
+export interface Listing {
+	listed: Set<string>
+	/**
+	 * The last page read showed the list ends there: it was empty, shorter than a full page already
+	 * served, or its envelope said no more follow. Only then is a record it did not list shown absent.
+	 */
+	complete: boolean
 }
 
 /** The group's records still listed; `null` when the first page could not be read: nothing is claimed either way. */
 export async function stillListed(model: SpecModel, client: Client, group: ListGroup): Promise<Set<string> | null> {
+	return (await listing(model, client, group))?.listed ?? null
+}
+
+/** The group's list, read as stillListed reads it, and whether that read reached the list's end. */
+export async function listing(model: SpecModel, client: Client, group: ListGroup): Promise<Listing | null> {
 	const paging = group.listOp.conventions
 	const first = largestPageQuery(model, group.listOp)
 	const walk: Walk = {
 		cursor: undefined,
+		ended: false,
 		fullPage: 0,
 		listed: new Set(),
 		seen: new Set(),
@@ -67,12 +85,17 @@ export async function stillListed(model: SpecModel, client: Client, group: ListG
 			if (!(error instanceof FencedError) && !(error instanceof UnsatisfiedSecurity) && !isNetworkError(error)) {
 				throw error
 			}
-			return index === 0 ? null : walk.listed
+			return index === 0 ? null : unended(walk)
 		}
-		if (exchange.status >= 300) return index === 0 ? null : walk.listed
+		if (exchange.status >= 300) return index === 0 ? null : unended(walk)
 		if (!takePage(walk, group, exchange)) break
 	}
-	return walk.listed
+	return { complete: walk.ended, listed: walk.listed }
+}
+
+/* A walk cut short by a page it could not read: what it listed, with no end shown. */
+function unended(walk: Walk): Listing {
+	return { complete: false, listed: walk.listed }
 }
 
 /** The query for page `index`, or `null` when the list declares no way to ask for it. */
@@ -98,6 +121,7 @@ function takePage(walk: Walk, group: ListGroup, exchange: Exchange): boolean {
 	const paging = group.listOp.conventions
 	const rows = recordsFromList(exchange.responseBody, group.listOp.collection)
 	walk.served += rows.length
+	walk.ended = endsHere(walk, paging.envelope, { body: exchange.responseBody, rows: rows.length })
 	const ids = rows.flatMap((row) => idOf(row, group.identity) ?? [])
 	const fresh = ids.filter((id) => !walk.seen.has(id))
 	for (const id of ids) {
@@ -111,4 +135,16 @@ function takePage(walk: Walk, group: ListGroup, exchange: Exchange): boolean {
 		paging.envelope.nextCursor === undefined ? undefined : readPath(exchange.responseBody, paging.envelope.nextCursor)
 	walk.cursor = typeof next === "string" && next !== "" ? next : undefined
 	return true
+}
+
+/* Whether this page is the list's last: empty, short of a full page served before, or its envelope says so. */
+function endsHere(walk: Walk, envelope: Paging["envelope"], page: { body: unknown; rows: number }): boolean {
+	if (page.rows === 0 || (walk.fullPage > 0 && page.rows < walk.fullPage)) return true
+	const read = (path: string | undefined) => (path === undefined ? undefined : readPath(page.body, path))
+	if (read(envelope.hasMore) === false) return true
+	const total = read(envelope.total)
+	if (typeof total === "number" && walk.served >= total) return true
+	if (envelope.nextCursor === undefined) return false
+	const next = read(envelope.nextCursor)
+	return next === null || next === undefined || next === ""
 }

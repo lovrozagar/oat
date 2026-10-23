@@ -15,6 +15,16 @@ import { credentialRecords } from "./credential-records.ts"
 const param = (name: string) => ({ in: "path", name, required: true, schema: { type: "string" } })
 const ok = { "200": { description: "ok" } }
 const rows = { content: { "application/json": { schema: { items: { type: "object" }, type: "array" } } } }
+const paged = {
+	content: {
+		"application/json": {
+			schema: {
+				properties: { has_more: { type: "boolean" }, items: { items: { type: "object" }, type: "array" } },
+				type: "object",
+			},
+		},
+	},
+}
 
 const MODEL = modelOf({
 	info: { title: "keys", version: "1" },
@@ -27,8 +37,8 @@ const MODEL = modelOf({
 		"/orgs/{org_id}/tokens": {
 			get: {
 				operationId: "tokens.list",
-				parameters: [param("org_id")],
-				responses: { "200": { ...rows, description: "ok" } },
+				parameters: [param("org_id"), { in: "query", name: "page", schema: { minimum: 1, type: "integer" } }],
+				responses: { "200": { ...paged, description: "ok" } },
 			},
 		},
 		"/orgs/{org_id}/tokens/{token_id}": {
@@ -36,6 +46,10 @@ const MODEL = modelOf({
 		},
 		"/orgs/{org_id}/tokens/{token_id}/revoke": {
 			post: { operationId: "tokens.revoke", parameters: [param("org_id"), param("token_id")], responses: ok },
+		},
+		"/widgets": { get: { operationId: "widgets.list", responses: { "200": { ...rows, description: "ok" } } } },
+		"/widgets/{widget_id}": {
+			delete: { operationId: "widgets.delete", parameters: [param("widget_id")], responses: ok },
 		},
 		"/pins": { get: { operationId: "pins.list", responses: ok } },
 		"/pins/{pin_id}": { delete: { operationId: "pins.delete", parameters: [param("pin_id")], responses: ok } },
@@ -114,20 +128,6 @@ describe("credentialRecords: gone", () => {
 		)
 	})
 
-	it("reads a record with no read of its own in its list, by the scope its principal holds", async () => {
-		const listed = { ids: ["t1", "t2"] }
-		const { records, sent } = recordsOver(() => ({ body: listed.ids.map((id) => ({ id })), status: 200 }))
-		expect(await records.gone(TOKEN)).toBe(false)
-		listed.ids = ["t2"]
-		expect(await records.gone(TOKEN)).toBe(true)
-		expect(sent.map(({ path }) => path)).toEqual(["/orgs/o1/tokens", "/orgs/o1/tokens"])
-	})
-
-	it("claims nothing when its list cannot be read", async () => {
-		const { records } = recordsOver(() => ({ status: 500 }))
-		expect(await records.gone(TOKEN)).toBe(false)
-	})
-
 	it("reads nothing for a record with no id, no read or list, a list it cannot fill, or one without identity", async () => {
 		const { records, sent } = recordsOver()
 		const orphan = { ...recordOf("tokens.revoke", { token_id: "t1" }), as: { principal: "beta", scheme: "bearer" } }
@@ -145,5 +145,38 @@ describe("credentialRecords: gone", () => {
 	it("claims nothing for a read that cannot be sent, and rethrows any other failure", async () => {
 		expect(await failing(new UnsatisfiedSecurity("blocked", "no key")).gone(KEY)).toBe(false)
 		await expect(failing(new Error("boom")).gone(KEY)).rejects.toThrow("boom")
+	})
+})
+
+describe("credentialRecords: gone from its list", () => {
+	it("reads a record with no read of its own in its list, page by page, by the scope its principal holds", async () => {
+		const pages: Record<string, string[]> = { "1": ["t2", "t3"], "2": ["t1"] }
+		const { records, sent } = recordsOver((_method, _path, options) => {
+			const page = String(options.query?.["page"] ?? 1)
+			return { body: { has_more: page === "1", items: (pages[page] ?? []).map((id) => ({ id })) }, status: 200 }
+		})
+		expect(await records.gone(TOKEN)).toBe(false)
+		pages["2"] = ["t4"]
+		expect(await records.gone(TOKEN)).toBe(true)
+		expect(sent.map(({ path }) => path)).toEqual(Array.from({ length: 4 }, () => "/orgs/o1/tokens"))
+	})
+
+	it("is never gone from a list that did not show its end: one page of an unpaged list, or a page served again", async () => {
+		/* w1 is live beyond the one page served; nothing says that page was the whole list. */
+		const widgets = recordsOver(() => ({ body: [{ id: "w2" }], status: 200 }))
+		expect(await widgets.records.gone(recordOf("widgets.delete", { widget_id: "w1" }))).toBe(false)
+		const repeating = recordsOver(() => ({ body: { has_more: true, items: [{ id: "t2" }] }, status: 200 }))
+		expect(await repeating.records.gone(TOKEN)).toBe(false)
+		expect(repeating.sent).toHaveLength(2)
+	})
+
+	it("is gone from a list whose first page is empty", async () => {
+		const { records } = recordsOver(() => ({ body: [], status: 200 }))
+		expect(await records.gone(recordOf("widgets.delete", { widget_id: "w1" }))).toBe(true)
+	})
+
+	it("claims nothing when its list cannot be read", async () => {
+		const { records } = recordsOver(() => ({ status: 500 }))
+		expect(await records.gone(TOKEN)).toBe(false)
 	})
 })

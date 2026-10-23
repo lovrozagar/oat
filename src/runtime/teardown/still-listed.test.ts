@@ -5,7 +5,7 @@ import type { OperationModel } from "../../spec/graph/types.ts"
 import { FencedError } from "../fence.ts"
 import { NetworkError } from "../../errors/network.ts"
 import { disposable, notesClient, notesModel, owner, type Paging, type Store, store } from "./__fixtures__/notes.ts"
-import { type ListGroup, stillListed } from "./still-listed.ts"
+import { type ListGroup, listing, stillListed } from "./still-listed.ts"
 
 const ids = (count: number) => Array.from({ length: count }, (_, at) => `n${at + 1}`)
 
@@ -178,5 +178,51 @@ describe("stillListed: a list it cannot ask", () => {
 				["n1"],
 			),
 		).rejects.toThrow("bug")
+	})
+})
+
+/** The notes list as `listing` reads it for `wanted`, paging as `paging`, its envelope as `envelope` says. */
+async function walkOf(paging: Paging, held: Store, envelope?: OperationModel["conventions"]["envelope"]) {
+	const model = notesModel(paging)
+	const declared = model.byOperationId.get("notes.list") as OperationModel
+	const listOp = envelope === undefined ? declared : { ...declared, conventions: { ...declared.conventions, envelope } }
+	const group: ListGroup = {
+		identity: "id",
+		items: [disposable("note", "n9")],
+		listOp,
+		owner: owner("alpha"),
+		path: listOp.path,
+	}
+	const { client } = notesClient(held)
+	return listing(model, client, group)
+}
+
+/** One page of a note, with the envelope total `total`. */
+const totalled = (total: number) =>
+	store({}, { answers: { "GET /notes": { body: { items: [{ id: "n1" }], total }, status: 200 } } })
+
+describe("listing: whether the read reached the list's end", () => {
+	it("is complete on a page whose next cursor is empty, and not when the next page cannot be read", async () => {
+		expect(await walkOf("cursor", store({ alpha: ["n1"] }))).toEqual({ complete: true, listed: new Set() })
+		const failing = store({ alpha: ["n1", "n2", "n3"] }, { pageSize: 2 })
+		failing.answers["GET /notes"] = (options) =>
+			options.query?.["cursor"] === undefined
+				? { body: { items: [{ id: "n1" }, { id: "n2" }], next_cursor: "2" }, status: 200 }
+				: { status: 500 }
+		expect(await walkOf("cursor", failing)).toEqual({ complete: false, listed: new Set() })
+	})
+
+	it("is complete once the rows served reach the envelope's total, and not before", async () => {
+		expect((await walkOf("none", totalled(1), { total: "total" }))?.complete).toBe(true)
+		expect((await walkOf("none", totalled(5), { total: "total" }))?.complete).toBe(false)
+	})
+
+	it("is complete on a page whose envelope says no more follow", async () => {
+		const answers = { "GET /notes": { body: { has_more: false, items: [{ id: "n1" }] }, status: 200 } }
+		expect((await walkOf("none", store({}, { answers }), { hasMore: "has_more" }))?.complete).toBe(true)
+	})
+
+	it("is never complete for one page of a list that neither pages nor says it ended", async () => {
+		expect(await walkOf("none", store({ alpha: ["n1"] }))).toEqual({ complete: false, listed: new Set() })
 	})
 })

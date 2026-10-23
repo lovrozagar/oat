@@ -2,7 +2,7 @@
  * What the run knows of a minted credential's record, for the store's teardown revokes. The record
  * is the one its declared revoke removes: the revoke's entity, by the id that fills its path. An
  * accepted DELETE of it, by the revoke or the entity's own delete, already removed it; and a read
- * of it that answers 404 or 410, or a list it is missing from, shows it gone.
+ * of it that answers 404 or 410, or a list read to its proven end that lacks it, shows it gone.
  */
 
 import type { Client } from "../../client/client.ts"
@@ -14,7 +14,7 @@ import type { Exchange } from "../exchange.ts"
 import { FencedError } from "../fence.ts"
 import { fillPath } from "../fill-path.ts"
 import { deletedEarlierIn, deleteOperationFor, readPathOf } from "../teardown/routes.ts"
-import { stillListed } from "../teardown/still-listed.ts"
+import { listing } from "../teardown/still-listed.ts"
 import type { Disposable } from "../teardown/types.ts"
 
 export interface RecordsWiring {
@@ -84,8 +84,9 @@ async function goneOnRead(wiring: RecordsWiring, record: CredentialRecord): Prom
 	const path = listOp === undefined ? undefined : filled(listOp.path, item.scope)
 	if (listOp === undefined || path === undefined || entity?.identity == null) return false
 	const group = { identity: entity.identity, items: [item], listOp, owner: item.owner, path }
-	const listed = await stillListed(model, client, group)
-	return listed !== null && !listed.has(item.id)
+	/* Absent only from a list read to its proven end: a key on a page never read is still live. */
+	const walked = await listing(model, client, group)
+	return walked !== null && walked.complete && !walked.listed.has(item.id)
 }
 
 function filled(template: string, scope: Record<string, string>): string | undefined {
