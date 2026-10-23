@@ -1,8 +1,9 @@
-import { existsSync } from "node:fs"
+import { existsSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 import { bufferWriter } from "../writer.ts"
 import { folder, json, notesConfig, notesSpec, referenceConfig, signupConfig } from "../__fixtures__/files.ts"
+import { notesDoc } from "../../runtime/run/__fixtures__/api.ts"
 import { commandDoctor } from "./doctor.ts"
 
 /* What oat can and cannot test in a document, and why; exits 1 when something blocks testing. */
@@ -111,5 +112,68 @@ describe("commandDoctor and the operations a login sends", () => {
 		const text = bufferWriter()
 		await commandDoctor(text, { config: signupConfig() })
 		expect(text.text()).not.toMatch(/account|session\.start/)
+	})
+})
+
+/* A config module for the notes document that reads its bearer token through env(). */
+function envConfig(dir: string, variable: string): string {
+	const path = join(dir, "oat.config.mjs")
+	const envModule = join(import.meta.dirname, "..", "..", "config", "env.ts")
+	writeFileSync(
+		path,
+		`import { env } from ${JSON.stringify(envModule)}\n` +
+			`export default { baseUrl: "http://api.test", principals: { alpha: {} }, ` +
+			`security: { bearer: { static: env(${JSON.stringify(variable)}) } }, spec: ${JSON.stringify(notesSpec(dir))} }\n`,
+	)
+	return path
+}
+
+describe("commandDoctor and a config whose secrets are not set", () => {
+	it("doctor --config with an unset env() lists it and exits 0 or 1, not 2", async () => {
+		delete process.env.OAT_DOCTOR_TEST_TOKEN
+		const config = envConfig(folder(), "OAT_DOCTOR_TEST_TOKEN")
+		const writer = bufferWriter()
+		const code = await commandDoctor(writer, { config })
+		expect([0, 1]).toContain(code)
+		expect(writer.text()).toContain("  env        OAT_DOCTOR_TEST_TOKEN not set — a run stops until they are\n")
+		const machine = bufferWriter()
+		expect(await commandDoctor(machine, { config, json: true })).toBe(code)
+		expect(JSON.parse(machine.text()).unsetEnv).toEqual(["OAT_DOCTOR_TEST_TOKEN"])
+	})
+})
+
+describe("commandDoctor and the config's principals", () => {
+	it("reads a config that names no recipe and no principal as having none", async () => {
+		const dir = folder()
+		const writer = bufferWriter()
+		expect(await commandDoctor(writer, { config: json(dir, "oat.config.json", { spec: notesSpec(dir) }) })).toBe(1)
+		expect(writer.text()).toContain("none — the config names no principal")
+		expect(writer.text()).toContain("    bearer     5 operations; add security.bearer\n")
+	})
+
+	it("prints which principal sends each requirement, and blocks on an operation none can send", async () => {
+		const writer = bufferWriter()
+		await commandDoctor(writer, { config: notesConfig() })
+		expect(writer.text()).toMatch(/\n {4}bearer {4,}\d+ {3}alpha\n/)
+		const doc = notesDoc({
+			"/legacy": {
+				get: { operationId: "legacy.get", responses: { "200": { description: "ok" } }, security: [{ legacy: [] }] },
+			},
+		}) as unknown as { components: { securitySchemes: Record<string, unknown> } }
+		doc.components.securitySchemes.legacy = { in: "header", name: "X-Legacy", type: "apiKey" }
+		const dir = folder()
+		const config = json(dir, "oat.config.json", {
+			principals: { alpha: {} },
+			security: { bearer: { static: "t" } },
+			spec: notesSpec(dir, doc),
+		})
+		const blocked = bufferWriter()
+		expect(await commandDoctor(blocked, { config })).toBe(1)
+		expect(blocked.text()).toContain("none — no credential for legacy")
+		const withConfig = bufferWriter()
+		await commandDoctor(withConfig, { config, json: true })
+		const plain = bufferWriter()
+		await commandDoctor(plain, { json: true, spec: notesSpec(folder(), doc) })
+		expect(JSON.parse(withConfig.text()).blocking).toBe(JSON.parse(plain.text()).blocking + 1)
 	})
 })

@@ -3,6 +3,8 @@
  * matrix reads of a report.
  */
 
+import type { REPORT_SCHEMA_VERSION } from "../render/json.ts"
+
 /** `out-of-scope`: a targeted run (`--ops`) did not ask for it — it could apply, it was not graded. */
 export type CellStatus = "passed" | "failed" | "blocked" | "skipped" | "out-of-scope"
 export type MatrixLayer = "axis" | "composition" | "surface" | "auth" | "schema" | "spec"
@@ -65,7 +67,8 @@ export interface EntityMatrix {
 
 export interface MatrixGraph {
 	kind: "oat.matrix"
-	version: 2
+	/** The same version `oat-report.json` states. */
+	schemaVersion: typeof REPORT_SCHEMA_VERSION
 	read: {
 		purpose: string
 		status: Record<CellStatus, string>

@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest"
 import { UsageError } from "../errors/usage-error.ts"
 import { doc } from "./__fixtures__/documents.ts"
+import { buildModel } from "./graph/build.ts"
 import { applyOverlay } from "./overlay.ts"
+import { dereference } from "./load/dereference.ts"
+import { anyrow, keycloak } from "./security/__fixtures__/documents.ts"
 import type { OpenApiDocument } from "./types.ts"
 
 const source = () =>
@@ -75,5 +78,30 @@ describe("applyOverlay", () => {
 
 	it("applies an empty overlay to a document without paths", () => {
 		expect(applyOverlay({ openapi: "3.1.0" }, {})).toEqual({ openapi: "3.1.0" })
+	})
+})
+
+describe("applyOverlay on security", () => {
+	it("declares a security scheme and a root requirement on a document that has none", () => {
+		const out = applyOverlay(keycloak, {
+			security: [{ bearer: [] }],
+			securitySchemes: { bearer: { scheme: "bearer", type: "http" } },
+		})
+		const model = buildModel(dereference(out).doc)
+		expect(model.schemes.get("bearer")?.kind).toBe("bearer")
+		expect(model.operations.map((op) => op.security.alternatives)).toEqual([[[{ scheme: "bearer", scopes: [] }]]])
+		expect(keycloak.components).toBeUndefined()
+	})
+
+	it("null deletes a declared scheme, an object merges into one, and security replaces the root", () => {
+		const out = applyOverlay(anyrow, {
+			security: [{ apiKey: [] }],
+			securitySchemes: { apiKey: { description: null }, jwt: null },
+		})
+		expect(out.components?.securitySchemes).toEqual({
+			apiKey: { in: "header", name: "Authorization", type: "apiKey" },
+		})
+		expect(out.security).toEqual([{ apiKey: [] }])
+		expect(anyrow.security).toEqual([{ jwt: [] }])
 	})
 })

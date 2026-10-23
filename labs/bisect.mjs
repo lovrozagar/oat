@@ -1,7 +1,7 @@
 /**
  * Which co-occurring defect stops a check from firing — and whether that is correct.
  *
- *   node --experimental-sqlite labs/bisect.mjs TENANT_LEAK_VIA_FILTER
+ *   node labs/bisect.mjs TENANT_LEAK_VIA_FILTER
  *
  * Pairs the named defect with every other defect in turn and reports the ones whose presence
  * means the expected check never fires:

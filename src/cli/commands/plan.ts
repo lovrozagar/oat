@@ -1,3 +1,4 @@
+import { unsetEnvLines } from "../../report/console/doctor.ts"
 import { report } from "../../report/console/report.ts"
 import type { SpecModel } from "../../spec/graph/types.ts"
 import { EXIT } from "../../runtime/exit.ts"
@@ -13,7 +14,7 @@ import { modelled } from "./spec.ts"
 export async function commandPlan(writer: Writer, flags: Args["flags"]): Promise<number> {
 	const read = await modelled(writer, flags)
 	if (typeof read === "number") return read
-	const { model, config } = read
+	const { model, config, unsetEnv } = read
 	const ops = list(flags, "ops") ?? config?.ops
 	const only = list(flags, "only") ?? config?.only
 	const authCreates = authStepOperationIds(config ?? {})
@@ -26,8 +27,17 @@ export async function commandPlan(writer: Writer, flags: Args["flags"]): Promise
 		writer.err(`${scope.message}\n`)
 		return EXIT.usage
 	}
+	/* A diagnostic beside the plan, so the plan on stdout stays the plan, as text or JSON. */
+	const [note] = unsetEnvLines(unsetEnv)
+	if (note !== undefined) writer.err(`${note}\n`)
 	writer.out(
-		report.plan(model, flags.json === true, { authCreates, scope: scope.mode === "targeted" ? scope : undefined }),
+		report.plan(model, flags.json === true, {
+			authCreates,
+			credentials:
+				config === undefined ? undefined : { principals: config.principals ?? {}, security: config.security ?? {} },
+			scope: scope.mode === "targeted" ? scope : undefined,
+			unsetEnv,
+		}),
 	)
 	return 0
 }

@@ -1,7 +1,7 @@
 /**
  * Points oat at whichever labs world is listening.
  *
- *   LAB_URL=http://127.0.0.1:8791 node --experimental-sqlite dist/cli.js run --config labs/oat.config.ts
+ *   LAB_URL=http://127.0.0.1:8791 node dist/cli.js run --config labs/oat.config.ts
  */
 
 import { defineConfig } from "../dist/index.js"

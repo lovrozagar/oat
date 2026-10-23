@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { BASE, exchange, finding, reportOf, scopeOf } from "./__fixtures__/report.ts"
-import { renderJson } from "./json.ts"
+import { REPORT_SCHEMA_VERSION, renderJson } from "./json.ts"
 
 describe("the JSON report", () => {
 	it("scrubs what the run's redactor learned, as well as secret names", () => {
@@ -22,9 +22,16 @@ describe("the JSON report", () => {
 		expect(text).toContain("<redacted>")
 	})
 
+	it("states schemaVersion 1 first", () => {
+		const text = renderJson(reportOf())
+		expect(REPORT_SCHEMA_VERSION).toBe(1)
+		expect(text.startsWith('{\n  "schemaVersion": 1,\n')).toBe(true)
+	})
+
 	it("gives a plain run's fields their defaults, in a stable order", () => {
 		const report = JSON.parse(renderJson(reportOf()))
 		expect(Object.keys(report)).toEqual([
+			"schemaVersion",
 			"backend",
 			"outcome",
 			"checksRun",

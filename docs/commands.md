@@ -7,6 +7,7 @@
 ```
 oat run          --config <file>     test a live backend and write a report
 oat doctor       --spec <url|file>   what oat can and cannot test, and why
+oat init         --spec <url|file>   write a starter oat.config.ts from the document's security schemes
 oat plan         --spec <url|file>   print the derived model (offline)
 oat serve        [--defects A,B]     run the demo API
 oat conformance                      self-test: injected defects vs detection
@@ -33,6 +34,7 @@ Requires `--config`. CLI flags override the same field in the config when both a
 | `--only`                                   | `config.only` or all entities    | comma-separated entity names as `oat plan` prints them (singularised); each grades every operation it owns. Joins `--ops` as a union            |
 | `--seed`                                   | `config.seed` or `1`             | fixture generation seed (reproducible)                                                                                                          |
 | `--out`                                    | `config.outDir` or `./.oat/runs` | history root; each run writes `<out>/<datetime>/` and updates `latest`                                                                          |
+| `--report`                                 | none                             | comma-separated extra reports written into the run directory; `junit` writes `junit.xml`                                                        |
 | `--max-in-flight`                          | `config.maxInFlight` or `4`      | HTTP requests allowed at once                                                                                                                   |
 | `--keep-fixtures`                          | `config.keepFixtures` or false   | do not DELETE what the run created                                                                                                              |
 | `--keep-credentials`                       | false                            | write the credentials the run held to `.oat/credentials.json` (mode 0600), outside `--out`; `principals.json` never holds one                   |
@@ -107,6 +109,10 @@ Human output:
 - per-operation gaps (`x-entity` could not be inferred, assumed tenant param, …)
 - what the document declares but oat never calls, one gap each and never blocking: `webhooks` (one per webhook, named `webhook <name>`), an operation's `callbacks`, a response's `links` (naming the status), and OpenAPI 3.2 `additionalOperations`
 - external `$ref`s that were not fetched
+- `security` — each scheme the document declares: its kind, where its credential goes (`header Authorization: Bearer {credential}`), and, with `--config`, the recipe that makes it (`login`, `static · format`, `static · +1 placement`, or `no recipe`). A scheme oat cannot send says why instead.
+- `requirements` — the operations grouped by what they need, most first: `|` is any one alternative, `+` every scheme of one together, `[read,write]` the scopes, and `anonymous` sends nothing. With `--config`, each group names the principal that sends it: the first in config order whose recipes satisfy it, decided as a run decides it (`alpha`, `alpha via jwt` when there is a choice, `beta (alpha: <why not>)`, or `none — <why>`).
+- `no recipe` (with `--config`), `unsupported` and `undeclared` — schemes a run cannot send, each with the operations that need only it.
+- `env` — with `--config`, the variables the config reads through `env()` or `${NAME}` that are not set. Nothing is sent, so `doctor` reads such a config and lists them; `run` stops at the first.
 
 `--json` shape:
 
@@ -119,11 +125,59 @@ Human output:
 	"listableEntities": 8,
 	"roots": ["organization_id"],
 	"externalRefs": ["https://example.com/shared.yaml"],
-	"gaps": [{ "operationId": "table.list", "tag": "x-query", "detail": "…" }]
+	"gaps": [{ "operationId": "table.list", "tag": "x-query", "detail": "…" }],
+	"security": {
+		"schemes": [
+			{
+				"name": "jwt",
+				"kind": "bearer",
+				"bearerFormat": "JWT",
+				"deprecated": false,
+				"placement": { "in": "header", "name": "Authorization", "template": "Bearer {credential}" },
+				"extraPlacements": 0,
+				"recipe": "login"
+			}
+		],
+		"operations": [
+			{
+				"operationId": "row.list",
+				"source": "operation",
+				"alternatives": [[{ "scheme": "jwt", "scopes": [] }]],
+				"satisfiedBy": { "principal": "alpha", "alternative": 0 }
+			}
+		],
+		"noRecipe": [{ "name": "legacy", "operations": 2 }],
+		"unsupported": [
+			{ "name": "mtls", "operations": 1, "why": "mutualTLS is a TLS client certificate, not a request credential" }
+		],
+		"undeclared": [{ "name": "ghost", "operations": 3 }]
+	},
+	"unsetEnv": ["OAT_JWT_TOKEN"]
 }
 ```
 
-Exit `1` if there are **blocking** gaps: entities that are not trackable (no identity / no read), or the document has roots oat cannot create. Advisory gaps (missing `x-query`, no `x-async`) print and still exit `0`.
+`satisfiedBy`, `alphaUnsatisfied` (the first principal's reason when a later one satisfies the operation), `unsatisfied`, `noRecipe` and `unsetEnv` are there only with `--config`.
+
+Exit `1` if there are **blocking** gaps: entities that are not trackable (no identity / no read), or the document has roots oat cannot create. Advisory gaps (missing `x-query`, no `x-async`) print and still exit `0`. With `--config`, an operation no principal can send also blocks. Unset variables never do: they are a note.
+
+### `oat init`
+
+Offline. Reads the document and writes a starter config from its security schemes.
+
+```bash
+oat init --spec ./openapi.json
+oat init --spec https://api.example.com/openapi.json --out oat.config.mjs
+```
+
+| flag      | default           | meaning                                                                                   |
+| --------- | ----------------- | ----------------------------------------------------------------------------------------- |
+| `--spec`  | required          | the document, a URL or a path; written into the config exactly as given                   |
+| `--out`   | `./oat.config.ts` | the config written: `.ts`, `.mts`, `.js` or `.mjs` (a `.json` config cannot call `env()`) |
+| `--force` | false             | overwrite an existing `--out` file                                                        |
+
+The config has one `security` recipe per scheme the document declares, each reading its secret with `env()`, and one principal, `alpha`. Bearer, OpenID Connect and API-key schemes get a static token or key, basic gets a username and password pair, and OAuth 2 gets the client-credentials or password grant oat performs itself, else a static token. A comment above each recipe says where the credential goes, the scopes operations ask of it (`holds`), and a sign-in operation the document offers. `baseUrl` is the first absolute `servers` URL, else `env("OAT_BASE_URL")`. A scheme oat cannot send (mutualTLS, http digest, an unknown type) gets no recipe, only a comment naming its type and why. A document with no scheme gets a commented `overlay.securitySchemes` stub instead, since it may be truly anonymous.
+
+It prints the file written, every env var the config reads (`set OAT_BASE_URL, OAT_JWT_TOKEN`), each scheme it left out, and the next step, `oat doctor --config <out>`. Exit `2` without `--spec`, for any other `--out` extension, on an existing file without `--force` (the file is untouched), and on a document oat does not read (Swagger 2.0, OpenAPI 3.3+).
 
 ### `oat baseline`
 
@@ -165,6 +219,8 @@ store               CLRU·  id         2 route(s) (inferred)
 
 `--json` is `{ entities, operations, roots }` — the full `SpecModel` maps, including conventions, query capability, async, invite, and path params. Use this when you need to know what oat will call something.
 
+A `security — operation · requirement · principal` section follows the table: every operation, by id, with its requirement and, with `--config`, the principal that sends it. With `--ops` / `--only`, each target row ends with `<requirement> (<principal>)`. `--json` adds the same `security` object as `doctor`, and with `--config` an `unsetEnv` list; the unset variables also print as one `env` line on stderr, so stdout stays the plan.
+
 With `--ops` / `--only` (flag or config), `plan` prints the targeted scope instead: each target with its entity and the checks that would grade it, untestable targets with the reason, the entities that would be queued, and the support operations predicted from the graph. `--json` adds a `scope` object with the same fields. An unknown name exits `2`.
 
 ### `oat serve`
@@ -199,7 +255,7 @@ Dialects are **reference-backend shapes**, not something you configure against y
 | `jsonapi`   | postgrest                   | `-name`    | `fields[table]=` | `page` + `size`     | `{ data, total, has_more }`       |
 | `plain`     | `?status=active` (equality) | `name:asc` | `fields=`        | `page` + `limit`    | `{ items, total, has_more }`      |
 
-`postgres` needs a server on the default `postgres` database (local, default `postgres` driver connection). `sqlite` needs Node's `node:sqlite` (`--experimental-sqlite` on Node 22). Missing backends fail at serve time rather than falling back.
+`postgres` needs a server on the default `postgres` database (local, default `postgres` driver connection). `sqlite` needs Node's `node:sqlite`, built in with no flag on oat's floor, Node 22.18. Missing backends fail at serve time rather than falling back.
 
 ### `oat conformance`
 
@@ -209,7 +265,7 @@ Self-test. Not for your API. Injects named defects into the reference backend an
 # this repo
 npm test
 
-# after install, from a checkout with --experimental-sqlite if you want sqlite
+# after install; Node 22.18 or later runs every local backend, sqlite included, with no flag
 oat conformance
 oat conformance --backend memory --dialect plain
 oat conformance --fuzz 300 --max-defects 12 --seed 7

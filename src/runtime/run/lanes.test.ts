@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest"
 import { modelOf } from "../checks/__fixtures__/harness.ts"
 import type { OpenApiDocument } from "../../spec/types.ts"
-import { ASCII_PAYLOAD_PROBE } from "../checks/families/write/payload-cases.ts"
+import { ASCII_PAYLOAD_PROBE, plannedWritePath } from "../checks/families/write/payload-cases.ts"
+import type { EntityModel } from "../../spec/graph/types.ts"
 import { contextOf, notesApi, notesDoc, optionsFor, transport } from "./__fixtures__/api.ts"
 import { entityLanes, runLanes } from "./lanes.ts"
 
@@ -259,4 +260,25 @@ describe("runLanes when the plan's first entity never reaches the payload path",
 			expect(writes.some((body) => body.includes(ASCII_PAYLOAD_PROBE))).toBe(true)
 		},
 	)
+
+	/* The timeout is the hang detector: a later entity's claim resolves only once the first is settled. */
+	it("settles a lane's entities when something outside an entity's own test throws", { timeout: 15_000 }, async () => {
+		const respond = twins()
+		const ctx = await contextOf(optionsFor(respond))
+		const [first, second] = ctx.scope.entities
+		/* The progress write before the plan's first entity starts throws: it escapes the lane's loop. */
+		let index = 0
+		Object.defineProperty(ctx.progress, "entityIndex", {
+			get: () => index,
+			set: (value: number) => {
+				if (value === 1) throw new Error("progress write failed")
+				index = value
+			},
+		})
+		await expect(runLanes(ctx)).rejects.toThrow("progress write failed")
+		const path = plannedWritePath(ctx.model, second as EntityModel) as string
+		await expect(ctx.state.payloadClaims.claim((second as EntityModel).name, path)).resolves.not.toBe(
+			(first as EntityModel).name,
+		)
+	})
 })

@@ -2,7 +2,7 @@
  * Serve one labs world. Storage is always Cloudflare D1.
  *
  *   node labs/provision.mjs tiny
- *   LAB=tiny LAB_PORT=8790 node --experimental-strip-types labs/serve.ts
+ *   LAB=tiny LAB_PORT=8790 node labs/serve.ts
  */
 
 import { createServer } from "node:http"
@@ -35,5 +35,5 @@ serve({ createServer, fetch: app.fetch, port })
 process.stdout.write(
 	`labs/${world.id}  http://127.0.0.1:${port}  entities=${world.entities.length}  store=d1 ${creds.databaseId}\n` +
 		`  spec    http://127.0.0.1:${port}/v1/openapi/spec\n` +
-		`  oat     LAB_URL=http://127.0.0.1:${port} node --experimental-sqlite dist/cli.js run --config labs/oat.config.ts\n`,
+		`  oat     LAB_URL=http://127.0.0.1:${port} node dist/cli.js run --config labs/oat.config.ts\n`,
 )

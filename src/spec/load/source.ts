@@ -9,6 +9,8 @@ import { parseDocument } from "./parse.ts"
 export interface SpecSourceOptions {
 	baseUrl?: string | undefined
 	fetchText?: (url: string) => Promise<string>
+	/** The folder a relative path is read from: the config's, for a document a config names. Default the working directory. */
+	dir?: string | undefined
 }
 
 /**
@@ -18,7 +20,7 @@ export interface SpecSourceOptions {
  * about what the string "looks like":
  *
  *   1. an absolute `http(s)://` or `file://` URL — used as given
- *   2. a path that exists on disk — read as a file, relative to the working directory
+ *   2. a path that exists on disk — read as a file, relative to `dir` (default the working directory)
  *   3. anything else, when a base URL is known — resolved against it, so `/v1/openapi/spec`
  *      and `openapi.json` both work next to `baseUrl`
  *
@@ -54,7 +56,7 @@ async function readSpecSource(source: string, options: SpecSourceOptions): Promi
 
 	/* A real file wins over a route: a spec checked into the repository is the more specific
 	 * intent, and silently fetching instead would hide a typo in the path. */
-	const asPath = resolve(process.cwd(), source)
+	const asPath = resolve(options.dir ?? process.cwd(), source)
 	try {
 		return await readPath(asPath)
 	} catch (error) {

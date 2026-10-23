@@ -98,11 +98,18 @@ function tallyJson(input: ReportInput): Record<string, unknown> {
 	}
 }
 
+/**
+ * The shape version of `oat-report.json` and `matrix.json`. It rises only on a breaking change to a
+ * file's shape; an added field is not one.
+ */
+export const REPORT_SCHEMA_VERSION = 1
+
 /** Machine-readable output for CI gating and diffing between runs. */
 export function renderJson(input: ReportInput): string {
 	const redactor = input.client.redactor
 	return `${JSON.stringify(
 		{
+			schemaVersion: REPORT_SCHEMA_VERSION,
 			...runJson(input),
 			findings: input.findings.map((finding) => findingJson(finding, redactor)),
 			...contextJson(input, redactor),

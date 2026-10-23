@@ -85,14 +85,14 @@ else
 	worlds=(tiny "${OLD_CASES[@]}" "${NEW_CASES[@]}")
 fi
 
-node --experimental-strip-types labs/provision.mjs "${worlds[@]}"
+node labs/provision.mjs "${worlds[@]}"
 
 port=${LAB_PORT_BASE:-8790}
 fail=0
 for world in "${worlds[@]}"; do
 	port=$((port + 1))
 	echo "── labs/${world} :${port}  (D1)"
-	LAB="$world" LAB_PORT="$port" node --experimental-strip-types labs/serve.ts \
+	LAB="$world" LAB_PORT="$port" node labs/serve.ts \
 		>".oatlogs/labs-serve-${world}.log" 2>&1 &
 	pid=$!
 	cleanup() { kill "$pid" 2>/dev/null || true; }
@@ -111,7 +111,7 @@ for world in "${worlds[@]}"; do
 	fi
 	out=".oat/runs/labs/${world}"
 	mkdir -p "$out" .oatlogs
-	LAB_URL="http://127.0.0.1:${port}" node --experimental-sqlite dist/cli.js run \
+	LAB_URL="http://127.0.0.1:${port}" node dist/cli.js run \
 		--config labs/oat.config.ts --out "$out" | tee ".oatlogs/labs-oat-${world}.log" || true
 	kill "$pid" 2>/dev/null || true
 	wait "$pid" 2>/dev/null || true

@@ -9,8 +9,8 @@
  * other. Only a real D1 can demonstrate which of those a given check survives.
  *
  * `node:sqlite` is imported dynamically and only by its own driver. Importing it at module scope
- * aborts any process started without `--experimental-sqlite`, which has taken down the CLI and
- * the Postgres path once each.
+ * aborts any process on a Node that lacks it (one built without SQLite, or older than 22.13, when it
+ * still needed `--experimental-sqlite`), which has taken down the CLI and the Postgres path once each.
  */
 
 export type SqlValue = string | number | null | Uint8Array
@@ -39,7 +39,7 @@ export interface SqliteDriver {
 	close(): Promise<void>
 }
 
-/** In-process SQLite via `node:sqlite`. Requires `--experimental-sqlite` on Node 22. */
+/** In-process SQLite via `node:sqlite`, which needs no flag from Node 22.13 (below oat's floor). */
 export async function nodeSqliteDriver(): Promise<SqliteDriver> {
 	const { DatabaseSync } = await import("node:sqlite")
 	const db = new DatabaseSync(":memory:")

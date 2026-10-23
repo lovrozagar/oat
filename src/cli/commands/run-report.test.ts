@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 import { run } from "../../runtime/run/index.ts"
@@ -6,7 +6,14 @@ import type { RunResult } from "../../runtime/run/index.ts"
 import { notesApi, optionsFor, overriding } from "../../runtime/run/__fixtures__/api.ts"
 import { bufferWriter } from "../writer.ts"
 import { folder } from "../__fixtures__/files.ts"
-import { type Finished, keepCredentials, printSummary, reportInput, writeReports } from "./run-report.ts"
+import {
+	appendStepSummary,
+	type Finished,
+	keepCredentials,
+	printSummary,
+	reportInput,
+	writeReports,
+} from "./run-report.ts"
 
 /* A finished run, written down: every file of the run folder, and the summary on the terminal. */
 
@@ -70,7 +77,27 @@ describe("writeReports and printSummary", () => {
 		printSummary(writer, finished, input)
 		expect(writer.text()).toMatch(/ {2}exchanges: \d+ → /)
 	})
+})
 
+describe("writeReports, the optional reports", () => {
+	it("writes junit.xml only when asked", async () => {
+		const plain = await finishedRun(await run(optionsFor(notesApi())))
+		const input = reportInput(plain)
+		await writeReports(plain, input)
+		expect(existsSync(join(plain.outDir, "junit.xml"))).toBe(false)
+		const quiet = bufferWriter()
+		printSummary(quiet, plain, input)
+		expect(quiet.text()).not.toContain("junit:")
+		const asked: Finished = { ...plain, formats: ["junit"], outDir: folder() }
+		await writeReports(asked, input)
+		expect(readFileSync(join(asked.outDir, "junit.xml"), "utf8")).toMatch(/^<\?xml version="1.0"/)
+		const writer = bufferWriter()
+		printSummary(writer, asked, input)
+		expect(writer.text()).toContain(`  junit: ${join(asked.outDir, "junit.xml")}\n`)
+	})
+})
+
+describe("writeReports and printSummary, a quiet run", () => {
 	it("writes no repro folder for a run that found nothing", async () => {
 		const finished = await finishedRun({ ...(await run(optionsFor(notesApi()))), findings: [] })
 		await writeReports(finished, reportInput(finished))
@@ -87,6 +114,31 @@ describe("writeReports and printSummary", () => {
 		const writer = bufferWriter()
 		printSummary(writer, finished, reportInput(finished))
 		expect(writer.text()).toContain("  network: dns — run incomplete\n")
+	})
+})
+
+describe("appendStepSummary", () => {
+	it("appends the summary to the file GitHub names, and does nothing without one", async () => {
+		const finished = await finishedRun(await run(optionsFor(notesApi())))
+		const input = reportInput(finished)
+		const path = join(folder(), "summary.md")
+		writeFileSync(path, "earlier step\n")
+		const writer = bufferWriter()
+		await appendStepSummary(writer, input, { path, runDir: finished.outDir })
+		await appendStepSummary(writer, input, { path: undefined, runDir: finished.outDir })
+		await appendStepSummary(writer, input, { path: "", runDir: finished.outDir })
+		const text = readFileSync(path, "utf8")
+		expect(text.startsWith("earlier step\n## oat: ")).toBe(true)
+		expect(text).toContain(`Full report: \`${join(finished.outDir, "oat-report.md")}\``)
+		expect(writer.text()).toBe("")
+	})
+
+	it("warns when the summary cannot be written", async () => {
+		const finished = await finishedRun(await run(optionsFor(notesApi())))
+		const writer = bufferWriter()
+		const path = join(folder(), "missing", "summary.md")
+		await appendStepSummary(writer, reportInput(finished), { path, runDir: finished.outDir })
+		expect(writer.text()).toMatch(/^oat: could not write the step summary: ENOENT/)
 	})
 })
 

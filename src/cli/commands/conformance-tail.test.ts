@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import { NODE_FLOOR } from "../../errors/node-floor.ts"
 import { bufferWriter } from "../writer.ts"
 import { fakeToolkit } from "../__fixtures__/toolkit.ts"
 import { judgeSkipped, noteD1, runCombinations } from "./conformance-tail.ts"
@@ -12,6 +13,14 @@ describe("judgeSkipped", () => {
 		const none = bufferWriter()
 		expect(judgeSkipped(none, {}, [])).toBe(0)
 		expect(none.text()).toBe("")
+	})
+
+	it("names the Node floor", () => {
+		const writer = bufferWriter()
+		judgeSkipped(writer, {}, ["sqlite"])
+		expect(writer.text()).toContain(
+			`✗ sqlite backend unavailable — node:sqlite unavailable on Node ${process.version}; oat needs ${NODE_FLOOR} or later.`,
+		)
 	})
 
 	it("fails every missing engine when none was left out", () => {

@@ -33,12 +33,20 @@ describe("buildMatrixGraph", () => {
 			index: { crossClaims: 0, entityCount: 1, failed: ["table"], inbound: {}, parents: [] },
 			invalidate: [],
 			kind: "oat.matrix",
-			version: 2,
 		})
 		expect(graph.entities).toHaveLength(1)
 		expect(graph.entities[0]).toMatchObject({ identity: null, name: "table", readSurface: ["GET /table"] })
 		expect(graph.read.status.blocked).toBe("not evaluated; a dependsOn check already failed")
 		expect(graph.mermaid.startsWith("flowchart LR\n  table((table))")).toBe(true)
+	})
+})
+
+describe("the matrix schema", () => {
+	it("states schemaVersion 1 and no version", () => {
+		const keys = Object.keys(buildMatrixGraph(parts()))
+		expect(keys.slice(0, 2)).toEqual(["kind", "schemaVersion"])
+		expect(buildMatrixGraph(parts())).toMatchObject({ schemaVersion: 1 })
+		expect(keys).not.toContain("version")
 	})
 })
 

@@ -3,6 +3,7 @@
  * entities, the check edges, and how to read them.
  */
 
+import { REPORT_SCHEMA_VERSION } from "../render/json.ts"
 import { type CheckCatalog, checkCatalog } from "./catalog.ts"
 import { invalidateLinks } from "./invalidate.ts"
 import { mermaidFromGraph } from "./mermaid.ts"
@@ -73,7 +74,7 @@ function assembleGraph(origin: Origin, { entities, invalidate }: MatrixContent, 
 	for (const invalidation of cross) inbound[invalidation.toEntity] = (inbound[invalidation.toEntity] ?? 0) + 1
 	return {
 		kind: "oat.matrix",
-		version: 2,
+		schemaVersion: REPORT_SCHEMA_VERSION,
 		read: READ,
 		summary: summaryLine(entities, counts, cross),
 		thesis: thesisFor(entities, cross),

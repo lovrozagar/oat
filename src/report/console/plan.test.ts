@@ -11,7 +11,9 @@ import {
 	referenceModel,
 	SORT_TEMPLATE,
 } from "./__fixtures__/models.ts"
+import { anyrow } from "../../spec/security/__fixtures__/documents.ts"
 import { plan } from "./plan.ts"
+import type { SecurityCredentials } from "./security.ts"
 
 const scopePlan = (over: Partial<ScopePlan> = {}): ScopePlan => ({
 	entities: [],
@@ -29,11 +31,11 @@ describe("plan as JSON", () => {
 	it("carries entities with their cost, operations, roots, unique sets, and grammars and scope when there are any", async () => {
 		const { model } = await referenceModel({ dialect: "template" })
 		const json = JSON.parse(plan(model, true, { scope: scopePlan() }))
-		expect(Object.keys(json)).toEqual(["entities", "grammars", "operations", "roots", "scope", "unique"])
+		expect(Object.keys(json)).toEqual(["entities", "grammars", "operations", "roots", "scope", "security", "unique"])
 		expect(json.entities.every((entity: { estimatedRequests: number }) => entity.estimatedRequests > 0)).toBe(true)
 		expect(json.unique).toEqual([{ entity: "table", unique: [["name"]] }])
 		const plain = JSON.parse(plan((await referenceModel()).model, true))
-		expect(Object.keys(plain)).toEqual(["entities", "operations", "roots", "unique"])
+		expect(Object.keys(plain)).toEqual(["entities", "operations", "roots", "security", "unique"])
 	})
 })
 
@@ -167,5 +169,37 @@ describe("plan with a targeted scope", () => {
 		const { model } = await referenceModel()
 		const real = planScope(model, resolveTargetScope(model, { authCreates: new Set<string>(), ops: ["table.get"] }))
 		expect(plan(model, false, { scope: real })).toContain("  scope: targeted (--ops table.get)")
+	})
+})
+
+describe("plan and credentials", () => {
+	const credentials: SecurityCredentials = {
+		principals: { alpha: {} },
+		security: {
+			apiKey: { holds: ["rows:read"], static: "k" },
+			jwt: { login: { from: "$.access_token", steps: [{ operationId: "auth.login" }] } },
+		},
+	}
+
+	it("prints each operation's requirement and principal", () => {
+		const lines = plan(modelOf(anyrow).model, false, { credentials }).split("\n")
+		expect(lines.slice(lines.indexOf("  security — operation · requirement · principal"))).toEqual([
+			"  security — operation · requirement · principal",
+			"    auth.login               anonymous",
+			"    me.get                   jwt                       alpha",
+			"    row.list                 jwt | apiKey[rows:read]   alpha via jwt",
+			"",
+		])
+	})
+
+	it("gives a targeted row its requirement, and the JSON its security and unset variables", () => {
+		const { model } = modelOf(anyrow)
+		const scope = scopePlan({ targets: [{ checks: ["a"], entity: null, operationId: "row.list" }] })
+		expect(plan(model, false, { credentials, scope })).toContain(
+			"1 check(s)  jwt | apiKey[rows:read] (alpha via jwt)\n",
+		)
+		const json = JSON.parse(plan(model, true, { credentials, unsetEnv: ["OAT_JWT_TOKEN"] }))
+		expect(json.unsetEnv).toEqual(["OAT_JWT_TOKEN"])
+		expect(json.security.operations[2].satisfiedBy).toEqual({ alternative: 0, principal: "alpha" })
 	})
 })

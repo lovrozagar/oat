@@ -26,7 +26,7 @@ export interface ReportInput {
 	/** What the run graded, per operation. */
 	scope?: ScopeReport
 	/** Checks that ran but could not reach a verdict, with the reason they stopped. */
-	inconclusive?: Array<{ check: string; entity: string; reason: string }>
+	inconclusive?: Array<{ check: string; entity: string; reason: string; operations?: string[] }>
 	/** Active profile's name — `"full"` unless `--profile` / `config.profile` said otherwise. */
 	profile?: string
 	/** Operations a profile excluded, and why. Silently narrowing coverage is the failure to avoid. */

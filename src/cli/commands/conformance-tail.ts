@@ -1,3 +1,4 @@
+import { NODE_FLOOR } from "../../errors/node-floor.ts"
 import { type Args, str } from "../flags.ts"
 import type { Writer } from "../writer.ts"
 import type { BackendName } from "./conformance-matrix.ts"
@@ -14,7 +15,7 @@ export function judgeSkipped(writer: Writer, flags: Args["flags"], skipped: read
 	for (const backend of skipped) {
 		const why =
 			backend === "sqlite"
-				? "node:sqlite unavailable (Node 22 needs --experimental-sqlite)"
+				? `node:sqlite unavailable on Node ${process.version}; oat needs ${NODE_FLOOR} or later`
 				: "no Postgres server reachable on the default connection"
 		if (allowed.has(backend)) {
 			writer.out(`  note: ${backend} backend skipped as asked — ${why}\n`)

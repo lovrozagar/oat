@@ -10,7 +10,7 @@ import { modelled } from "./spec.ts"
 export async function commandDoctor(writer: Writer, flags: Args["flags"]): Promise<number> {
 	const read = await modelled(writer, flags)
 	if (typeof read === "number") return read
-	const { model, externalRefs, config, configPath, removed } = read
+	const { model, externalRefs, config, configPath, removed, unsetEnv } = read
 	const output = report.doctor(model, {
 		asJson: flags.json === true,
 		config:
@@ -22,8 +22,10 @@ export async function commandDoctor(writer: Writer, flags: Args["flags"]): Promi
 						...(config.hooks === undefined ? {} : { hooks: config.hooks }),
 						...(config.allow === undefined ? {} : { allowRemoved: removed }),
 						authCreates: authStepOperationIds(config),
+						credentials: { principals: config.principals ?? {}, security: config.security ?? {} },
 					},
 		externalRefs,
+		unsetEnv,
 	})
 	writer.out(output.text)
 	/* A baseline that is not there makes every known finding fail the next run. */

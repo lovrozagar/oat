@@ -16,6 +16,17 @@ describe("USAGE", () => {
 		}
 	})
 
+	it("sets every command's help apart from its usage, however long the longest usage is", () => {
+		for (const { usage, help } of COMMANDS) {
+			const line = USAGE.split("\n").find((text) => text.startsWith(`  oat ${usage} `)) ?? ""
+			expect({ usage, gap: line.slice(`  oat ${usage}`.length) }).toEqual({
+				usage,
+				gap: expect.stringMatching(/^ {2,}\S/),
+			})
+			expect(line.endsWith(help)).toBe(true)
+		}
+	})
+
 	it("documents --parser, which the hand-written help left out", () => {
 		expect(USAGE).toMatch(/--parser\s+conformance: the document and suite checks only/)
 		expect(isKnownFlag("parser")).toBe(true)
@@ -53,6 +64,17 @@ describe("parseArgs", () => {
 		expect(parsed.positionals).toEqual(["x"])
 		expect(unknownFlag(parsed.flags)).toBe("concurrency")
 		expect(unknownFlag({ json: true })).toBeUndefined()
+	})
+})
+
+describe("--report", () => {
+	it("takes a comma-separated list of report names, read with list()", () => {
+		const parsed = parseArgs(["run", "--report", "junit, junit", "--quiet"])
+		expect(parsed.error).toBeUndefined()
+		expect(list(parsed.flags, "report")).toEqual(["junit", "junit"])
+		expect(parseArgs(["run", "--report=junit"]).flags.report).toBe("junit")
+		expect(parseArgs(["run", "--report"]).error).toBe("--report needs a value")
+		expect(USAGE).toMatch(/--report <names>\s+run: .*junit writes junit\.xml in the run directory/)
 	})
 })
 

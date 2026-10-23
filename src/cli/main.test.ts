@@ -49,6 +49,8 @@ describe("main", () => {
 		expect(await main(["baseline"], { writer })).toBe(2)
 		expect(await main(["plan"], { writer })).toBe(2)
 		expect(await main(["doctor"], { writer })).toBe(2)
+		expect(await main(["init"], { writer })).toBe(2)
+		expect(writer.text()).toContain("oat: init requires --spec")
 		expect(await main(["run"], { writer })).toBe(2)
 		expect(
 			await main(["conformance", "--backend", "nope"], {

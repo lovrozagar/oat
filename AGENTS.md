@@ -45,5 +45,5 @@ From the repo root; CI runs the same set, with `fmt:check` in place of `fmt`.
     bun run check        # tsc --noEmit
     bun run test         # builds, then the conformance suite
 
-`test` shells out to `node --experimental-sqlite` on purpose: Node is the
-runtime oat ships against, even though Bun drives the scripts.
+`test` shells out to `node` on purpose: Node (22.18 or later) is the runtime
+oat ships against, even though Bun drives the scripts.

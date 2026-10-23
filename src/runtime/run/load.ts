@@ -49,10 +49,14 @@ export async function load(options: RunOptions): Promise<Loaded> {
 	}
 	const raw = await loadSpec(options.spec, {
 		baseUrl: options.baseUrl,
+		dir: options.configDir,
 		fetchText: (url) => fetchSpecText(url, network),
 	})
 	const primary = modelOf(raw, options)
-	const origins = await loadOrigins(options.origins ?? [], (url) => fetchSpecText(url, transportOpt(options)))
+	const origins = await loadOrigins(options.origins ?? [], {
+		dir: options.configDir,
+		fetchText: (url) => fetchSpecText(url, transportOpt(options)),
+	})
 	/* A secondary origin's run: the primary checked the config against this document already. */
 	if (options.sharedCredentials === undefined) assertSecurity({ ...options }, primary, origins)
 	return {
@@ -77,14 +81,17 @@ function modelOf(raw: Parameters<typeof prepareDocument>[0], options: RunOptions
 	return { doc, model }
 }
 
-/** Each secondary origin's document after its overlay, read once and modelled, by origin id. */
+/**
+ * Each secondary origin's document after its overlay, read once and modelled, by origin id. A relative
+ * path is read from `dir`, the config's folder.
+ */
 export async function loadOrigins(
 	declared: readonly OriginSpec[],
-	fetchText: (url: string) => Promise<string>,
+	source: { fetchText: (url: string) => Promise<string>; dir?: string | undefined },
 ): Promise<Map<string, LoadedOrigin>> {
 	const origins = new Map<string, LoadedOrigin>()
 	for (const origin of declared) {
-		const raw = await loadSpec(origin.spec, { baseUrl: origin.baseUrl, fetchText })
+		const raw = await loadSpec(origin.spec, { ...source, baseUrl: origin.baseUrl })
 		const { doc } = dereference(origin.overlay === undefined ? raw : applyOverlay(raw, origin.overlay))
 		origins.set(origin.id, { doc, model: buildModel(doc) })
 	}

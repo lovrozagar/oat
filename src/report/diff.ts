@@ -9,6 +9,7 @@
 
 import { isRootCause } from "../runtime/finding.ts"
 import { findingKey } from "../runtime/finding-key.ts"
+import { REPORT_SCHEMA_VERSION } from "./render/json.ts"
 
 export interface SavedFinding {
 	check: string
@@ -21,9 +22,21 @@ export interface SavedFinding {
 }
 
 export interface SavedReport {
+	/** Absent in a 0.24 report, which this oat still reads. */
+	schemaVersion?: number
 	findings: SavedFinding[]
 	scope?: { operations: Array<{ operationId?: string; status: string }> }
 	targetVersion?: { value?: string; error?: string }
+}
+
+/**
+ * Why this oat cannot read the saved report at `file`, or `undefined` when it can: one with no
+ * `schemaVersion` (0.24) or with the one this oat writes. A later shape is refused, not misread.
+ */
+export function schemaRefusal(saved: { schemaVersion?: unknown }, file: string): string | undefined {
+	const version = saved.schemaVersion
+	if (version === undefined || version === REPORT_SCHEMA_VERSION) return undefined
+	return `${file} is report schemaVersion ${JSON.stringify(version)}; this oat reads ${REPORT_SCHEMA_VERSION} — upgrade oat`
 }
 
 export interface RunDiff {

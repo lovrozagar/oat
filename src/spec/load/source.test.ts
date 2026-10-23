@@ -1,6 +1,6 @@
 import { mkdtemp, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { join, relative } from "node:path"
+import { dirname, join, relative } from "node:path"
 import { pathToFileURL } from "node:url"
 import { describe, expect, it } from "vitest"
 import { dereference } from "./dereference.ts"
@@ -55,6 +55,21 @@ describe("loadSpec", () => {
 			`oat: could not find a specification at "${missing}". Tried:\n  ${missing}\nPass --base-url`,
 		)
 		await expect(loadSpec(missing, { baseUrl: "" })).rejects.toThrow(new RegExp(`Tried:\\n  ${missing}$`))
+	})
+
+	it("reads a relative path from `dir` when given, and still falls back to the route as written", async () => {
+		const json = await file("a.json", JSON.stringify(DOC))
+		const dir = dirname(json)
+		expect((await loadSpec("a.json", { dir })).openapi).toBe("3.1.0")
+		expect((await loadSpec(json, { dir: tmpdir() })).openapi).toBe("3.1.0")
+		const asked: string[] = []
+		const fetchText = async (url: string): Promise<string> => {
+			asked.push(url)
+			return JSON.stringify(DOC)
+		}
+		await loadSpec("v1/openapi", { baseUrl: "https://api.test", dir, fetchText })
+		expect(asked).toEqual(["https://api.test/v1/openapi"])
+		await expect(loadSpec("b.json", { dir })).rejects.toThrow(`Tried:\n  ${join(dir, "b.json")}`)
 	})
 
 	it("passes on a read failure other than a missing file", async () => {

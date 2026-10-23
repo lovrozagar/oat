@@ -72,9 +72,20 @@ const shape =
 /* A key checked as a whole by its own validator in `credentialProblems`, which reads other keys too. */
 const checkedWhole: Rule = () => []
 
-/** Patches by operationId and by schema name; each patch is an object merged into the document. */
+const objectOrNull: Rule = (value, path) =>
+	value === null || isRecord(value) ? [] : [`${path} must be an object or null`]
+
+/**
+ * Patches by operationId and by schema name, each an object merged into the document; security
+ * schemes to merge (`null` deletes one), and the root security requirement.
+ */
 function overlayRule(): Rule {
-	return shape({ operations: recordOf(object), schemas: recordOf(object) })
+	return shape({
+		operations: recordOf(object),
+		schemas: recordOf(object),
+		security: arrayOf(recordOf(arrayOf(string))),
+		securitySchemes: recordOf(objectOrNull),
+	})
 }
 
 /** The rule for each top-level config key; its keys are the config keys oat knows. */

@@ -12,16 +12,22 @@ import {
 	modelledEntities,
 	sortedEntities,
 } from "./describe.ts"
+import { type SecurityCredentials, type SecurityFacts, securityFacts, securityJson } from "./security.ts"
+import { planSecurityLines, targetSecurity } from "./security-text.ts"
 
 /** What `plan` shows beside the model: the targeted scope, and the operations the config's recipes send. */
 export interface PlanView {
 	scope?: ScopePlan | undefined
 	/** An entity the auth flow owns through one of these is left out, as a run leaves it out. */
 	authCreates?: ReadonlySet<string>
+	/** The config's recipes and principals: with them, each operation names the principal that sends it. */
+	credentials?: SecurityCredentials | undefined
+	/** Variables the config names that are not set; listed in the JSON, given only with a config. */
+	unsetEnv?: string[] | undefined
 }
 
 function planJson(model: SpecModel, grammars: DeclaredGrammar[], view: PlanView): string {
-	const { authCreates = new Set(), scope } = view
+	const { authCreates = new Set(), scope, unsetEnv } = view
 	const entities = modelledEntities(model, authCreates)
 	return `${JSON.stringify(
 		{
@@ -33,9 +39,11 @@ function planJson(model: SpecModel, grammars: DeclaredGrammar[], view: PlanView)
 			operations: model.operations,
 			roots: model.roots,
 			...(scope === undefined ? {} : { scope }),
+			security: securityJson(securityFacts(model, view.credentials)),
 			unique: entities
 				.filter((entity) => entity.unique !== null)
 				.map((entity) => ({ entity: entity.name, unique: entity.unique })),
+			...(unsetEnv === undefined ? {} : { unsetEnv }),
 		},
 		null,
 		2,
@@ -103,14 +111,15 @@ function declarations(model: SpecModel, entities: EntityModel[], grammars: Decla
 }
 
 /** What a targeted run would grade, queue and call — the dry run behind `oat plan --ops`. */
-function planScopeText(scope: ScopePlan): string {
+function planScopeText(scope: ScopePlan, security: SecurityFacts): string {
 	const lines: string[] = ["", `  scope: targeted (${describeRequested(scope.requested)})`, ""]
 	const width = Math.max(12, ...[...scope.targets, ...scope.untestable].map((t) => t.operationId.length)) + 2
 	lines.push("  targets")
 	if (scope.targets.length === 0) lines.push("    — none gradable")
 	for (const target of scope.targets) {
 		lines.push(
-			`    ${target.operationId.padEnd(width)}entity ${(target.entity ?? "—").padEnd(14)}${target.checks.length} check(s)`,
+			`    ${target.operationId.padEnd(width)}entity ${(target.entity ?? "—").padEnd(14)}${target.checks.length} check(s)` +
+				targetSecurity(security, target.operationId),
 		)
 	}
 	if (scope.untestable.length > 0) {
@@ -134,7 +143,13 @@ function planScopeText(scope: ScopePlan): string {
 export function plan(model: SpecModel, asJson: boolean, view: PlanView = {}): string {
 	const grammars = declaredGrammars(model)
 	if (asJson) return planJson(model, grammars, view)
-	if (view.scope !== undefined) return planScopeText(view.scope)
+	const security = securityFacts(model, view.credentials)
+	if (view.scope !== undefined) return planScopeText(view.scope, security)
 	const entities = sortedEntities(model, view.authCreates)
-	return [...entityTable(model, entities), ...declarations(model, entities, grammars), ""].join("\n")
+	return [
+		...entityTable(model, entities),
+		...declarations(model, entities, grammars),
+		...(model.operations.length === 0 ? [] : planSecurityLines(security)),
+		"",
+	].join("\n")
 }

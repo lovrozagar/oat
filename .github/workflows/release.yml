@@ -77,7 +77,7 @@ jobs:
           node-version: "24"
       - run: bun install --frozen-lockfile
       - run: bun run build
-      - run: node --experimental-sqlite dist/cli.js conformance
+      - run: node dist/cli.js conformance
 
   npmjs:
     name: npmjs.com

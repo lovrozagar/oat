@@ -5,13 +5,14 @@ exports[`CLI golden > --help 1`] = `
   "code": 0,
   "output": "oat — OpenAPI Tester
 
-  oat run     --config <file>              test a live backend and write a report
-  oat plan    --spec <url|file>            derive and print the test model (offline)
-  oat doctor  --spec <url|file>            report what oat can and cannot test, and why
-  oat serve   [--defects A,B]              run a demo API to point oat at
-  oat conformance                          self-test: injected defects vs detection
-  oat baseline --from <run> [--out file]   write a known-findings baseline from a run's report
-  oat diff    <runA> <runB> [--json]       new, fixed and persisting findings between two runs
+  oat run     --config <file>                  test a live backend and write a report
+  oat plan    --spec <url|file>                derive and print the test model (offline)
+  oat doctor  --spec <url|file>                report what oat can and cannot test, and why
+  oat init    --spec <url|file> [--out file]   write a starter oat.config.ts from the document's security schemes
+  oat serve   [--defects A,B]                  run a demo API to point oat at
+  oat conformance                              self-test: injected defects vs detection
+  oat baseline --from <run> [--out file]       write a known-findings baseline from a run's report
+  oat diff    <runA> <runB> [--json]           new, fixed and persisting findings between two runs
 
 Flags
   --config <file>         oat config module (.ts/.js/.mjs/.json) with a default export
@@ -21,7 +22,8 @@ Flags
   --only <names>          run, plan: comma-separated entities, each grading every operation it owns; conformance: defect names
   --profile <name>        named profile gating which operations run (built-in: full, cheap)
   --seed <n>              integer seed for fixture generation (default 1); with --fuzz or --precision, the seed that replays a case
-  --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written
+  --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written; init: the config written (default ./oat.config.ts)
+  --report <names>        run: comma-separated reports to write beside the run's own; junit writes junit.xml in the run directory
   --keep-fixtures         leave created records in place instead of tearing them down
   --keep-credentials      write the credentials the run held to .oat/credentials.json (mode 0600), never under --out
   --max-in-flight <n>     requests allowed in flight at once (default 4)
@@ -45,7 +47,7 @@ Flags
   --aggregate <dir>       conformance: judge the proven-check files of a sharded run together; fails on any check none proved
   --json                  machine-readable output, for plan, doctor and diff
   --from <run>            baseline: the run folder (or latest) whose findings become known
-  --force                 baseline: overwrite an existing --out file
+  --force                 baseline, init: overwrite an existing --out file
   --help                  print this help
 ",
 }
@@ -90,13 +92,14 @@ exports[`CLI golden > boolean flag given a value 1`] = `
 
 oat — OpenAPI Tester
 
-  oat run     --config <file>              test a live backend and write a report
-  oat plan    --spec <url|file>            derive and print the test model (offline)
-  oat doctor  --spec <url|file>            report what oat can and cannot test, and why
-  oat serve   [--defects A,B]              run a demo API to point oat at
-  oat conformance                          self-test: injected defects vs detection
-  oat baseline --from <run> [--out file]   write a known-findings baseline from a run's report
-  oat diff    <runA> <runB> [--json]       new, fixed and persisting findings between two runs
+  oat run     --config <file>                  test a live backend and write a report
+  oat plan    --spec <url|file>                derive and print the test model (offline)
+  oat doctor  --spec <url|file>                report what oat can and cannot test, and why
+  oat init    --spec <url|file> [--out file]   write a starter oat.config.ts from the document's security schemes
+  oat serve   [--defects A,B]                  run a demo API to point oat at
+  oat conformance                              self-test: injected defects vs detection
+  oat baseline --from <run> [--out file]       write a known-findings baseline from a run's report
+  oat diff    <runA> <runB> [--json]           new, fixed and persisting findings between two runs
 
 Flags
   --config <file>         oat config module (.ts/.js/.mjs/.json) with a default export
@@ -106,7 +109,8 @@ Flags
   --only <names>          run, plan: comma-separated entities, each grading every operation it owns; conformance: defect names
   --profile <name>        named profile gating which operations run (built-in: full, cheap)
   --seed <n>              integer seed for fixture generation (default 1); with --fuzz or --precision, the seed that replays a case
-  --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written
+  --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written; init: the config written (default ./oat.config.ts)
+  --report <names>        run: comma-separated reports to write beside the run's own; junit writes junit.xml in the run directory
   --keep-fixtures         leave created records in place instead of tearing them down
   --keep-credentials      write the credentials the run held to .oat/credentials.json (mode 0600), never under --out
   --max-in-flight <n>     requests allowed in flight at once (default 4)
@@ -130,7 +134,7 @@ Flags
   --aggregate <dir>       conformance: judge the proven-check files of a sharded run together; fails on any check none proved
   --json                  machine-readable output, for plan, doctor and diff
   --from <run>            baseline: the run folder (or latest) whose findings become known
-  --force                 baseline: overwrite an existing --out file
+  --force                 baseline, init: overwrite an existing --out file
   --help                  print this help
 ",
 }
@@ -151,13 +155,14 @@ exports[`CLI golden > conformance --only with no list 1`] = `
 
 oat — OpenAPI Tester
 
-  oat run     --config <file>              test a live backend and write a report
-  oat plan    --spec <url|file>            derive and print the test model (offline)
-  oat doctor  --spec <url|file>            report what oat can and cannot test, and why
-  oat serve   [--defects A,B]              run a demo API to point oat at
-  oat conformance                          self-test: injected defects vs detection
-  oat baseline --from <run> [--out file]   write a known-findings baseline from a run's report
-  oat diff    <runA> <runB> [--json]       new, fixed and persisting findings between two runs
+  oat run     --config <file>                  test a live backend and write a report
+  oat plan    --spec <url|file>                derive and print the test model (offline)
+  oat doctor  --spec <url|file>                report what oat can and cannot test, and why
+  oat init    --spec <url|file> [--out file]   write a starter oat.config.ts from the document's security schemes
+  oat serve   [--defects A,B]                  run a demo API to point oat at
+  oat conformance                              self-test: injected defects vs detection
+  oat baseline --from <run> [--out file]       write a known-findings baseline from a run's report
+  oat diff    <runA> <runB> [--json]           new, fixed and persisting findings between two runs
 
 Flags
   --config <file>         oat config module (.ts/.js/.mjs/.json) with a default export
@@ -167,7 +172,8 @@ Flags
   --only <names>          run, plan: comma-separated entities, each grading every operation it owns; conformance: defect names
   --profile <name>        named profile gating which operations run (built-in: full, cheap)
   --seed <n>              integer seed for fixture generation (default 1); with --fuzz or --precision, the seed that replays a case
-  --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written
+  --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written; init: the config written (default ./oat.config.ts)
+  --report <names>        run: comma-separated reports to write beside the run's own; junit writes junit.xml in the run directory
   --keep-fixtures         leave created records in place instead of tearing them down
   --keep-credentials      write the credentials the run held to .oat/credentials.json (mode 0600), never under --out
   --max-in-flight <n>     requests allowed in flight at once (default 4)
@@ -191,7 +197,7 @@ Flags
   --aggregate <dir>       conformance: judge the proven-check files of a sharded run together; fails on any check none proved
   --json                  machine-readable output, for plan, doctor and diff
   --from <run>            baseline: the run folder (or latest) whose findings become known
-  --force                 baseline: overwrite an existing --out file
+  --force                 baseline, init: overwrite an existing --out file
   --help                  print this help
 ",
 }
@@ -236,13 +242,14 @@ exports[`CLI golden > flag needs a value 1`] = `
 
 oat — OpenAPI Tester
 
-  oat run     --config <file>              test a live backend and write a report
-  oat plan    --spec <url|file>            derive and print the test model (offline)
-  oat doctor  --spec <url|file>            report what oat can and cannot test, and why
-  oat serve   [--defects A,B]              run a demo API to point oat at
-  oat conformance                          self-test: injected defects vs detection
-  oat baseline --from <run> [--out file]   write a known-findings baseline from a run's report
-  oat diff    <runA> <runB> [--json]       new, fixed and persisting findings between two runs
+  oat run     --config <file>                  test a live backend and write a report
+  oat plan    --spec <url|file>                derive and print the test model (offline)
+  oat doctor  --spec <url|file>                report what oat can and cannot test, and why
+  oat init    --spec <url|file> [--out file]   write a starter oat.config.ts from the document's security schemes
+  oat serve   [--defects A,B]                  run a demo API to point oat at
+  oat conformance                              self-test: injected defects vs detection
+  oat baseline --from <run> [--out file]       write a known-findings baseline from a run's report
+  oat diff    <runA> <runB> [--json]           new, fixed and persisting findings between two runs
 
 Flags
   --config <file>         oat config module (.ts/.js/.mjs/.json) with a default export
@@ -252,7 +259,8 @@ Flags
   --only <names>          run, plan: comma-separated entities, each grading every operation it owns; conformance: defect names
   --profile <name>        named profile gating which operations run (built-in: full, cheap)
   --seed <n>              integer seed for fixture generation (default 1); with --fuzz or --precision, the seed that replays a case
-  --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written
+  --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written; init: the config written (default ./oat.config.ts)
+  --report <names>        run: comma-separated reports to write beside the run's own; junit writes junit.xml in the run directory
   --keep-fixtures         leave created records in place instead of tearing them down
   --keep-credentials      write the credentials the run held to .oat/credentials.json (mode 0600), never under --out
   --max-in-flight <n>     requests allowed in flight at once (default 4)
@@ -276,7 +284,7 @@ Flags
   --aggregate <dir>       conformance: judge the proven-check files of a sharded run together; fails on any check none proved
   --json                  machine-readable output, for plan, doctor and diff
   --from <run>            baseline: the run folder (or latest) whose findings become known
-  --force                 baseline: overwrite an existing --out file
+  --force                 baseline, init: overwrite an existing --out file
   --help                  print this help
 ",
 }
@@ -287,13 +295,14 @@ exports[`CLI golden > help 1`] = `
   "code": 0,
   "output": "oat — OpenAPI Tester
 
-  oat run     --config <file>              test a live backend and write a report
-  oat plan    --spec <url|file>            derive and print the test model (offline)
-  oat doctor  --spec <url|file>            report what oat can and cannot test, and why
-  oat serve   [--defects A,B]              run a demo API to point oat at
-  oat conformance                          self-test: injected defects vs detection
-  oat baseline --from <run> [--out file]   write a known-findings baseline from a run's report
-  oat diff    <runA> <runB> [--json]       new, fixed and persisting findings between two runs
+  oat run     --config <file>                  test a live backend and write a report
+  oat plan    --spec <url|file>                derive and print the test model (offline)
+  oat doctor  --spec <url|file>                report what oat can and cannot test, and why
+  oat init    --spec <url|file> [--out file]   write a starter oat.config.ts from the document's security schemes
+  oat serve   [--defects A,B]                  run a demo API to point oat at
+  oat conformance                              self-test: injected defects vs detection
+  oat baseline --from <run> [--out file]       write a known-findings baseline from a run's report
+  oat diff    <runA> <runB> [--json]           new, fixed and persisting findings between two runs
 
 Flags
   --config <file>         oat config module (.ts/.js/.mjs/.json) with a default export
@@ -303,7 +312,8 @@ Flags
   --only <names>          run, plan: comma-separated entities, each grading every operation it owns; conformance: defect names
   --profile <name>        named profile gating which operations run (built-in: full, cheap)
   --seed <n>              integer seed for fixture generation (default 1); with --fuzz or --precision, the seed that replays a case
-  --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written
+  --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written; init: the config written (default ./oat.config.ts)
+  --report <names>        run: comma-separated reports to write beside the run's own; junit writes junit.xml in the run directory
   --keep-fixtures         leave created records in place instead of tearing them down
   --keep-credentials      write the credentials the run held to .oat/credentials.json (mode 0600), never under --out
   --max-in-flight <n>     requests allowed in flight at once (default 4)
@@ -327,7 +337,7 @@ Flags
   --aggregate <dir>       conformance: judge the proven-check files of a sharded run together; fails on any check none proved
   --json                  machine-readable output, for plan, doctor and diff
   --from <run>            baseline: the run folder (or latest) whose findings become known
-  --force                 baseline: overwrite an existing --out file
+  --force                 baseline, init: overwrite an existing --out file
   --help                  print this help
 ",
 }
@@ -340,13 +350,14 @@ exports[`CLI golden > integer flag given text 1`] = `
 
 oat — OpenAPI Tester
 
-  oat run     --config <file>              test a live backend and write a report
-  oat plan    --spec <url|file>            derive and print the test model (offline)
-  oat doctor  --spec <url|file>            report what oat can and cannot test, and why
-  oat serve   [--defects A,B]              run a demo API to point oat at
-  oat conformance                          self-test: injected defects vs detection
-  oat baseline --from <run> [--out file]   write a known-findings baseline from a run's report
-  oat diff    <runA> <runB> [--json]       new, fixed and persisting findings between two runs
+  oat run     --config <file>                  test a live backend and write a report
+  oat plan    --spec <url|file>                derive and print the test model (offline)
+  oat doctor  --spec <url|file>                report what oat can and cannot test, and why
+  oat init    --spec <url|file> [--out file]   write a starter oat.config.ts from the document's security schemes
+  oat serve   [--defects A,B]                  run a demo API to point oat at
+  oat conformance                              self-test: injected defects vs detection
+  oat baseline --from <run> [--out file]       write a known-findings baseline from a run's report
+  oat diff    <runA> <runB> [--json]           new, fixed and persisting findings between two runs
 
 Flags
   --config <file>         oat config module (.ts/.js/.mjs/.json) with a default export
@@ -356,7 +367,8 @@ Flags
   --only <names>          run, plan: comma-separated entities, each grading every operation it owns; conformance: defect names
   --profile <name>        named profile gating which operations run (built-in: full, cheap)
   --seed <n>              integer seed for fixture generation (default 1); with --fuzz or --precision, the seed that replays a case
-  --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written
+  --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written; init: the config written (default ./oat.config.ts)
+  --report <names>        run: comma-separated reports to write beside the run's own; junit writes junit.xml in the run directory
   --keep-fixtures         leave created records in place instead of tearing them down
   --keep-credentials      write the credentials the run held to .oat/credentials.json (mode 0600), never under --out
   --max-in-flight <n>     requests allowed in flight at once (default 4)
@@ -380,7 +392,7 @@ Flags
   --aggregate <dir>       conformance: judge the proven-check files of a sharded run together; fails on any check none proved
   --json                  machine-readable output, for plan, doctor and diff
   --from <run>            baseline: the run folder (or latest) whose findings become known
-  --force                 baseline: overwrite an existing --out file
+  --force                 baseline, init: overwrite an existing --out file
   --help                  print this help
 ",
 }
@@ -391,13 +403,14 @@ exports[`CLI golden > no arguments 1`] = `
   "code": 0,
   "output": "oat — OpenAPI Tester
 
-  oat run     --config <file>              test a live backend and write a report
-  oat plan    --spec <url|file>            derive and print the test model (offline)
-  oat doctor  --spec <url|file>            report what oat can and cannot test, and why
-  oat serve   [--defects A,B]              run a demo API to point oat at
-  oat conformance                          self-test: injected defects vs detection
-  oat baseline --from <run> [--out file]   write a known-findings baseline from a run's report
-  oat diff    <runA> <runB> [--json]       new, fixed and persisting findings between two runs
+  oat run     --config <file>                  test a live backend and write a report
+  oat plan    --spec <url|file>                derive and print the test model (offline)
+  oat doctor  --spec <url|file>                report what oat can and cannot test, and why
+  oat init    --spec <url|file> [--out file]   write a starter oat.config.ts from the document's security schemes
+  oat serve   [--defects A,B]                  run a demo API to point oat at
+  oat conformance                              self-test: injected defects vs detection
+  oat baseline --from <run> [--out file]       write a known-findings baseline from a run's report
+  oat diff    <runA> <runB> [--json]           new, fixed and persisting findings between two runs
 
 Flags
   --config <file>         oat config module (.ts/.js/.mjs/.json) with a default export
@@ -407,7 +420,8 @@ Flags
   --only <names>          run, plan: comma-separated entities, each grading every operation it owns; conformance: defect names
   --profile <name>        named profile gating which operations run (built-in: full, cheap)
   --seed <n>              integer seed for fixture generation (default 1); with --fuzz or --precision, the seed that replays a case
-  --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written
+  --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written; init: the config written (default ./oat.config.ts)
+  --report <names>        run: comma-separated reports to write beside the run's own; junit writes junit.xml in the run directory
   --keep-fixtures         leave created records in place instead of tearing them down
   --keep-credentials      write the credentials the run held to .oat/credentials.json (mode 0600), never under --out
   --max-in-flight <n>     requests allowed in flight at once (default 4)
@@ -431,7 +445,7 @@ Flags
   --aggregate <dir>       conformance: judge the proven-check files of a sharded run together; fails on any check none proved
   --json                  machine-readable output, for plan, doctor and diff
   --from <run>            baseline: the run folder (or latest) whose findings become known
-  --force                 baseline: overwrite an existing --out file
+  --force                 baseline, init: overwrite an existing --out file
   --help                  print this help
 ",
 }
@@ -452,13 +466,14 @@ exports[`CLI golden > plan with an invalid config 1`] = `
 
 oat — OpenAPI Tester
 
-  oat run     --config <file>              test a live backend and write a report
-  oat plan    --spec <url|file>            derive and print the test model (offline)
-  oat doctor  --spec <url|file>            report what oat can and cannot test, and why
-  oat serve   [--defects A,B]              run a demo API to point oat at
-  oat conformance                          self-test: injected defects vs detection
-  oat baseline --from <run> [--out file]   write a known-findings baseline from a run's report
-  oat diff    <runA> <runB> [--json]       new, fixed and persisting findings between two runs
+  oat run     --config <file>                  test a live backend and write a report
+  oat plan    --spec <url|file>                derive and print the test model (offline)
+  oat doctor  --spec <url|file>                report what oat can and cannot test, and why
+  oat init    --spec <url|file> [--out file]   write a starter oat.config.ts from the document's security schemes
+  oat serve   [--defects A,B]                  run a demo API to point oat at
+  oat conformance                              self-test: injected defects vs detection
+  oat baseline --from <run> [--out file]       write a known-findings baseline from a run's report
+  oat diff    <runA> <runB> [--json]           new, fixed and persisting findings between two runs
 
 Flags
   --config <file>         oat config module (.ts/.js/.mjs/.json) with a default export
@@ -468,7 +483,8 @@ Flags
   --only <names>          run, plan: comma-separated entities, each grading every operation it owns; conformance: defect names
   --profile <name>        named profile gating which operations run (built-in: full, cheap)
   --seed <n>              integer seed for fixture generation (default 1); with --fuzz or --precision, the seed that replays a case
-  --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written
+  --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written; init: the config written (default ./oat.config.ts)
+  --report <names>        run: comma-separated reports to write beside the run's own; junit writes junit.xml in the run directory
   --keep-fixtures         leave created records in place instead of tearing them down
   --keep-credentials      write the credentials the run held to .oat/credentials.json (mode 0600), never under --out
   --max-in-flight <n>     requests allowed in flight at once (default 4)
@@ -492,7 +508,7 @@ Flags
   --aggregate <dir>       conformance: judge the proven-check files of a sharded run together; fails on any check none proved
   --json                  machine-readable output, for plan, doctor and diff
   --from <run>            baseline: the run folder (or latest) whose findings become known
-  --force                 baseline: overwrite an existing --out file
+  --force                 baseline, init: overwrite an existing --out file
   --help                  print this help
 ",
 }
@@ -521,13 +537,14 @@ exports[`CLI golden > plan without a spec 1`] = `
 
 oat — OpenAPI Tester
 
-  oat run     --config <file>              test a live backend and write a report
-  oat plan    --spec <url|file>            derive and print the test model (offline)
-  oat doctor  --spec <url|file>            report what oat can and cannot test, and why
-  oat serve   [--defects A,B]              run a demo API to point oat at
-  oat conformance                          self-test: injected defects vs detection
-  oat baseline --from <run> [--out file]   write a known-findings baseline from a run's report
-  oat diff    <runA> <runB> [--json]       new, fixed and persisting findings between two runs
+  oat run     --config <file>                  test a live backend and write a report
+  oat plan    --spec <url|file>                derive and print the test model (offline)
+  oat doctor  --spec <url|file>                report what oat can and cannot test, and why
+  oat init    --spec <url|file> [--out file]   write a starter oat.config.ts from the document's security schemes
+  oat serve   [--defects A,B]                  run a demo API to point oat at
+  oat conformance                              self-test: injected defects vs detection
+  oat baseline --from <run> [--out file]       write a known-findings baseline from a run's report
+  oat diff    <runA> <runB> [--json]           new, fixed and persisting findings between two runs
 
 Flags
   --config <file>         oat config module (.ts/.js/.mjs/.json) with a default export
@@ -537,7 +554,8 @@ Flags
   --only <names>          run, plan: comma-separated entities, each grading every operation it owns; conformance: defect names
   --profile <name>        named profile gating which operations run (built-in: full, cheap)
   --seed <n>              integer seed for fixture generation (default 1); with --fuzz or --precision, the seed that replays a case
-  --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written
+  --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written; init: the config written (default ./oat.config.ts)
+  --report <names>        run: comma-separated reports to write beside the run's own; junit writes junit.xml in the run directory
   --keep-fixtures         leave created records in place instead of tearing them down
   --keep-credentials      write the credentials the run held to .oat/credentials.json (mode 0600), never under --out
   --max-in-flight <n>     requests allowed in flight at once (default 4)
@@ -561,7 +579,7 @@ Flags
   --aggregate <dir>       conformance: judge the proven-check files of a sharded run together; fails on any check none proved
   --json                  machine-readable output, for plan, doctor and diff
   --from <run>            baseline: the run folder (or latest) whose findings become known
-  --force                 baseline: overwrite an existing --out file
+  --force                 baseline, init: overwrite an existing --out file
   --help                  print this help
 ",
 }
@@ -574,13 +592,14 @@ exports[`CLI golden > positive flag given zero 1`] = `
 
 oat — OpenAPI Tester
 
-  oat run     --config <file>              test a live backend and write a report
-  oat plan    --spec <url|file>            derive and print the test model (offline)
-  oat doctor  --spec <url|file>            report what oat can and cannot test, and why
-  oat serve   [--defects A,B]              run a demo API to point oat at
-  oat conformance                          self-test: injected defects vs detection
-  oat baseline --from <run> [--out file]   write a known-findings baseline from a run's report
-  oat diff    <runA> <runB> [--json]       new, fixed and persisting findings between two runs
+  oat run     --config <file>                  test a live backend and write a report
+  oat plan    --spec <url|file>                derive and print the test model (offline)
+  oat doctor  --spec <url|file>                report what oat can and cannot test, and why
+  oat init    --spec <url|file> [--out file]   write a starter oat.config.ts from the document's security schemes
+  oat serve   [--defects A,B]                  run a demo API to point oat at
+  oat conformance                              self-test: injected defects vs detection
+  oat baseline --from <run> [--out file]       write a known-findings baseline from a run's report
+  oat diff    <runA> <runB> [--json]           new, fixed and persisting findings between two runs
 
 Flags
   --config <file>         oat config module (.ts/.js/.mjs/.json) with a default export
@@ -590,7 +609,8 @@ Flags
   --only <names>          run, plan: comma-separated entities, each grading every operation it owns; conformance: defect names
   --profile <name>        named profile gating which operations run (built-in: full, cheap)
   --seed <n>              integer seed for fixture generation (default 1); with --fuzz or --precision, the seed that replays a case
-  --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written
+  --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written; init: the config written (default ./oat.config.ts)
+  --report <names>        run: comma-separated reports to write beside the run's own; junit writes junit.xml in the run directory
   --keep-fixtures         leave created records in place instead of tearing them down
   --keep-credentials      write the credentials the run held to .oat/credentials.json (mode 0600), never under --out
   --max-in-flight <n>     requests allowed in flight at once (default 4)
@@ -614,7 +634,7 @@ Flags
   --aggregate <dir>       conformance: judge the proven-check files of a sharded run together; fails on any check none proved
   --json                  machine-readable output, for plan, doctor and diff
   --from <run>            baseline: the run folder (or latest) whose findings become known
-  --force                 baseline: overwrite an existing --out file
+  --force                 baseline, init: overwrite an existing --out file
   --help                  print this help
 ",
 }
@@ -670,13 +690,14 @@ exports[`CLI golden > run without --config 1`] = `
 
 oat — OpenAPI Tester
 
-  oat run     --config <file>              test a live backend and write a report
-  oat plan    --spec <url|file>            derive and print the test model (offline)
-  oat doctor  --spec <url|file>            report what oat can and cannot test, and why
-  oat serve   [--defects A,B]              run a demo API to point oat at
-  oat conformance                          self-test: injected defects vs detection
-  oat baseline --from <run> [--out file]   write a known-findings baseline from a run's report
-  oat diff    <runA> <runB> [--json]       new, fixed and persisting findings between two runs
+  oat run     --config <file>                  test a live backend and write a report
+  oat plan    --spec <url|file>                derive and print the test model (offline)
+  oat doctor  --spec <url|file>                report what oat can and cannot test, and why
+  oat init    --spec <url|file> [--out file]   write a starter oat.config.ts from the document's security schemes
+  oat serve   [--defects A,B]                  run a demo API to point oat at
+  oat conformance                              self-test: injected defects vs detection
+  oat baseline --from <run> [--out file]       write a known-findings baseline from a run's report
+  oat diff    <runA> <runB> [--json]           new, fixed and persisting findings between two runs
 
 Flags
   --config <file>         oat config module (.ts/.js/.mjs/.json) with a default export
@@ -686,7 +707,8 @@ Flags
   --only <names>          run, plan: comma-separated entities, each grading every operation it owns; conformance: defect names
   --profile <name>        named profile gating which operations run (built-in: full, cheap)
   --seed <n>              integer seed for fixture generation (default 1); with --fuzz or --precision, the seed that replays a case
-  --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written
+  --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written; init: the config written (default ./oat.config.ts)
+  --report <names>        run: comma-separated reports to write beside the run's own; junit writes junit.xml in the run directory
   --keep-fixtures         leave created records in place instead of tearing them down
   --keep-credentials      write the credentials the run held to .oat/credentials.json (mode 0600), never under --out
   --max-in-flight <n>     requests allowed in flight at once (default 4)
@@ -710,7 +732,7 @@ Flags
   --aggregate <dir>       conformance: judge the proven-check files of a sharded run together; fails on any check none proved
   --json                  machine-readable output, for plan, doctor and diff
   --from <run>            baseline: the run folder (or latest) whose findings become known
-  --force                 baseline: overwrite an existing --out file
+  --force                 baseline, init: overwrite an existing --out file
   --help                  print this help
 ",
 }
@@ -723,13 +745,14 @@ exports[`CLI golden > unknown command 1`] = `
 
 oat — OpenAPI Tester
 
-  oat run     --config <file>              test a live backend and write a report
-  oat plan    --spec <url|file>            derive and print the test model (offline)
-  oat doctor  --spec <url|file>            report what oat can and cannot test, and why
-  oat serve   [--defects A,B]              run a demo API to point oat at
-  oat conformance                          self-test: injected defects vs detection
-  oat baseline --from <run> [--out file]   write a known-findings baseline from a run's report
-  oat diff    <runA> <runB> [--json]       new, fixed and persisting findings between two runs
+  oat run     --config <file>                  test a live backend and write a report
+  oat plan    --spec <url|file>                derive and print the test model (offline)
+  oat doctor  --spec <url|file>                report what oat can and cannot test, and why
+  oat init    --spec <url|file> [--out file]   write a starter oat.config.ts from the document's security schemes
+  oat serve   [--defects A,B]                  run a demo API to point oat at
+  oat conformance                              self-test: injected defects vs detection
+  oat baseline --from <run> [--out file]       write a known-findings baseline from a run's report
+  oat diff    <runA> <runB> [--json]           new, fixed and persisting findings between two runs
 
 Flags
   --config <file>         oat config module (.ts/.js/.mjs/.json) with a default export
@@ -739,7 +762,8 @@ Flags
   --only <names>          run, plan: comma-separated entities, each grading every operation it owns; conformance: defect names
   --profile <name>        named profile gating which operations run (built-in: full, cheap)
   --seed <n>              integer seed for fixture generation (default 1); with --fuzz or --precision, the seed that replays a case
-  --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written
+  --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written; init: the config written (default ./oat.config.ts)
+  --report <names>        run: comma-separated reports to write beside the run's own; junit writes junit.xml in the run directory
   --keep-fixtures         leave created records in place instead of tearing them down
   --keep-credentials      write the credentials the run held to .oat/credentials.json (mode 0600), never under --out
   --max-in-flight <n>     requests allowed in flight at once (default 4)
@@ -763,7 +787,7 @@ Flags
   --aggregate <dir>       conformance: judge the proven-check files of a sharded run together; fails on any check none proved
   --json                  machine-readable output, for plan, doctor and diff
   --from <run>            baseline: the run folder (or latest) whose findings become known
-  --force                 baseline: overwrite an existing --out file
+  --force                 baseline, init: overwrite an existing --out file
   --help                  print this help
 ",
 }
@@ -776,13 +800,14 @@ exports[`CLI golden > unknown flag 1`] = `
 
 oat — OpenAPI Tester
 
-  oat run     --config <file>              test a live backend and write a report
-  oat plan    --spec <url|file>            derive and print the test model (offline)
-  oat doctor  --spec <url|file>            report what oat can and cannot test, and why
-  oat serve   [--defects A,B]              run a demo API to point oat at
-  oat conformance                          self-test: injected defects vs detection
-  oat baseline --from <run> [--out file]   write a known-findings baseline from a run's report
-  oat diff    <runA> <runB> [--json]       new, fixed and persisting findings between two runs
+  oat run     --config <file>                  test a live backend and write a report
+  oat plan    --spec <url|file>                derive and print the test model (offline)
+  oat doctor  --spec <url|file>                report what oat can and cannot test, and why
+  oat init    --spec <url|file> [--out file]   write a starter oat.config.ts from the document's security schemes
+  oat serve   [--defects A,B]                  run a demo API to point oat at
+  oat conformance                              self-test: injected defects vs detection
+  oat baseline --from <run> [--out file]       write a known-findings baseline from a run's report
+  oat diff    <runA> <runB> [--json]           new, fixed and persisting findings between two runs
 
 Flags
   --config <file>         oat config module (.ts/.js/.mjs/.json) with a default export
@@ -792,7 +817,8 @@ Flags
   --only <names>          run, plan: comma-separated entities, each grading every operation it owns; conformance: defect names
   --profile <name>        named profile gating which operations run (built-in: full, cheap)
   --seed <n>              integer seed for fixture generation (default 1); with --fuzz or --precision, the seed that replays a case
-  --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written
+  --out <dir|file>        run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written; init: the config written (default ./oat.config.ts)
+  --report <names>        run: comma-separated reports to write beside the run's own; junit writes junit.xml in the run directory
   --keep-fixtures         leave created records in place instead of tearing them down
   --keep-credentials      write the credentials the run held to .oat/credentials.json (mode 0600), never under --out
   --max-in-flight <n>     requests allowed in flight at once (default 4)
@@ -816,7 +842,7 @@ Flags
   --aggregate <dir>       conformance: judge the proven-check files of a sharded run together; fails on any check none proved
   --json                  machine-readable output, for plan, doctor and diff
   --from <run>            baseline: the run folder (or latest) whose findings become known
-  --force                 baseline: overwrite an existing --out file
+  --force                 baseline, init: overwrite an existing --out file
   --help                  print this help
 ",
 }

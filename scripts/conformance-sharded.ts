@@ -67,7 +67,7 @@ async function legs(): Promise<Leg[] | string> {
 }
 
 function conformance(flags: readonly string[]): number {
-	return spawnSync("node", ["--experimental-sqlite", cli, "conformance", ...flags], { stdio: "inherit" }).status ?? 1
+	return spawnSync("node", [cli, "conformance", ...flags], { stdio: "inherit" }).status ?? 1
 }
 
 const planned = await legs()

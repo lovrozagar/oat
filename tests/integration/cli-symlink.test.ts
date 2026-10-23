@@ -24,7 +24,7 @@ describe("the CLI reached through a symlink", () => {
 		const dir = await mkdtemp(join(tmpdir(), "oat-link-"))
 		dirs.push(dir)
 		await symlink(ROOT, join(dir, "pkg"), "dir")
-		const result = spawnSync(process.execPath, ["--experimental-sqlite", join(dir, "pkg", "dist", "cli.js"), "help"], {
+		const result = spawnSync(process.execPath, [join(dir, "pkg", "dist", "cli.js"), "help"], {
 			encoding: "utf8",
 		})
 		expect(result.status).toBe(0)

@@ -8,6 +8,7 @@ import { commandConformance } from "./commands/conformance.ts"
 import type { Toolkit } from "./commands/conformance-toolkit.ts"
 import { commandDiff } from "./commands/diff.ts"
 import { commandDoctor } from "./commands/doctor.ts"
+import { commandInit } from "./commands/init.ts"
 import { commandPlan } from "./commands/plan.ts"
 import { commandRun, type RunDeps } from "./commands/run.ts"
 import { commandServe, type ServeDeps } from "./commands/serve.ts"
@@ -30,6 +31,7 @@ const COMMANDS: Readonly<Record<string, Command>> = {
 	conformance: ({ writer, toolkit }, flags) => commandConformance(writer, flags, toolkit),
 	diff: ({ writer }, flags, positionals) => commandDiff(writer, flags, positionals),
 	doctor: ({ writer }, flags) => commandDoctor(writer, flags),
+	init: ({ writer }, flags) => commandInit(writer, flags),
 	plan: ({ writer }, flags) => commandPlan(writer, flags),
 	run: ({ writer, run }, flags) => commandRun(writer, flags, run),
 	serve: ({ writer, serve }, flags) => commandServe(writer, flags, serve),

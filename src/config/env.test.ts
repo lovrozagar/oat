@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { env, MissingEnvError } from "./env.ts"
+import { DEFER_ENV, env, MissingEnvError } from "./env.ts"
 
 describe("env", () => {
 	it("reads a set variable", () => {
@@ -17,6 +17,14 @@ describe("env", () => {
 			expect(env("OAT_ENV_TEST_SET")).toBe("yes")
 		} finally {
 			delete process.env["OAT_ENV_TEST_SET"]
+		}
+	})
+
+	it("defers an unset variable to its ${NAME} literal only when OAT_DEFER_ENV is exactly 1", () => {
+		expect(env("OAT_TOKEN", { [DEFER_ENV]: "1" })).toBe("${OAT_TOKEN}")
+		expect(env("OAT_TOKEN", { [DEFER_ENV]: "1", OAT_TOKEN: "t" })).toBe("t")
+		for (const near of ["true", "yes", "0", "", " 1"]) {
+			expect(() => env("OAT_TOKEN", { [DEFER_ENV]: near })).toThrow(new MissingEnvError("OAT_TOKEN"))
 		}
 	})
 })

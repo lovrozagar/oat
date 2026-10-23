@@ -39,9 +39,14 @@ export const FLAGS: Readonly<Record<string, FlagSpec>> = {
 		value: "<n>",
 	},
 	out: {
-		help: "run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written",
+		help: "run: history root, each run is <out>/<datetime>/ (default ./.oat/runs); baseline: the file written; init: the config written (default ./oat.config.ts)",
 		kind: "value",
 		value: "<dir|file>",
+	},
+	report: {
+		help: "run: comma-separated reports to write beside the run's own; junit writes junit.xml in the run directory",
+		kind: "value",
+		value: "<names>",
 	},
 	"keep-fixtures": { help: "leave created records in place instead of tearing them down", kind: "boolean" },
 	"keep-credentials": {
@@ -130,7 +135,7 @@ export const FLAGS: Readonly<Record<string, FlagSpec>> = {
 	},
 	json: { help: "machine-readable output, for plan, doctor and diff", kind: "boolean" },
 	from: { help: "baseline: the run folder (or latest) whose findings become known", kind: "value", value: "<run>" },
-	force: { help: "baseline: overwrite an existing --out file", kind: "boolean" },
+	force: { help: "baseline, init: overwrite an existing --out file", kind: "boolean" },
 	help: { help: "print this help", kind: "boolean" },
 }
 
@@ -144,6 +149,10 @@ export const COMMANDS: ReadonlyArray<{ usage: string; help: string }> = [
 	{ help: "test a live backend and write a report", usage: "run     --config <file>" },
 	{ help: "derive and print the test model (offline)", usage: "plan    --spec <url|file>" },
 	{ help: "report what oat can and cannot test, and why", usage: "doctor  --spec <url|file>" },
+	{
+		help: "write a starter oat.config.ts from the document's security schemes",
+		usage: "init    --spec <url|file> [--out file]",
+	},
 	{ help: "run a demo API to point oat at", usage: "serve   [--defects A,B]" },
 	{ help: "self-test: injected defects vs detection", usage: "conformance" },
 	{ help: "write a known-findings baseline from a run's report", usage: "baseline --from <run> [--out file]" },
@@ -154,7 +163,8 @@ export const COMMANDS: ReadonlyArray<{ usage: string; help: string }> = [
 export const USAGE: string = /* @__PURE__ */ usage()
 
 function usage(): string {
-	const commands = COMMANDS.map((command) => `  oat ${command.usage.padEnd(37)}${command.help}`)
+	const column = Math.max(...COMMANDS.map((command) => command.usage.length)) + 3
+	const commands = COMMANDS.map((command) => `  oat ${command.usage.padEnd(column)}${command.help}`)
 	const named = Object.entries(FLAGS).map(([name, spec]) => [
 		`--${name}${spec.value === undefined ? "" : ` ${spec.value}`}`,
 		spec.help,

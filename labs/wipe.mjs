@@ -1,8 +1,8 @@
 /**
  * Delete every row in a labs world's D1. Schema stays.
  *
- *   node --experimental-strip-types labs/wipe.mjs huge
- *   node --experimental-strip-types labs/wipe.mjs huge vast
+ *   node labs/wipe.mjs huge
+ *   node labs/wipe.mjs huge vast
  */
 import { requireD1 } from "./kit/env.ts"
 import { WORLDS } from "./worlds/catalog.ts"

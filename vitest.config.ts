@@ -10,6 +10,9 @@ import { COVERAGE_EXCLUDE, COVERAGE_INCLUDE } from "./tests/support/coverage-sco
 export default defineConfig({
 	test: {
 		globalSetup: ["tests/support/temp-root.ts"],
+		/* GitHub Actions sets this for the test step itself; a test that runs `oat run` must not append to
+		 * CI's own job summary. A test of the summary sets its own path. */
+		env: { GITHUB_STEP_SUMMARY: "" },
 		testTimeout: 20_000,
 		execArgv: ["--expose-gc"],
 		projects: [

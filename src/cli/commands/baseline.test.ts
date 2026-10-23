@@ -63,4 +63,16 @@ describe("commandBaseline", () => {
 			expect(writer.text()).toMatch(said)
 		}
 	})
+
+	it("refuses a report from a newer schema, and reads one from 0.24 or schema 1", async () => {
+		const dir = folder()
+		const current = savedRun(dir, "current", { findings: [finding], schemaVersion: 1 })
+		expect(await commandBaseline(bufferWriter(), { from: current, out: join(dir, "a.json") })).toBe(0)
+		const newer = bufferWriter()
+		const from = savedRun(dir, "newer", { findings: [finding], schemaVersion: 2 })
+		expect(await commandBaseline(newer, { from, out: join(dir, "b.json") })).toBe(2)
+		expect(newer.text()).toBe(
+			`oat: ${join(dir, "newer", "oat-report.json")} is report schemaVersion 2; this oat reads 1 — upgrade oat\n`,
+		)
+	})
 })

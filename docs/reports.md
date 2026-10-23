@@ -13,21 +13,22 @@ Written under `--out` (default `./.oat/runs`). Each invocation creates a UTC tim
 
 `--out` / `outDir` replace the root, not the leaf — `--out .oat/runs/prod` writes `.oat/runs/prod/<datetime>/`.
 
-| file                         |                                                                                                                                                            |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `report.html`                | **start here**: every operation in one group (Failed, Blocked, Effects unproven, Verified, Complete by contract), why, and links to the requests behind it |
-| `oat-report.md`              | human report: scope, confidence counts, per-operation status, summary, findings with request/response excerpts, coverage, latency p50/p95/max              |
-| `oat-report.json`            | same data for CI. Summary only — full exchanges are not inlined here                                                                                       |
-| `matrix.html`                | visual matrix of entities × checks                                                                                                                         |
-| `matrix.json`                | the same graph (AI-friendly), including a mermaid string                                                                                                   |
-| `issue-repro/*.sh`           | one executable `curl` script per finding that has evidence. Directory is omitted when the run is clean                                                     |
-| `progress.log`               | logfmt, one event per line, never truncated                                                                                                                |
-| `progress.jsonl`             | same events as JSON                                                                                                                                        |
-| `progress.tsv`               | same columns, tab-separated. `req_id` is the join key to the exchange journal                                                                              |
-| `progress.json`              | latest snapshot only (overwritten ~1s)                                                                                                                     |
-| `exchanges.jsonl`            | one line per request (`seq`, `requestId`, method, url, status, bytes, …). Greppable                                                                        |
-| `exchanges/<requestId>.json` | full exchange: status, headers, described bodies. Missing id → `seq-<n>.json`. Duplicate id → `-<seq>`                                                     |
-| `blobs/<sha256>`             | content-addressed file parts and oversized / binary bodies                                                                                                 |
+| file                         |                                                                                                                                                                           |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `report.html`                | **start here**: every operation in one group (Failed, Blocked, Effects unproven, Verified, Complete by contract), why, and links to the requests behind it                |
+| `oat-report.md`              | human report: scope, confidence counts, per-operation status, summary, findings with request/response excerpts, coverage, latency p50/p95/max                             |
+| `oat-report.json`            | same data for CI. Summary only — full exchanges are not inlined here                                                                                                      |
+| `junit.xml`                  | only under `--report junit`: a suite per entity and a case per operation and check, for CI test-result views. See [JUnit and the job summary](#junit-and-the-job-summary) |
+| `matrix.html`                | visual matrix of entities × checks                                                                                                                                        |
+| `matrix.json`                | the same graph (AI-friendly), including a mermaid string                                                                                                                  |
+| `issue-repro/*.sh`           | one executable `curl` script per finding that has evidence. Directory is omitted when the run is clean                                                                    |
+| `progress.log`               | logfmt, one event per line, never truncated                                                                                                                               |
+| `progress.jsonl`             | same events as JSON                                                                                                                                                       |
+| `progress.tsv`               | same columns, tab-separated. `req_id` is the join key to the exchange journal                                                                                             |
+| `progress.json`              | latest snapshot only (overwritten ~1s)                                                                                                                                    |
+| `exchanges.jsonl`            | one line per request (`seq`, `requestId`, method, url, status, bytes, …). Greppable                                                                                       |
+| `exchanges/<requestId>.json` | full exchange: status, headers, described bodies. Missing id → `seq-<n>.json`. Duplicate id → `-<seq>`                                                                    |
+| `blobs/<sha256>`             | content-addressed file parts and oversized / binary bodies                                                                                                                |
 
 The journal is oat `Exchange` JSON, not HAR (HAR export is out of scope). Default **on** unless `--profile cheap`. `--no-save-exchanges` skips `exchanges/` entirely. `--quiet` does not. **`--no-save-exchanges` does not reduce transcript RAM** — it only skips the disk journal. The in-memory transcript always drops live `FormData` / `Blob` / `ArrayBuffer` / multi-MiB strings after each hop, keeping citeable metadata and content-addressed body descriptors. Reconstruct bytes from `blobs/<sha256>` when a check genuinely needs them.
 
@@ -72,8 +73,11 @@ With `targetVersion`, the markdown header shows `**Target version**: 1.0.88` (or
 
 ### `oat-report.json`
 
+`schemaVersion` comes first in `oat-report.json`, and `matrix.json` states the same version after `kind`. It rises only on a breaking change to a file's shape; an added field is not one. `oat diff` and `oat baseline --from` read a report with no `schemaVersion` (0.24) or with `1`, and exit `2` on a later one: `oat: <file> is report schemaVersion 2; this oat reads 1 — upgrade oat`.
+
 ```json
 {
+	"schemaVersion": 1,
 	"backend": "https://api.example.com",
 	"targetVersion": { "value": "1.0.88" },
 	"generatedAt": "2026-08-15T12:00:00.000Z",
@@ -165,7 +169,7 @@ Gate in CI on process exit code, or on `findings` whose `verdict` is not `COVERA
 ```json
 {
 	"kind": "oat.matrix",
-	"version": 2,
+	"schemaVersion": 1,
 	"baseUrl": "…",
 	"generatedAt": "…",
 	"thesis": "…",
@@ -206,6 +210,27 @@ Gate in CI on process exit code, or on `findings` whose `verdict` is not `COVERA
 ```
 
 Cell `status`: `passed`, `failed`, `blocked`, `skipped`. Edge `kind`: `dependsOn` (cascade) or `uses` (a composition check built from a single-axis check).
+
+### JUnit and the job summary
+
+`--report junit` adds `junit.xml` to the run folder, so `.oat/runs/latest/junit.xml` is a stable path for a CI step. It is the common denominator Jenkins, GitLab and the GitHub test-report actions read: one `testsuites`, one `testsuite` per entity, and one `testcase` per operation and check. Each check appears once per operation; when one is listed under several outcomes, the first in this table wins.
+
+| oat                                                 | JUnit                                                                                                            |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| a failing root cause                                | `<failure type="<verdict>" message="<summary>">`: the detail, then up to 5 requests as `METHOD url → status`     |
+| a known finding (baseline)                          | `<skipped message="known (baseline): <reason>">`, since it does not fail the run                                 |
+| a coverage gap                                      | `<skipped message="coverage gap: <summary>">`                                                                    |
+| an inconclusive check                               | `<skipped message="inconclusive: <reason>">`                                                                     |
+| a check blocked by an earlier failure               | `<skipped message="blocked: waiting on <check>">`                                                                |
+| a passed check                                      | a bare `testcase`                                                                                                |
+| an operation no check graded                        | one `testcase name="graded"`, skipped with the reason                                                            |
+| a check that stood down on an entity                | `testcase classname="<entity>" name="<check>"`, skipped with `stood down: <what it needs>`                       |
+| a finding no operation holds (teardown, network, …) | a case in the `oat.run` suite, `classname="run"`, named by its check                                             |
+| a run that failed (exit 3) or left records (exit 4) | `<testcase classname="run" name="outcome">` holding `<error type="<outcome>" message="<reason>"/>`, in `oat.run` |
+
+Suites are named by entity: `operations` holds an operation with no entity, and a secondary origin's are `<origin>:<entity>`. A case's `classname` is its `operationId`, `<origin>:<operationId>` on a secondary origin. So a gate that reads only the JUnit file fails exactly when the exit code is not `0`. Text goes through the run's redactor, then XML escaping; characters XML 1.0 forbids (most control characters) are dropped, and no CDATA is used.
+
+Inside GitHub Actions, where `GITHUB_STEP_SUMMARY` is set, every `oat run` also appends a job summary in Markdown, with no flag: the outcome and exit code, the base URL and run size, the operations by status, a table of root causes (failing ones first, then known ones), the count of coverage gaps and blocked findings, a collapsed list of what went untested, and the path to `oat-report.md`. It goes through the same redactor. It stays within 64 KiB: rows are dropped from the end of the untested list, then from the end of the findings, each list ending `… and <n> more, truncated, see <run folder>`. A summary that cannot be written prints `oat: could not write the step summary: <reason>` and leaves the exit code alone.
 
 ### `issue-repro/<entity>-<check>.sh`
 

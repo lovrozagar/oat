@@ -8,7 +8,7 @@
  *   node labs/demo.mjs                  # a few defects, see the report
  *   node labs/demo.mjs --clean          # a correct backend — should find nothing
  *   node labs/demo.mjs --defects A,B    # pick your own, names are in DEFECTS below
- *   node --experimental-sqlite labs/demo.mjs --backend sqlite
+ *   node labs/demo.mjs --backend sqlite
  *
  * The backend is a test fixture that ships with the repo, not part of the published package —
  * oat itself never talks to a database, only to HTTP.

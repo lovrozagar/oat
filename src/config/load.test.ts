@@ -2,6 +2,7 @@ import { mkdtemp, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, relative } from "node:path"
 import { describe, expect, it } from "vitest"
+import { DEFER_ENV } from "./env.ts"
 import { interpolate, loadConfig } from "./load.ts"
 
 /*
@@ -73,15 +74,15 @@ describe("loadConfig", () => {
 		await expect(loadConfig(failing)).rejects.toThrow(`oat: failed to load config ${failing}: bad value`)
 	})
 
-	it("says how to load TypeScript when the runtime cannot import it", async () => {
+	it("names the floor for a .ts config it cannot import", async () => {
 		/* What Node without type stripping raises for a .ts import. */
 		const path = await written(
 			"f.ts",
 			'throw new TypeError(`Unknown file extension ".ts" for ${import.meta.filename}`)\n',
 		)
 		await expect(loadConfig(path)).rejects.toThrow(
-			`oat: cannot load ${path} — this Node build will not import TypeScript directly. ` +
-				"Run with `node --experimental-strip-types`, or use a .js/.mjs config.",
+			`oat: cannot load ${path} — this Node cannot import TypeScript ` +
+				"(oat needs 22.18 or later, without --no-experimental-strip-types); or use a .js/.mjs config",
 		)
 		const mjs = await written("g.mjs", 'throw new TypeError("Unknown file extension")\n')
 		await expect(loadConfig(mjs)).rejects.toThrow(`oat: failed to load config ${mjs}: Unknown file extension`)
@@ -94,5 +95,63 @@ describe("interpolate", () => {
 			"oat: config references ${OAT_MISSING}, which is not set in the environment",
 		)
 		expect(interpolate(7)).toBe(7)
+	})
+})
+
+/* A config that reads OAT_UNSET_FOR_TEST through env(), in a fresh folder. */
+async function readsUnset(): Promise<string> {
+	const envModule = join(import.meta.dirname, "env.ts")
+	return written(
+		"oat.config.mjs",
+		`import { env } from ${JSON.stringify(envModule)}\nexport default { token: env("OAT_UNSET_FOR_TEST") }\n`,
+	)
+}
+
+/* Runs `body` with OAT_DEFER_ENV as `value` (absent when undefined), restoring what was there. */
+async function withDeferEnv(value: string | undefined, body: () => Promise<void>): Promise<void> {
+	const previous = process.env[DEFER_ENV]
+	if (value === undefined) delete process.env[DEFER_ENV]
+	else process.env[DEFER_ENV] = value
+	try {
+		await body()
+	} finally {
+		if (previous === undefined) delete process.env[DEFER_ENV]
+		else process.env[DEFER_ENV] = previous
+	}
+}
+
+describe("loadConfig deferring env for doctor and plan", () => {
+	it("reads an unset env() as its ${NAME} literal, and restores OAT_DEFER_ENV as it found it", async () => {
+		const path = await readsUnset()
+		await withDeferEnv("kept", async () => {
+			expect(await loadConfig(path, { deferEnv: true })).toEqual({ token: "${OAT_UNSET_FOR_TEST}" })
+			expect(process.env[DEFER_ENV]).toBe("kept")
+		})
+		await withDeferEnv(undefined, async () => {
+			await loadConfig(path, { deferEnv: true })
+			expect(process.env[DEFER_ENV]).toBeUndefined()
+		})
+	})
+
+	it("never defers for a run, though OAT_DEFER_ENV=1 is exported and the same file loaded deferred first", async () => {
+		const path = await readsUnset()
+		await withDeferEnv("1", async () => {
+			expect(await loadConfig(path, { deferEnv: true })).toEqual({ token: "${OAT_UNSET_FOR_TEST}" })
+			await expect(loadConfig(path)).rejects.toThrow(`oat: env OAT_UNSET_FOR_TEST is not set (${path})`)
+			expect(process.env[DEFER_ENV]).toBe("1")
+		})
+	})
+})
+
+describe("interpolate deferring unset names", () => {
+	it("leaves each unset ${NAME} as written and collects it, filling the set ones", () => {
+		const unset = new Set<string>()
+		const value = interpolate(
+			{ a: "Bearer ${OAT_A}", b: ["${OAT_B}", "${OAT_A}"], c: "${SET}" },
+			{ SET: "s" },
+			{ unset },
+		)
+		expect(value).toEqual({ a: "Bearer ${OAT_A}", b: ["${OAT_B}", "${OAT_A}"], c: "s" })
+		expect([...unset]).toEqual(["OAT_A", "OAT_B"])
 	})
 })

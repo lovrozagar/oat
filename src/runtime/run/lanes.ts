@@ -46,30 +46,34 @@ interface LaneRun {
 async function runLane(run: LaneRun, lane: readonly EntityModel[]): Promise<void> {
 	const { ctx } = run
 	const claims = ctx.state.payloadClaims
-	for (const entity of lane) {
-		/* Stopped from outside — Ctrl-C, a deadline — or the network is gone. Nothing more is
-		 * tested, and everything made so far is still removed. */
-		if (stopped(ctx)) {
-			noteStop(run)
-			break
+	try {
+		for (const entity of lane) {
+			/* Stopped from outside — Ctrl-C, a deadline — or the network is gone. Nothing more is
+			 * tested, and everything made so far is still removed. */
+			if (stopped(ctx)) {
+				noteStop(run)
+				break
+			}
+			run.started += 1
+			ctx.progress.entityIndex = run.started
+			try {
+				await testEntity(ctx, entity)
+			} catch (error) {
+				/* An error oat did not expect must not skip teardown: it is reported, and the run
+				 * carries on to remove what it made and write its report. */
+				ctx.findings.blocked("run.error" satisfies RunFindingId, entity.name, {
+					summary: `testing "${entity.name}" stopped on an unexpected error`,
+					cause: errorText(error),
+				})
+			}
+			/* Done, with the payload catalog or without it: an entity planned after it stops waiting. */
+			claims.settle(entity.name)
 		}
-		run.started += 1
-		ctx.progress.entityIndex = run.started
-		try {
-			await testEntity(ctx, entity)
-		} catch (error) {
-			/* An error oat did not expect must not skip teardown: it is reported, and the run
-			 * carries on to remove what it made and write its report. */
-			ctx.findings.blocked("run.error" satisfies RunFindingId, entity.name, {
-				summary: `testing "${entity.name}" stopped on an unexpected error`,
-				cause: errorText(error),
-			})
-		}
-		/* Done, with the payload catalog or without it: an entity planned after it stops waiting. */
-		claims.settle(entity.name)
+	} finally {
+		/* An entity this lane never started never claims either, however the loop ended: a later
+		 * entity in another lane must never wait on it. */
+		for (const entity of lane) claims.settle(entity.name)
 	}
-	/* An entity this lane never started never claims either. */
-	for (const entity of lane) claims.settle(entity.name)
 }
 
 function noteStop(run: LaneRun): void {

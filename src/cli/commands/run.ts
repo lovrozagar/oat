@@ -10,15 +10,18 @@ import { FencedError } from "../../runtime/fence.ts"
 import type { RunOptions, RunResult } from "../../runtime/run/index.ts"
 import { allocateRunDir, DEFAULT_RUNS_ROOT, publishLatest } from "../../runtime/runs.ts"
 import { readConfig } from "../config.ts"
-import { type Args, str, USAGE } from "../flags.ts"
+import { type Args, list, str, USAGE } from "../flags.ts"
 import type { Writer } from "../writer.ts"
 import { runOptionsOf } from "./run-options.ts"
 import { runProgress } from "./run-progress.ts"
 import {
+	appendStepSummary,
 	type Finished,
 	KEPT_CREDENTIALS,
 	keepCredentials,
 	printSummary,
+	REPORT_FORMATS,
+	type ReportFormat,
 	reportInput,
 	writeReports,
 } from "./run-report.ts"
@@ -49,6 +52,11 @@ export async function commandRun(writer: Writer, flags: Args["flags"], deps: Run
 		writer.err(`oat: run requires --config\n\n${USAGE}`)
 		return EXIT.usage
 	}
+	const formats = reportFormats(flags)
+	if (typeof formats === "string") {
+		writer.err(`oat: ${formats}\n`)
+		return EXIT.usage
+	}
 	const read = await readConfig(configPath, true)
 	if ("problem" in read) {
 		writer.err(`oat: ${read.problem}\n`)
@@ -61,7 +69,15 @@ export async function commandRun(writer: Writer, flags: Args["flags"], deps: Run
 		writer.err(`oat: ${baseline}\n`)
 		return EXIT.usage
 	}
-	return started(writer, { baseline, config, configPath, deps, flags })
+	return started(writer, { baseline, config, configPath, deps, flags, formats })
+}
+
+/** The reports `--report` names, or why one is not a report oat writes. */
+function reportFormats(flags: Args["flags"]): ReportFormat[] | string {
+	const named = list(flags, "report") ?? []
+	const unknown = named.find((name) => !(REPORT_FORMATS as readonly string[]).includes(name))
+	if (unknown !== undefined) return `--report takes ${REPORT_FORMATS.join(", ")}, got "${unknown}"`
+	return [...new Set(named as ReportFormat[])]
 }
 
 /** Known findings, relative to the config file like every other path in it — or why they cannot be read. */
@@ -81,6 +97,7 @@ interface Start {
 	flags: Args["flags"]
 	baseline: BaselineFile | undefined
 	deps: RunDeps
+	formats: readonly ReportFormat[]
 }
 
 /** The run, from its folder to its exit code. */
@@ -88,7 +105,9 @@ async function started(writer: Writer, start: Start): Promise<number> {
 	const { config, flags, deps } = start
 	const startedAt = new Date()
 	const began = performance.now()
-	const allocated = await allocateRunDir(str(flags, "out") ?? config.outDir ?? DEFAULT_RUNS_ROOT, startedAt)
+	const configured =
+		config.outDir === undefined ? undefined : resolve(dirname(resolve(start.configPath)), config.outDir)
+	const allocated = await allocateRunDir(str(flags, "out") ?? configured ?? DEFAULT_RUNS_ROOT, startedAt)
 	const outDir = allocated.runDir
 	const progress = runProgress(writer, outDir, { quiet: flags.quiet === true, startedAt: startedAt.getTime() })
 	const stop = stopOnSignal(writer, deps.signals)
@@ -112,6 +131,7 @@ async function started(writer: Writer, start: Start): Promise<number> {
 	const finished: Finished = {
 		baseUrl: options.baseUrl,
 		durationMs: performance.now() - began,
+		formats: start.formats,
 		outDir,
 		result,
 		startedAt,
@@ -123,6 +143,8 @@ async function started(writer: Writer, start: Start): Promise<number> {
 	printSummary(writer, finished, input)
 	await publishLatest(allocated)
 	writer.out(`  latest: ${allocated.latest}\n\n`)
+	/* Inside GitHub Actions, the job's summary page; the variable is set nowhere else. */
+	await appendStepSummary(writer, input, { path: process.env.GITHUB_STEP_SUMMARY, runDir: outDir })
 	const by = stop.by()
 	/* Stopped by a signal: the shell's convention, once teardown and the report are done. */
 	return by === undefined ? exitCode(result) : signalExit(by)

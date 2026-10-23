@@ -2,6 +2,7 @@ import { existsSync } from "node:fs"
 import { readFile, realpath, writeFile } from "node:fs/promises"
 import { resolve } from "node:path"
 import { messageOf } from "../../errors/message.ts"
+import { schemaRefusal } from "../../report/diff.ts"
 import { baselineFrom } from "../../runtime/baseline.ts"
 import { EXIT } from "../../runtime/exit.ts"
 import { type Args, str } from "../flags.ts"
@@ -15,17 +16,22 @@ export async function commandBaseline(writer: Writer, flags: Args["flags"]): Pro
 		return EXIT.usage
 	}
 	const out = resolve(str(flags, "out") ?? "oat.baseline.json")
-	let saved: { findings?: unknown }
+	let saved: { findings?: unknown; schemaVersion?: unknown }
 	try {
 		/* `latest` is a link: read where it points. */
 		const folder = await realpath(resolve(from))
-		saved = JSON.parse(await readFile(resolve(folder, "oat-report.json"), "utf8")) as { findings?: unknown }
+		saved = JSON.parse(await readFile(resolve(folder, "oat-report.json"), "utf8")) as typeof saved
 	} catch (error) {
 		writer.err(`oat: cannot read ${resolve(from, "oat-report.json")}: ${messageOf(error)}\n`)
 		return EXIT.usage
 	}
 	if (!Array.isArray(saved.findings)) {
 		writer.err(`oat: ${resolve(from, "oat-report.json")} holds no findings list\n`)
+		return EXIT.usage
+	}
+	const refusal = schemaRefusal(saved, resolve(from, "oat-report.json"))
+	if (refusal !== undefined) {
+		writer.err(`oat: ${refusal}\n`)
 		return EXIT.usage
 	}
 	if (flags.force !== true && existsSync(out)) {

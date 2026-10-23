@@ -5,7 +5,7 @@ export type Backend = "memory" | "sqlite" | "postgres" | "d1"
 /** Loads `node:sqlite`; a test brings a runtime that cannot. */
 type LoadSqlite = () => Promise<Pick<typeof import("node:sqlite"), "DatabaseSync">>
 
-/** Whether this runtime can host the SQLite backend (`node:sqlite` needs a flag on Node 22). */
+/** Whether this runtime can host the SQLite backend: a Node built without SQLite cannot. */
 export async function sqliteAvailable(load: LoadSqlite = () => import("node:sqlite")): Promise<boolean> {
 	try {
 		/* Constructing is the real test: on some builds the module resolves but the class is

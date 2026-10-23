@@ -114,7 +114,7 @@ async function interrupted(signal: NodeJS.Signals, phase: string, twice = false)
 		}),
 	)
 	const before = await server.snapshot()
-	const child = spawn(process.execPath, ["--experimental-sqlite", CLI, "run", "--config", config, "--out", dir], {
+	const child = spawn(process.execPath, [CLI, "run", "--config", config, "--out", dir], {
 		stdio: ["ignore", "ignore", "pipe"],
 	})
 	let sent = false

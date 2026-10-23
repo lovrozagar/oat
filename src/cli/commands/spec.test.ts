@@ -54,6 +54,34 @@ describe("modelled", () => {
 	})
 })
 
+describe("modelled and relative paths", () => {
+	it("reads a config's relative spec and origin specs from the config's folder, from any working directory", async () => {
+		const dir = folder()
+		notesSpec(dir)
+		mkdirSync(join(dir, "cdn"))
+		notesSpec(join(dir, "cdn"))
+		const origins = [
+			{ baseUrl: "http://cdn.test", id: "cdn", security: { bearer: "bearer" }, spec: "cdn/openapi.json" },
+		]
+		const config = notesConfig(dir, { origins, spec: "openapi.json" })
+		const read = await modelled(bufferWriter(), { config })
+		expect(typeof read !== "number" && read.model.byOperationId.has("notes.create")).toBe(true)
+	})
+
+	it("reads a relative --spec from the working directory, though a config names another folder", async () => {
+		const here = folder()
+		notesSpec(here)
+		const cwd = process.cwd()
+		process.chdir(here)
+		try {
+			const read = await modelled(bufferWriter(), { config: notesConfig(folder()), spec: "openapi.json" })
+			expect(typeof read !== "number" && read.model.byOperationId.has("notes.create")).toBe(true)
+		} finally {
+			process.chdir(cwd)
+		}
+	})
+})
+
 describe("modelled and the files a document refers to", () => {
 	it("reads the files a document refers to, and refuses one outside its folder", async () => {
 		const split = join(import.meta.dirname, "..", "..", "spec", "load", "__fixtures__", "split", "openapi.yaml")
@@ -89,5 +117,27 @@ describe("modelled and the files a document refers to", () => {
 		await expect(modelled(bufferWriter(), { spec: json(folder(), "broken.json", doc) })).rejects.toThrow(
 			/unresolvable \$ref/,
 		)
+	})
+})
+
+describe("modelled and a config whose variables are not set", () => {
+	it("reads it, listing each unset variable, and resolves no document against an unset base URL", async () => {
+		delete process.env.OAT_SPEC_TEST_TOKEN
+		delete process.env.OAT_SPEC_TEST_URL
+		const dir = folder()
+		const configPath = notesConfig(dir, { security: { bearer: { static: "${OAT_SPEC_TEST_TOKEN}" } } })
+		const read = await modelled(bufferWriter(), { config: configPath })
+		if (typeof read === "number") throw new Error(`refused: ${read}`)
+		expect(read.unsetEnv).toEqual(["OAT_SPEC_TEST_TOKEN"])
+		const routed = json(dir, "routed.json", {
+			baseUrl: "${OAT_SPEC_TEST_URL}",
+			principals: { alpha: {} },
+			spec: "v1/openapi",
+		})
+		await expect(modelled(bufferWriter(), { config: routed })).rejects.toThrow(
+			'could not find a specification at "v1/openapi"',
+		)
+		const bare = await modelled(bufferWriter(), { spec: notesSpec() })
+		expect(typeof bare !== "number" && bare.unsetEnv).toBeUndefined()
 	})
 })

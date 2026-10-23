@@ -1,6 +1,7 @@
 {
   "exitCode": 0,
   "report": {
+    "schemaVersion": 1,
     "backend": "http://reference.test",
     "outcome": {
       "exitCode": 0,

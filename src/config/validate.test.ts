@@ -31,6 +31,17 @@ describe("config validation", () => {
 		expect(configProblems(versionRead(1))).toEqual(["config.targetVersion.scheme must be a string"])
 	})
 
+	it("accepts an overlay that declares security schemes and a root requirement, and names a malformed one", () => {
+		const overlay = { security: [{ bearer: [] }, {}], securitySchemes: { bearer: { type: "http" }, old: null } }
+		expect(configProblems({ ...valid, overlay })).toEqual([])
+		expect(
+			configProblems({ ...valid, overlay: { security: [{ bearer: "read" }], securitySchemes: { a: 1 } } }),
+		).toEqual([
+			"config.overlay.security[0].bearer must be an array",
+			"config.overlay.securitySchemes.a must be an object or null",
+		])
+	})
+
 	it("names unknown keys and wrong types by path", () => {
 		expect(configProblems({ ...valid, concurrency: 4 })).toEqual(["config.concurrency is not a config key"])
 		expect(configProblems({ ...valid, maxInFlight: "8" })).toEqual([

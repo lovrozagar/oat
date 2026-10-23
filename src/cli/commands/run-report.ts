@@ -1,17 +1,25 @@
 import { existsSync, readFileSync } from "node:fs"
-import { chmod, mkdir, writeFile } from "node:fs/promises"
+import { appendFile, chmod, mkdir, writeFile } from "node:fs/promises"
 import { dirname, resolve } from "node:path"
+import { messageOf } from "../../errors/message.ts"
 import { exchangeFilesFromIndex, renderConfidenceHtml } from "../../report/confidence.ts"
 import { buildMatrixGraphFromReport, graphJson } from "../../report/matrix/graph.ts"
 import { renderPoster } from "../../report/matrix/poster.ts"
 import type { ReportInput } from "../../report/render/input.ts"
 import { renderJson } from "../../report/render/json.ts"
+import { renderJunit } from "../../report/render/junit.ts"
 import { renderMarkdown } from "../../report/render/markdown.ts"
 import { ISSUE_REPRO_DIR, renderRepros } from "../../report/render/repro.ts"
+import { renderStepSummary } from "../../report/render/step-summary.ts"
 import { renderConsole } from "../../report/render/summary.ts"
 import type { RunResult } from "../../runtime/run/index.ts"
 import { renderTeardown } from "../../runtime/teardown/render.ts"
 import type { Writer } from "../writer.ts"
+
+/** A report `--report` can add to the run folder. */
+export type ReportFormat = "junit"
+
+export const REPORT_FORMATS: readonly ReportFormat[] = ["junit"]
 
 /** What a finished run reports: the result, and where and when it ran. */
 export interface Finished {
@@ -20,6 +28,8 @@ export interface Finished {
 	startedAt: Date
 	durationMs: number
 	outDir: string
+	/** The reports `--report` asked for beside the run's own; absent, none. */
+	formats?: readonly ReportFormat[]
 }
 
 /** The report's input: the result as the renderers read it. */
@@ -74,8 +84,8 @@ export async function keepCredentials(result: RunResult, path: string): Promise<
 
 /**
  * Every file of the run folder: the principals as they stood, holding no credential value, the reports in markdown and JSON,
- * the matrix (one graph, drawn as the poster and written as JSON), the confidence page over the
- * journaled exchanges, and a repro script per finding.
+ * JUnit XML when `--report junit` asked for it, the matrix (one graph, drawn as the poster and written as JSON), the
+ * confidence page over the journaled exchanges, and a repro script per finding.
  */
 export async function writeReports(finished: Finished, input: ReportInput): Promise<void> {
 	const { result, outDir, baseUrl, startedAt } = finished
@@ -83,6 +93,7 @@ export async function writeReports(finished: Finished, input: ReportInput): Prom
 	await writePrivate(at("principals.json"), `${JSON.stringify({ principals: result.principals }, null, 2)}\n`)
 	await writeFile(at("oat-report.md"), renderMarkdown(input))
 	await writeFile(at("oat-report.json"), renderJson(input))
+	if (junitAsked(finished)) await writeFile(at("junit.xml"), renderJunit(input))
 	const graph = buildMatrixGraphFromReport(input)
 	await writeFile(at("matrix.html"), renderPoster(graph))
 	await writeFile(at("matrix.json"), graphJson(graph))
@@ -99,6 +110,28 @@ export async function writeReports(finished: Finished, input: ReportInput): Prom
 		await writeFile(resolve(at(ISSUE_REPRO_DIR), script.filename), script.content, { mode: 0o755 })
 }
 
+function junitAsked(finished: Finished): boolean {
+	return finished.formats?.includes("junit") === true
+}
+
+/**
+ * The run's job summary, appended to `path`: the file `GITHUB_STEP_SUMMARY` names inside GitHub
+ * Actions. Nothing without one. A summary that cannot be written is a warning, never a different exit.
+ */
+export async function appendStepSummary(
+	writer: Writer,
+	input: ReportInput,
+	where: { path: string | undefined; runDir: string },
+): Promise<void> {
+	const { path, runDir } = where
+	if (path === undefined || path === "") return
+	try {
+		await appendFile(path, renderStepSummary(input, { runDir }))
+	} catch (error) {
+		writer.err(`oat: could not write the step summary: ${messageOf(error)}\n`)
+	}
+}
+
 /** The console summary: the report, teardown, and where every file is. */
 export function printSummary(writer: Writer, finished: Finished, input: ReportInput): void {
 	const { result, outDir } = finished
@@ -110,6 +143,7 @@ export function printSummary(writer: Writer, finished: Finished, input: ReportIn
 	writer.out(`  report: ${at("oat-report.md")}\n`)
 	writer.out(`  matrix: ${at("matrix.html")}\n`)
 	writer.out(`  graph:  ${at("matrix.json")}\n`)
+	if (junitAsked(finished)) writer.out(`  junit: ${at("junit.xml")}\n`)
 	writer.out(`  progress: ${at("progress.log")} · ${at("progress.jsonl")}\n`)
 	if (result.exchanges !== undefined) writer.out(`  exchanges: ${result.exchanges.count} → ${at("exchanges")}\n`)
 	if (result.network?.incomplete === true) writer.out(`  network: ${result.network.kind} — run incomplete\n`)

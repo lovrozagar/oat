@@ -41,4 +41,16 @@ describe("commandDiff", () => {
 		expect(await commandDiff(missing, {}, [join(dir, "gone"), ok])).toBe(2)
 		expect(missing.text()).toMatch(/^oat: cannot read .*gone\/oat-report\.json: /)
 	})
+
+	it("refuses a report from a newer schema, and reads one from 0.24 or schema 1", async () => {
+		const dir = folder()
+		const old = savedRun(dir, "old", { findings: [] })
+		const current = savedRun(dir, "current", { findings: [], schemaVersion: 1 })
+		expect(await commandDiff(bufferWriter(), {}, [old, current])).toBe(0)
+		const newer = bufferWriter()
+		expect(await commandDiff(newer, {}, [current, savedRun(dir, "newer", { findings: [], schemaVersion: 2 })])).toBe(2)
+		expect(newer.text()).toBe(
+			`oat: ${join(dir, "newer", "oat-report.json")} is report schemaVersion 2; this oat reads 1 — upgrade oat\n`,
+		)
+	})
 })

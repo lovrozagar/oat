@@ -5,6 +5,9 @@
  * `components.schemas`. Objects merge, arrays replace, and `null` deletes the key, so a patch can
  * add a tag, fix a constraint or restate a parameter list without copying the rest. A patch that
  * names nothing is a mistake in the config, and stops the run before it starts.
+ *
+ * Security is the exception to naming: `securitySchemes` may add a scheme the document never
+ * declared, since declaring one is its purpose, and `security` replaces the root requirement.
  */
 
 import { UsageError } from "../errors/usage-error.ts"
@@ -30,6 +33,11 @@ function merge(base: unknown, patch: unknown): unknown {
 
 export function applyOverlay(doc: OpenApiDocument, overlay: SpecOverlay): OpenApiDocument {
 	const out = structuredClone(doc)
+	if (overlay.securitySchemes !== undefined) {
+		const securitySchemes = merge(out.components?.securitySchemes ?? {}, overlay.securitySchemes)
+		out.components = { ...out.components, securitySchemes: securitySchemes as Record<string, unknown> }
+	}
+	if (overlay.security !== undefined) out.security = structuredClone(overlay.security)
 	patchOperations(operationsById(out), overlay.operations ?? {})
 	patchSchemas((out.components?.schemas ?? {}) as Record<string, unknown>, overlay.schemas ?? {})
 	return out

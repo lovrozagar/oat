@@ -107,7 +107,7 @@ describe("authLines", () => {
 		expect(authLines((await referenceModel()).model)).toEqual([])
 		expect(authLines(modelOf(documentOf({})).model)).toEqual([
 			"  auth",
-			"    the document declares no security; add an overlay.",
+			"    the document declares no security scheme; if the API needs a credential, declare it with overlay.securitySchemes and overlay.security (oat init writes the stub)",
 			"",
 		])
 		const secured = modelOf(

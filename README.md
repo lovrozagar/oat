@@ -48,15 +48,17 @@ There is no ground-truth database. A filter and its negation must partition the 
 npm i -D @lovrozagar/oat
 ```
 
-Requires **Node.js 20+**. The published CLI is compiled JavaScript; `npx oat` / `./node_modules/.bin/oat` is the entry.
+Requires **Node.js 22.18 or later**. The published CLI is compiled JavaScript; `npx oat` / `./node_modules/.bin/oat` is the entry.
 
 The unscoped name `oat` on npm is a different project. Always install `@lovrozagar/oat`. The binary on PATH is still `oat`.
 
-SQLite conformance (`npm test`, `oat conformance` with the sqlite backend) needs `node --experimental-sqlite` on Node 22. The published `oat` binary does not pass that flag for you; `npm test` in this repo does.
+That floor is the first Node where everything oat uses works under plain `node`, with no flag: `node:sqlite` for SQLite conformance, a `.ts` config such as the one `oat init` writes, and the HTTP `QUERY` method. Node 22 still prints an `ExperimentalWarning` for `node:sqlite`; it is harmless.
 
 ```bash
-oat help          # same as oat --help
-oat --help
+oat init --spec ./openapi.json            # writes oat.config.ts from the document's security schemes
+oat doctor --config oat.config.ts         # what oat can test, and which principal sends each operation
+oat run --config oat.config.ts
+oat help                                  # same as oat --help
 ```
 
 Unknown commands, unknown flags, and missing required flags exit `2`.

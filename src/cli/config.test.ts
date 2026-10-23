@@ -52,3 +52,41 @@ describe("readConfig", () => {
 		expect(await readConfig(path, false)).toEqual({ problem: `failed to load config ${path}: no config today` })
 	})
 })
+
+describe("readConfig deferring env", () => {
+	it("defers an unset variable for doctor and plan, through env() and ${NAME} alike, and lists each once", async () => {
+		delete process.env.OAT_CONFIG_TEST_UNSET
+		delete process.env.OAT_CONFIG_TEST_KEY
+		const path = join(dir(), "oat.config.mjs")
+		const envModule = join(import.meta.dirname, "..", "config", "env.ts")
+		writeFileSync(
+			path,
+			`import { env } from ${JSON.stringify(envModule)}\n` +
+				`export default { baseUrl: "\${OAT_CONFIG_TEST_UNSET}", principals: { a: {} }, spec: "s.yaml", ` +
+				`security: { jwt: { static: env("OAT_CONFIG_TEST_KEY") }, key: { static: "\${OAT_CONFIG_TEST_UNSET}" } } }\n`,
+		)
+		expect(await readConfig(path, false, { deferEnv: true })).toEqual({
+			config: {
+				baseUrl: "${OAT_CONFIG_TEST_UNSET}",
+				principals: { a: {} },
+				security: { jwt: { static: "${OAT_CONFIG_TEST_KEY}" }, key: { static: "${OAT_CONFIG_TEST_UNSET}" } },
+				spec: "s.yaml",
+			},
+			unsetEnv: ["OAT_CONFIG_TEST_UNSET", "OAT_CONFIG_TEST_KEY"],
+		})
+	})
+
+	it("never defers ${NAME} for a run, though OAT_DEFER_ENV=1 is exported", async () => {
+		delete process.env.OAT_CONFIG_TEST_UNSET
+		process.env.OAT_DEFER_ENV = "1"
+		try {
+			const read = await readConfig(
+				configFile({ baseUrl: "${OAT_CONFIG_TEST_UNSET}", principals: { a: {} }, spec: "s.yaml" }),
+				true,
+			)
+			expect("problem" in read && read.problem).toContain("OAT_CONFIG_TEST_UNSET")
+		} finally {
+			delete process.env.OAT_DEFER_ENV
+		}
+	})
+})

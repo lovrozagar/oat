@@ -71,7 +71,11 @@ export function envelopeLines(model: SpecModel): string[] {
  */
 export function authLines(model: SpecModel): string[] {
 	if (model.securitySchemes.length === 0) {
-		return ["  auth", "    the document declares no security; add an overlay.", ""]
+		return [
+			"  auth",
+			"    the document declares no security scheme; if the API needs a credential, declare it with overlay.securitySchemes and overlay.security (oat init writes the stub)",
+			"",
+		]
 	}
 	if (model.hasAuthOperations) return []
 	return [

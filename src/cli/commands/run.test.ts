@@ -1,7 +1,7 @@
 import { EventEmitter } from "node:events"
-import { existsSync, readFileSync, realpathSync, statSync } from "node:fs"
+import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs"
 import { join } from "node:path"
-import { describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { UsageError } from "../../errors/usage-error.ts"
 import { EXIT } from "../../runtime/exit.ts"
 import { FencedError } from "../../runtime/fence.ts"
@@ -58,6 +58,14 @@ function failing(error: Error): RunDeps {
 	return { run: () => Promise.reject(error), signals: signals().source }
 }
 
+/* Inside GitHub Actions the variable names this test step's own summary: no run here may append to it. */
+beforeEach(() => {
+	vi.stubEnv("GITHUB_STEP_SUMMARY", "")
+})
+afterEach(() => {
+	vi.unstubAllEnvs()
+})
+
 describe("commandRun", () => {
 	it("tests the backend and writes the run folder, its latest link and the summary", async () => {
 		const out = folder()
@@ -85,6 +93,16 @@ describe("commandRun", () => {
 			process.chdir(cwd)
 		}
 		expect(existsSync(join(here, ".oat", "runs", "latest", "oat-report.json"))).toBe(true)
+	})
+
+	it("writes a relative configured outDir under the config's folder, from any working directory", async () => {
+		const dir = folder()
+		await commandRun(
+			bufferWriter(),
+			{ config: notesConfig(dir, { outDir: "runs", spec: "openapi.json" }), quiet: true },
+			deps(),
+		)
+		expect(existsSync(join(dir, "runs", "latest", "oat-report.json"))).toBe(true)
 	})
 
 	it("keeps the credentials beside the runs root, outside every run folder, when asked", async () => {
@@ -139,6 +157,41 @@ describe("commandRun journaling", () => {
 		const writer = bufferWriter()
 		expect(await commandRun(writer, { config: notesConfig(), out: folder(), quiet: true }, run)).toBe(130)
 		expect(writer.text()).toContain("oat: SIGINT — stopping")
+	})
+})
+
+describe("commandRun reports", () => {
+	it("writes junit.xml into the run folder under --report junit", async () => {
+		const out = folder()
+		const writer = bufferWriter()
+		expect(await commandRun(writer, { config: notesConfig(), out, quiet: true, report: "junit" }, deps())).toBe(0)
+		expect(readFileSync(join(out, "latest", "junit.xml"), "utf8")).toContain('<testsuites name="oat"')
+		expect(writer.text()).toMatch(/ {2}junit: .*junit\.xml\n/)
+	})
+
+	it("--report xml exits 2", async () => {
+		const out = folder()
+		const writer = bufferWriter()
+		expect(await commandRun(writer, { config: notesConfig(), out, report: "junit,xml" }, deps())).toBe(EXIT.usage)
+		expect(writer.text()).toBe('oat: --report takes junit, got "xml"\n')
+		expect(readdirSync(out)).toEqual([])
+	})
+
+	it("appends to GITHUB_STEP_SUMMARY when set", async () => {
+		const summary = join(folder(), "step-summary.md")
+		vi.stubEnv("GITHUB_STEP_SUMMARY", summary)
+		const out = folder()
+		expect(await commandRun(bufferWriter(), { config: notesConfig(), out, quiet: true }, deps())).toBe(0)
+		const text = readFileSync(summary, "utf8")
+		expect(text.startsWith("## oat: clean (exit 0)\n")).toBe(true)
+		expect(text).toContain(`${realpathSync(join(out, "latest"))}/oat-report.md`)
+	})
+
+	it("a step summary that cannot be written warns and keeps the exit code", async () => {
+		vi.stubEnv("GITHUB_STEP_SUMMARY", join(folder(), "gone", "step-summary.md"))
+		const writer = bufferWriter()
+		expect(await commandRun(writer, { config: notesConfig(), out: folder(), quiet: true }, deps())).toBe(0)
+		expect(writer.text()).toContain("oat: could not write the step summary: ENOENT")
 	})
 })
 

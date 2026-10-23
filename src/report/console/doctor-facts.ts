@@ -2,12 +2,15 @@ import type { Gap } from "../../spec/extensions/gaps.ts"
 import type { EntityModel, SpecModel } from "../../spec/graph/types.ts"
 import { type CatalogConfig, entityQueryCatalogs, type QueryCatalog } from "./catalog.ts"
 import { hasInvite, type InvitingEntity, sortedEntities } from "./describe.ts"
+import { type SecurityCredentials, type SecurityFacts, securityFacts } from "./security.ts"
 
 export interface DoctorConfig extends CatalogConfig {
 	/** Operations config `allow` took out of the document. */
 	allowRemoved?: string[]
 	/** Operations the config's security recipes send: neither their gaps nor the entities they own are reported. */
 	authCreates?: ReadonlySet<string>
+	/** The config's recipes and principals: with them, an operation no principal can send blocks. */
+	credentials?: SecurityCredentials
 }
 
 /** What `doctor` found in a document, before it is printed as text or JSON. */
@@ -19,13 +22,17 @@ export interface DoctorFacts {
 	/** The document's gaps, less those on an operation a recipe sends: a sign-in call is no entity to tag. */
 	gaps: Gap[]
 	gapsByTag: Map<string, Gap[]>
-	/** Untrackable entities, plus one when a root has to be supplied. Non-zero exits 1. */
+	/**
+	 * Untrackable entities, plus one when a root has to be supplied, plus each operation the config's
+	 * principals cannot send. Non-zero exits 1.
+	 */
 	blocking: number
 	featureGates: Array<{ operationId: string; featureGate: string | null }>
 	uniqueConstraints: Array<{ entity: string; unique: EntityModel["unique"] }>
 	inviting: InvitingEntity[]
 	catalogs: QueryCatalog[]
 	unknownEntities: string[]
+	security: SecurityFacts
 }
 
 function gapsByTag(gaps: readonly Gap[]): Map<string, Gap[]> {
@@ -44,8 +51,9 @@ export function doctorFacts(model: SpecModel, config?: DoctorConfig): DoctorFact
 	const entities = sortedEntities(model, authCreates)
 	const gaps = model.gaps.gaps.filter((gap) => !authCreates.has(gap.operationId))
 	const trackable = entities.filter((e) => e.trackable && e.readSurface.length > 0)
+	const security = securityFacts(model, config?.credentials)
 	return {
-		blocking: entities.length - trackable.length + (model.roots.length > 0 ? 1 : 0),
+		blocking: entities.length - trackable.length + (model.roots.length > 0 ? 1 : 0) + security.blocking,
 		entities,
 		featureGates: model.operations
 			.filter((op) => op.featureGate !== null)
@@ -58,6 +66,7 @@ export function doctorFacts(model: SpecModel, config?: DoctorConfig): DoctorFact
 		uniqueConstraints: entities
 			.filter((entity) => entity.unique !== null)
 			.map((entity) => ({ entity: entity.name, unique: entity.unique })),
+		security,
 		...entityQueryCatalogs(model, config),
 	}
 }

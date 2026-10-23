@@ -120,3 +120,15 @@ describe("load, the secondary origins and the credentials config", () => {
 		expect(loaded.model.entities.has("note")).toBe(true)
 	})
 })
+
+describe("load and the config's folder", () => {
+	it("reads a relative document, and each origin's, from configDir", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "oat-load-"))
+		writeFileSync(join(dir, "openapi.json"), JSON.stringify(notesDoc()))
+		const origins = [{ baseUrl: "http://cdn.test", id: "cdn", security: { bearer: "bearer" }, spec: "openapi.json" }]
+		const options = optionsFor(() => undefined, { configDir: dir, origins, spec: "openapi.json" })
+		const loaded = await load({ ...options, network: {} })
+		expect(loaded.model.byOperationId.has("notes.create")).toBe(true)
+		expect(loaded.origins.get("cdn")?.model.byOperationId.has("notes.create")).toBe(true)
+	})
+})

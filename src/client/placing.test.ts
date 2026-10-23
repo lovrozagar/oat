@@ -341,3 +341,37 @@ describe("placedNames", () => {
 		expect(placedNames(NOTHING_PLACED)).toEqual({ headers: [], query: new Set() })
 	})
 })
+
+/*
+ * doctor and plan read an unset env() as its `${NAME}` literal. A run never defers, so such a value
+ * reaching a request is a bug in that rule: the client refuses to send it rather than send the name.
+ */
+/* A client's wire whose source always answers `resolution`. */
+const wireOf = (resolution: Resolution) => ({
+	controls: createControls(),
+	credentials: sourceOf(resolution),
+	redactor: new Redactor(),
+})
+
+describe("requestCredential: a deferred env literal", () => {
+	it("throws rather than send a ${NAME} literal as a credential, alone or in a basic pair", async () => {
+		const token = { ...sendingOf("${OAT_JWT_TOKEN}") }
+		await expect(requestCredential(wireOf(token), { actor: { principal: "alpha" }, route: R }).next()).rejects.toThrow(
+			"oat: the jwt credential is the unset variable ${OAT_JWT_TOKEN}; a run never defers env, so this is a bug",
+		)
+		const pair = { ...sendingOf("x"), sentValues: { basic: "${OAT_USER}:${OAT_PASS}" } }
+		await expect(requestCredential(wireOf(pair), { actor: { principal: "alpha" }, route: R }).next()).rejects.toThrow(
+			"the basic credential is the unset variable ${OAT_USER}",
+		)
+	})
+
+	it("sends a value that only contains such a pattern among other text", async () => {
+		const near = sendingOf("a${OAT_JWT_TOKEN}")
+		const placed = await requestCredential(wireOf(near), { actor: { principal: "alpha" }, route: R }).next()
+		expect(placed.schemes).toEqual(["jwt"])
+		const lower = sendingOf("${lower}")
+		expect((await requestCredential(wireOf(lower), { actor: { principal: "alpha" }, route: R }).next()).forged).toBe(
+			false,
+		)
+	})
+})

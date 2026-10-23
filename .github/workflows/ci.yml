@@ -81,6 +81,25 @@ jobs:
           fi
           node dist/cli.js plan --spec labs/annotated-openapi.yaml --json > /tmp/oat-plan.json
 
+  # The lowest Node that package.json's engines claims, pinned: "22" in the other jobs resolves to the
+  # newest 22.x, so only this job proves the floor itself. It moves with src/errors/node-floor.ts.
+  floor:
+    name: node floor
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.18.0"
+      - run: bun install --frozen-lockfile
+      - run: bun run build && bun run test:unit
+      - name: sqlite conformance
+        run: node dist/cli.js conformance --backend sqlite --legs passes
+
   # Servers, the CLI end to end, the goldens and the structure tests. Full history: the coverage
   # floors guard compares against the last committed floors that differ from the tree's.
   integration:
@@ -138,7 +157,7 @@ jobs:
       # A fresh seed per run, printed in the output, so the combination pass explores new ground
       # and any failure it finds replays exactly.
       - name: Conformance
-        run: node --experimental-sqlite dist/cli.js conformance --fuzz-seed ${{ github.run_id }}
+        run: node dist/cli.js conformance --fuzz-seed ${{ github.run_id }}
 
   precision:
     name: precision
@@ -156,4 +175,4 @@ jobs:
       - run: bun run build
       # Varies the data against a correct backend (memory): any finding is a false positive.
       - name: Precision
-        run: node --experimental-sqlite dist/cli.js conformance --precision 20 --seed ${{ github.run_id }}
+        run: node dist/cli.js conformance --precision 20 --seed ${{ github.run_id }}

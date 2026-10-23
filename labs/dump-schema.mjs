@@ -2,7 +2,7 @@
  * Write the SQL each world applies to D1 into labs/schema/<world>.sql
  * so the schema is visible on disk. Same statements provision.mjs runs.
  *
- *   node --experimental-strip-types labs/dump-schema.mjs
+ *   node labs/dump-schema.mjs
  */
 import { mkdir, writeFile } from "node:fs/promises"
 import { dirname, join } from "node:path"

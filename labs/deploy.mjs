@@ -97,7 +97,5 @@ await writeFile(urlPath, `${JSON.stringify(merged, null, 2)}\n`)
 console.log("deployed")
 for (const [id, url] of Object.entries(urls)) {
 	console.log(`  ${id}  ${url}`)
-	console.log(
-		`    LAB_URL=${url} node --experimental-sqlite dist/cli.js run --config labs/oat.config.ts --out .oat/runs/labs/https-${id}`,
-	)
+	console.log(`    LAB_URL=${url} node dist/cli.js run --config labs/oat.config.ts --out .oat/runs/labs/https-${id}`)
 }

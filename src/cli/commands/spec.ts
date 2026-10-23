@@ -1,3 +1,4 @@
+import { dirname, resolve } from "node:path"
 import type { OatConfig } from "../../config/types/config.ts"
 import { UsageError } from "../../errors/usage-error.ts"
 import { fetchSpecText } from "../../runtime/network/fetch.ts"
@@ -24,29 +25,57 @@ export interface Modelled {
 	removed: string[]
 	config: OatConfig | undefined
 	configPath: string | undefined
+	/** Variables the config names that are not set, read as their `${NAME}` literal. Undefined without a config. */
+	unsetEnv: string[] | undefined
+}
+
+/* The config an offline command reads, if any: deferred, since nothing is sent. */
+interface OfflineConfig {
+	config: OatConfig | undefined
+	unsetEnv: string[] | undefined
+}
+
+/* The config `--config` names, or none, or the exit code of a refusal already written. */
+async function offlineConfig(writer: Writer, configPath: string | undefined): Promise<OfflineConfig | number> {
+	if (configPath === undefined) return { config: undefined, unsetEnv: undefined }
+	const read = await readConfig(configPath, false, { deferEnv: true })
+	if ("problem" in read) {
+		writer.err(`oat: ${read.problem}\n`)
+		return EXIT.usage
+	}
+	return { config: read.config, unsetEnv: read.unsetEnv }
+}
+
+/* The base URL a relative document resolves against. One still holding an unset `${NAME}` is none. */
+function baseUrlOf(flags: Args["flags"], { config, unsetEnv = [] }: OfflineConfig): string | undefined {
+	const baseUrl = config?.baseUrl
+	const unresolved = unsetEnv.some((name) => baseUrl?.includes(`\${${name}}`))
+	return str(flags, "base-url") ?? (unresolved ? undefined : baseUrl)
 }
 
 /**
  * The document `--spec` (or the config's) names, modelled offline — or the exit code of a refusal
- * already written. A relative document resolves against the config's base URL, as for `run`.
+ * already written. A relative document resolves against the config's base URL, as for `run`. Nothing
+ * is sent, so a config whose variables are not set yet is read, each listed in `unsetEnv`.
  */
 export async function modelled(writer: Writer, flags: Args["flags"]): Promise<Modelled | number> {
 	const configPath = str(flags, "config")
-	const read = configPath === undefined ? undefined : await readConfig(configPath, false)
-	if (read !== undefined && "problem" in read) {
-		writer.err(`oat: ${read.problem}\n`)
-		return EXIT.usage
-	}
-	const config = read?.config
-	const source = str(flags, "spec") ?? config?.spec
+	const read = await offlineConfig(writer, configPath)
+	if (typeof read === "number") return read
+	const { config, unsetEnv } = read
+	const flagged = str(flags, "spec")
+	const source = flagged ?? config?.spec
 	if (source === undefined) {
 		writer.err(`oat: --spec (or --config) is required\n\n${USAGE}`)
 		return EXIT.usage
 	}
 	let removed: string[] = []
 	try {
+		/* A path the config holds is the config's, read from its folder; one on the command line is the shell's. */
+		const configDir = configPath === undefined ? undefined : dirname(resolve(configPath))
 		const raw = await loadSpec(source, {
-			baseUrl: str(flags, "base-url") ?? config?.baseUrl,
+			baseUrl: baseUrlOf(flags, read),
+			dir: flagged === undefined ? configDir : undefined,
 			fetchText: fetchSpecText,
 		})
 		const { doc, externalRefs } = dereference(prepareDocument(raw, config ?? {}, (ids) => (removed = ids)))
@@ -54,11 +83,15 @@ export async function modelled(writer: Writer, flags: Args["flags"]): Promise<Mo
 		if (config !== undefined) {
 			applyGrammarOverrides(model, config)
 			/* The credentials are checked as `run` checks them: against this document and each origin's. */
-			assertSecurity({ ...config }, { doc, model }, await loadOrigins(config.origins ?? [], fetchSpecText))
+			assertSecurity(
+				{ ...config },
+				{ doc, model },
+				await loadOrigins(config.origins ?? [], { dir: configDir, fetchText: fetchSpecText }),
+			)
 		}
 		/* A create whose fixtures cannot be built is recorded on the model as a gap. */
 		probeCreateFixtures(model)
-		return { config, configPath, externalRefs, model, removed }
+		return { config, configPath, externalRefs, model, removed, unsetEnv }
 	} catch (error) {
 		if (!(error instanceof UsageError)) throw error
 		writer.err(`${error.message}\n`)

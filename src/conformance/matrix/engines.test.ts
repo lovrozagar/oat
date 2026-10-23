@@ -14,7 +14,7 @@ describe("engines", () => {
 	})
 
 	it("calls SQLite unavailable on a runtime that cannot load it", async () => {
-		expect(await sqliteAvailable(() => Promise.reject(new Error("needs --experimental-sqlite")))).toBe(false)
+		expect(await sqliteAvailable(() => Promise.reject(new Error("No such built-in module: node:sqlite")))).toBe(false)
 	})
 
 	it("calls D1 available only with all three credentials", () => {

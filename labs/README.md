@@ -7,8 +7,8 @@ runs again against `https://`.
 
 ```
 node labs/provision.mjs tiny          # create oat-labs-tiny, apply schema
-LAB=tiny LAB_PORT=8790 node --experimental-strip-types labs/serve.ts
-LAB_URL=http://127.0.0.1:8790 node --experimental-sqlite dist/cli.js run --config labs/oat.config.ts
+LAB=tiny LAB_PORT=8790 node labs/serve.ts
+LAB_URL=http://127.0.0.1:8790 node dist/cli.js run --config labs/oat.config.ts
 node labs/deploy.mjs tiny             # Worker + D1 binding
 LAB_URL=https://oat-labs-tiny.<subdomain>.workers.dev ...
 ```
@@ -16,7 +16,7 @@ LAB_URL=https://oat-labs-tiny.<subdomain>.workers.dev ...
 Wipe leftover rows (schema stays) before a clean re-run:
 
 ```
-node --experimental-strip-types labs/wipe.mjs huge
+node labs/wipe.mjs huge
 ```
 
 A live `oat run` writes `progress.log` and `progress.json` under `--out`
@@ -104,7 +104,7 @@ Schema is generated, not mocked. `labs/worlds/catalog.ts` is the source;
 `provision.mjs` runs on a real D1. To read the SQL:
 
 ```
-node --experimental-strip-types labs/dump-schema.mjs   # writes labs/schema/<world>.sql
+node labs/dump-schema.mjs   # writes labs/schema/<world>.sql
 ```
 
 OpenAPI is generated the same way (`kit/spec.ts`) and served at
@@ -125,6 +125,6 @@ These also live here — there is no top-level `examples/`.
 
 ```
 node dist/cli.js serve --defects STALE_LIST,PATCH_REPLACES
-node --experimental-strip-types dist/cli.js run --config labs/local.config.ts --base-url http://127.0.0.1:PORT
+node dist/cli.js run --config labs/local.config.ts --base-url http://127.0.0.1:PORT
 node dist/cli.js doctor --spec labs/annotated-openapi.yaml
 ```

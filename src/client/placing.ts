@@ -108,6 +108,7 @@ function placementOf(resolution: Resolution, { actor, redactor }: { actor: Actor
 		case "blocked":
 			throw new UnsatisfiedSecurity(resolution.kind, resolution.reason)
 		case "sends":
+			refuseDeferredEnv(resolution.sentValues)
 			redactor.registerPlacement(resolution.secrets)
 			return { forged: false, principal: resolution.principal, schemes: resolution.schemes, sends: resolution.sends }
 		case "held":
@@ -120,6 +121,24 @@ function placementOf(resolution: Resolution, { actor, redactor }: { actor: Actor
 			return "principal" in actor
 				? { forged: false, principal: actor.principal, schemes: [], sends: {} }
 				: NOTHING_PLACED
+	}
+}
+
+/* What `env()` reads as while doctor or plan defers an unset variable. */
+const DEFERRED_ENV = /^\$\{[A-Z0-9_]+\}$/
+
+/*
+ * A run never defers env, so a `${NAME}` literal here means that rule broke: sending it would put
+ * the variable's name on the wire as a credential. A basic pair is `user:pass`, so each half is read.
+ */
+function refuseDeferredEnv(sentValues: Readonly<Record<string, string>>): void {
+	for (const [scheme, value] of Object.entries(sentValues)) {
+		const literal = value.split(":").find((part) => DEFERRED_ENV.test(part))
+		if (literal !== undefined) {
+			throw new Error(
+				`oat: the ${scheme} credential is the unset variable ${literal}; a run never defers env, so this is a bug`,
+			)
+		}
 	}
 }
 

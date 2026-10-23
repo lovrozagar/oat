@@ -87,3 +87,25 @@ describe("CLI golden", () => {
 		expect({ code, output: stable(output) }).toMatchSnapshot()
 	})
 })
+
+const NOTES = ["  no recipe — ", "  unsupported — ", "  undeclared — "]
+
+/* Doctor's security block: from its heading through the requirements, and any notes on what a run cannot send. */
+function securityBlock(text: string): string {
+	const lines = text.split("\n")
+	const start = lines.indexOf(lines.find((line) => line.startsWith("  security — ")) as string)
+	let end = lines.indexOf(
+		"",
+		lines.findIndex((line) => line.startsWith("  requirements — ")),
+	)
+	if (NOTES.some((note) => lines[end + 1]?.startsWith(note))) end = lines.indexOf("", end + 1)
+	return `${lines.slice(start, end + 1).join("\n")}\n`
+}
+
+describe("CLI golden: doctor's security block", () => {
+	it("names each scheme's recipe and the principal that sends each requirement of the reference document", async () => {
+		const { code, output } = await runCli(["doctor", "--config", at("valid.json")])
+		expect(code).not.toBe(2)
+		await expect(securityBlock(stable(output))).toMatchFileSnapshot("__snapshots__/doctor-security.snap")
+	})
+})

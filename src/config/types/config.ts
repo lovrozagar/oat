@@ -22,6 +22,7 @@ export type QueryConfig = QueryCapabilities & {
 export interface OriginSpec {
 	id: string
 	baseUrl: string
+	/** This origin's document, read as the primary `spec` is: a relative path from this config's folder. */
 	spec: string
 	/** Requests per second this origin takes from oat in all, as `maxRps` is for `baseUrl`. */
 	maxRps?: number
@@ -92,7 +93,7 @@ export interface CheckSwitches {
 export interface OatConfig {
 	/** Declared flows for operations the matrix cannot reach. See `Scenario`. */
 	scenarios?: Scenario[]
-	/** OpenAPI document — an http(s) URL or a filesystem path. JSON or YAML. */
+	/** OpenAPI document — an http(s) URL, a filesystem path relative to this config, or a route below `baseUrl`. JSON or YAML. */
 	spec: string
 	/** Backend under test. */
 	baseUrl: string
@@ -207,8 +208,8 @@ export interface OatConfig {
 	/** Leave created records in place instead of tearing them down. */
 	keepFixtures?: boolean
 	/**
-	 * History root. Each run writes `<outDir>/<datetime>/` and updates `<outDir>/latest`.
-	 * Defaults to `./.oat/runs`.
+	 * History root, relative to this config. Each run writes `<outDir>/<datetime>/` and updates
+	 * `<outDir>/latest`. Defaults to `./.oat/runs` in the working directory.
 	 */
 	outDir?: string
 	/**
@@ -256,4 +257,11 @@ export interface SpecOverlay {
 	operations?: Record<string, Record<string, unknown>>
 	/** Patches by component schema name. */
 	schemas?: Record<string, Record<string, unknown>>
+	/**
+	 * Security schemes merged into `components.securitySchemes`: a new name declares a scheme the
+	 * document lacks, a known one is patched, and `null` deletes it.
+	 */
+	securitySchemes?: Record<string, Record<string, unknown> | null>
+	/** The document's root `security`, replaced: `[{ bearer: [] }]` requires that scheme everywhere it is not overridden. */
+	security?: Array<Record<string, string[]>>
 }

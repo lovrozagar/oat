@@ -1,7 +1,7 @@
 import { readFile, realpath } from "node:fs/promises"
 import { resolve } from "node:path"
 import { messageOf } from "../../errors/message.ts"
-import { diffReports, renderDiff, type SavedReport } from "../../report/diff.ts"
+import { diffReports, renderDiff, type SavedReport, schemaRefusal } from "../../report/diff.ts"
 import { EXIT } from "../../runtime/exit.ts"
 import type { Args } from "../flags.ts"
 import type { Writer } from "../writer.ts"
@@ -21,7 +21,7 @@ export async function commandDiff(
 	for (const run of [a, b]) {
 		const read = await savedReport(run)
 		if (typeof read === "string") {
-			writer.err(`oat: cannot read ${resolve(run, "oat-report.json")}: ${read}\n`)
+			writer.err(`oat: ${read}\n`)
 			return EXIT.usage
 		}
 		reports.push(read)
@@ -33,11 +33,14 @@ export async function commandDiff(
 
 /** A run's saved report, or why it cannot be read. `latest` is a link: read where it points. */
 async function savedReport(run: string): Promise<SavedReport | string> {
+	const file = resolve(run, "oat-report.json")
+	let saved: Partial<SavedReport> & { schemaVersion?: unknown }
 	try {
 		const folder = await realpath(resolve(run))
-		const saved = JSON.parse(await readFile(resolve(folder, "oat-report.json"), "utf8")) as Partial<SavedReport>
-		return Array.isArray(saved.findings) ? (saved as SavedReport) : "it holds no findings list"
+		saved = JSON.parse(await readFile(resolve(folder, "oat-report.json"), "utf8")) as typeof saved
 	} catch (error) {
-		return messageOf(error)
+		return `cannot read ${file}: ${messageOf(error)}`
 	}
+	if (!Array.isArray(saved.findings)) return `cannot read ${file}: it holds no findings list`
+	return schemaRefusal(saved, file) ?? (saved as SavedReport)
 }
