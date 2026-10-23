@@ -9,6 +9,7 @@
  */
 
 import type { ProfileSpec } from "../config/types/config.ts"
+import { UsageError } from "../errors/usage-error.ts"
 import type { OperationModel } from "../spec/graph/types.ts"
 
 export const BUILTIN_PROFILES: Record<string, ProfileSpec> = {
@@ -35,7 +36,7 @@ export function resolveProfile(
 	const spec = configured?.[activeName] ?? BUILTIN_PROFILES[activeName]
 	if (spec === undefined) {
 		const known = [...new Set([...Object.keys(BUILTIN_PROFILES), ...Object.keys(configured ?? {})])]
-		throw new Error(`oat: profile "${activeName}" is not defined. Known: ${known.join(", ")}`)
+		throw new UsageError(`oat: profile "${activeName}" is not defined. Known: ${known.join(", ")}`)
 	}
 	return { name: activeName, spec }
 }
