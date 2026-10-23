@@ -139,7 +139,8 @@ export function coverageSections(coverage: Coverage): string[] {
 		lines.push("## Applied only on some entities")
 		lines.push("")
 		for (const row of coverage.partialSkip) {
-			lines.push(`- \`${row.check}\` — ran on ${row.ran}, skipped on ${row.skipped} (${named(row.skippedEntities)})`)
+			const ran = row.ran > 0 ? `on ${row.ran}` : "per operation"
+			lines.push(`- \`${row.check}\` — ran ${ran}, skipped on ${row.skipped} (${named(row.skippedEntities)})`)
 		}
 		lines.push("")
 	}

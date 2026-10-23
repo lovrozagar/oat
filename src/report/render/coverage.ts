@@ -56,10 +56,21 @@ export function coverageByCheck(input: ReportInput): Coverage {
 		current.ran = Math.max(0, tested - current.skipped - current.blocked - (outOfScope.get(current.check) ?? 0))
 	}
 	const all = [...rows.values()].sort((a, b) => a.check.localeCompare(b.check))
+	/*
+	 * A check that reached a verdict anywhere applied there, even one judged per operation rather than
+	 * per entity: it graded an operation, reported a finding, or could not conclude. Being planned is
+	 * not enough: a check is run even where it stands down everywhere.
+	 */
+	const ranAnywhere = new Set([
+		...input.findings.map((finding) => finding.check),
+		...(input.inconclusive ?? []).map((entry) => entry.check),
+		...(input.scope?.operations ?? []).flatMap((op) => [...op.checks.passed, ...op.checks.failed]),
+	])
+	const applied = (item: CheckCoverage): boolean => item.ran > 0 || ranAnywhere.has(item.check)
 	return {
 		blocked: all.filter((item) => item.blocked > 0),
-		never: all.filter((item) => item.ran === 0 && item.blocked === 0 && item.skipped > 0),
-		partialSkip: all.filter((item) => item.ran > 0 && item.skipped > 0),
+		never: all.filter((item) => !applied(item) && item.blocked === 0 && item.skipped > 0),
+		partialSkip: all.filter((item) => applied(item) && item.skipped > 0),
 	}
 }
 

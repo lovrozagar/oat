@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest"
-import { reportOf } from "./__fixtures__/report.ts"
+import { finding, operation, reportOf, scopeOf } from "./__fixtures__/report.ts"
 import { coverageByCheck, profileExclusionSummary } from "./coverage.ts"
+
+/** A check skipped on the only entity for want of an overlay. */
+const skipped = (check: string) => ({ check, entity: "pet", needs: "an overlay" })
 
 describe("coverageByCheck", () => {
 	it("sorts the checks that fell short into never, partial and blocked", () => {
@@ -43,6 +46,31 @@ describe("coverageByCheck", () => {
 
 	it("is empty for a run where every check ran everywhere", () => {
 		expect(coverageByCheck(reportOf())).toEqual({ blocked: [], never: [], partialSkip: [] })
+	})
+})
+
+describe("coverageByCheck on checks judged per operation", () => {
+	it("never calls a check that reached a verdict somewhere one that applied nowhere, whatever the entities", () => {
+		const checks = ["auth.missing-credential-refused", "auth.invalid-credential-refused", "auth.role-enforced"]
+		const result = coverageByCheck(
+			reportOf({
+				/* Planned is not applied: login-throttled ran everywhere only to stand down. */
+				checksRun: [...checks, "auth.login-throttled"],
+				checksSkipped: [...checks, "auth.login-throttled"].map(skipped),
+				entitiesTested: [],
+				findings: [finding({ check: "auth.missing-credential-refused" })],
+				inconclusive: [{ check: "auth.invalid-credential-refused", entity: "pet", reason: "a 400" }],
+				scope: scopeOf({
+					operations: [
+						operation({
+							checks: { failed: [], gaps: [], inconclusive: [], passed: ["auth.role-enforced"], suppressed: [] },
+						}),
+					],
+				}),
+			}),
+		)
+		expect(result.never.map((row) => row.check)).toEqual(["auth.login-throttled"])
+		expect(result.partialSkip.map((row) => row.check)).toEqual(checks.toSorted())
 	})
 })
 

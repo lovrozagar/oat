@@ -192,5 +192,7 @@ describe("coverageSections", () => {
 			"",
 		])
 		expect(coverageSections({ ...coverage, never: [] })[0]).toBe("## Applied only on some entities")
+		const perOperation = { ...coverage, partialSkip: coverage.partialSkip.map((row) => ({ ...row, ran: 0 })) }
+		expect(coverageSections(perOperation)).toContain("- `some` — ran per operation, skipped on 1 (a)")
 	})
 })

@@ -522,6 +522,22 @@
         "now": 1,
         "was": null
       }
+    },
+    "coverage": {
+      "neverApplied": {
+        "removed": [
+          "auth.login-throttled"
+        ]
+      },
+      "partial": {
+        "added": [
+          {
+            "check": "auth.login-throttled",
+            "ran": 0,
+            "skipped": 38
+          }
+        ]
+      }
     }
   }
 }

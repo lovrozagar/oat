@@ -2135,6 +2135,11 @@
       }
     },
     "coverage": {
+      "neverApplied": {
+        "added": [
+          "auth.privileged-field-ignored"
+        ]
+      },
       "partial": {
         "added": [
           {
@@ -2148,14 +2153,29 @@
             "skipped": 2
           },
           {
+            "check": "auth.alternative-accepted",
+            "ran": 0,
+            "skipped": 36
+          },
+          {
             "check": "auth.destructive-spares-the-caller",
             "ran": 2,
             "skipped": 3
           },
           {
+            "check": "auth.invalid-credential-refused",
+            "ran": 0,
+            "skipped": 30
+          },
+          {
             "check": "auth.invite-grants-then-revokes",
             "ran": 2,
             "skipped": 3
+          },
+          {
+            "check": "auth.missing-credential-refused",
+            "ran": 0,
+            "skipped": 30
           },
           {
             "check": "auth.rank-is-monotonic",
@@ -2168,9 +2188,24 @@
             "skipped": 1
           },
           {
+            "check": "auth.role-enforced",
+            "ran": 0,
+            "skipped": 37
+          },
+          {
+            "check": "auth.scope-enforced",
+            "ran": 0,
+            "skipped": 34
+          },
+          {
             "check": "auth.self-is-the-caller",
             "ran": 2,
             "skipped": 3
+          },
+          {
+            "check": "auth.wrong-scheme-refused",
+            "ran": 0,
+            "skipped": 35
           },
           {
             "check": "concurrency.if-match-enforced",
@@ -2488,6 +2523,11 @@
             "skipped": 3
           },
           {
+            "check": "request.invalid-body-refused",
+            "ran": 0,
+            "skipped": 37
+          },
+          {
             "check": "response.contract-call",
             "ran": 2,
             "skipped": 3
@@ -2695,9 +2735,19 @@
             "skipped": 3
           },
           {
+            "check": "auth.alternative-accepted",
+            "ran": 0,
+            "skipped": 34
+          },
+          {
             "check": "auth.destructive-spares-the-caller",
             "ran": 2,
             "skipped": 4
+          },
+          {
+            "check": "auth.invalid-credential-refused",
+            "ran": 0,
+            "skipped": 23
           },
           {
             "check": "auth.invite-grants-then-revokes",
@@ -2705,14 +2755,39 @@
             "skipped": 3
           },
           {
+            "check": "auth.missing-credential-refused",
+            "ran": 0,
+            "skipped": 23
+          },
+          {
+            "check": "auth.privileged-field-ignored",
+            "ran": 0,
+            "skipped": 38
+          },
+          {
             "check": "auth.rank-is-monotonic-on-writes",
             "ran": 5,
             "skipped": 1
           },
           {
+            "check": "auth.role-enforced",
+            "ran": 0,
+            "skipped": 32
+          },
+          {
+            "check": "auth.scope-enforced",
+            "ran": 0,
+            "skipped": 28
+          },
+          {
             "check": "auth.self-is-the-caller",
             "ran": 2,
             "skipped": 4
+          },
+          {
+            "check": "auth.wrong-scheme-refused",
+            "ran": 0,
+            "skipped": 34
           },
           {
             "check": "concurrency.if-match-enforced",
@@ -3023,6 +3098,11 @@
             "check": "read.matches-caller-root",
             "ran": 2,
             "skipped": 4
+          },
+          {
+            "check": "request.invalid-body-refused",
+            "ran": 0,
+            "skipped": 34
           },
           {
             "check": "response.contract-call",

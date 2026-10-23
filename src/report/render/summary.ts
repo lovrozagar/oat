@@ -35,7 +35,7 @@ function skippedLines(coverage: Coverage): string[] {
 		lines.push("  APPLIED ONLY ON SOME ENTITIES")
 		for (const row of coverage.partialSkip) {
 			lines.push(
-				`    ${row.check.padEnd(40)} ran on ${row.ran} · skipped on ${row.skipped} (${named(row.skippedEntities)})`,
+				`    ${row.check.padEnd(40)} ran ${row.ran > 0 ? `on ${row.ran}` : "per operation"} · skipped on ${row.skipped} (${named(row.skippedEntities)})`,
 			)
 		}
 		lines.push("")

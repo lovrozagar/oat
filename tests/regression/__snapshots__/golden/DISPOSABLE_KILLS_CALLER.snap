@@ -2134,6 +2134,102 @@
         "now": 1,
         "was": null
       }
+    },
+    "coverage": {
+      "neverApplied": {
+        "added": [
+          "auth.privileged-field-ignored",
+          "auth.refresh-reuse-refused",
+          "auth.revoked-credential-refused",
+          "auth.role-enforced"
+        ]
+      },
+      "partial": {
+        "added": [
+          {
+            "check": "auth.alternative-accepted",
+            "ran": 0,
+            "skipped": 37
+          },
+          {
+            "check": "auth.invalid-credential-refused",
+            "ran": 0,
+            "skipped": 33
+          },
+          {
+            "check": "auth.missing-credential-refused",
+            "ran": 0,
+            "skipped": 33
+          },
+          {
+            "check": "auth.scope-enforced",
+            "ran": 0,
+            "skipped": 37
+          },
+          {
+            "check": "auth.wrong-scheme-refused",
+            "ran": 0,
+            "skipped": 35
+          },
+          {
+            "check": "request.invalid-body-refused",
+            "ran": 0,
+            "skipped": 38
+          }
+        ],
+        "removed": [
+          {
+            "check": "auth.alternative-accepted",
+            "ran": 0,
+            "skipped": 34
+          },
+          {
+            "check": "auth.invalid-credential-refused",
+            "ran": 0,
+            "skipped": 23
+          },
+          {
+            "check": "auth.missing-credential-refused",
+            "ran": 0,
+            "skipped": 23
+          },
+          {
+            "check": "auth.privileged-field-ignored",
+            "ran": 0,
+            "skipped": 38
+          },
+          {
+            "check": "auth.refresh-reuse-refused",
+            "ran": 0,
+            "skipped": 38
+          },
+          {
+            "check": "auth.revoked-credential-refused",
+            "ran": 0,
+            "skipped": 37
+          },
+          {
+            "check": "auth.role-enforced",
+            "ran": 0,
+            "skipped": 32
+          },
+          {
+            "check": "auth.scope-enforced",
+            "ran": 0,
+            "skipped": 28
+          },
+          {
+            "check": "auth.wrong-scheme-refused",
+            "ran": 0,
+            "skipped": 34
+          },
+          {
+            "check": "request.invalid-body-refused",
+            "ran": 0,
+            "skipped": 34
+          }
+        ]
+      }
     }
   }
 }

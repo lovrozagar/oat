@@ -50,6 +50,17 @@ describe("renderConsole's summary", () => {
 		expect(lines).toContain("  APPLIED ONLY ON SOME ENTITIES")
 		expect(lines).toContain(`    ${"some".padEnd(40)} ran on 1 · skipped on 1 (a)`)
 	})
+
+	it("says a check judged per operation ran, rather than that it ran on no entity", () => {
+		const text = renderConsole(
+			reportOf({
+				checksSkipped: [{ check: "auth.missing-credential-refused", entity: "pet", needs: "an overlay" }],
+				findings: [finding({ check: "auth.missing-credential-refused" })],
+			}),
+		)
+		expect(text).not.toContain("DID NOT APPLY")
+		expect(text).toContain(`    ${"auth.missing-credential-refused".padEnd(40)} ran per operation · skipped on 1 (pet)`)
+	})
 })
 
 describe("renderConsole's findings and untested checks", () => {
