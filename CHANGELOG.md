@@ -74,6 +74,8 @@ See [docs/migrating-0.25.md](docs/migrating-0.25.md) for each change and what to
 
 ### Fixed
 
+- `x-wait` and `x-async` conclude a missed delivery only after three polls, so a slow host never reports a
+  false finding on a working API; a wait that ran past its budget says so in a run note.
 - `payload.string-survives` no longer picks a field a schema marks `writeOnly` (a value no read
   returns). The same exclusion now applies to `patch.minimality` and the isolation checks' choice
   of a writable string (c69ca09, whose subject names the payload check).
