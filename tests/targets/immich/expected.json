@@ -8,7 +8,19 @@
 	{
 		"check": "response.status-is-documented",
 		"verdict": "SPEC_BUG",
+		"operationId": "deleteApiKey",
+		"why": "DELETE /api-keys/{id} documents only 204, but an id that is missing or not the caller's answers 400 {\"message\":\"API Key not found\"}: delete in server/src/services/api-key.service.ts (https://github.com/immich-app/immich/blob/v3.3.5/server/src/services/api-key.service.ts) throws BadRequestException."
+	},
+	{
+		"check": "response.status-is-documented",
+		"verdict": "SPEC_BUG",
 		"operationId": "deleteTag",
 		"why": "DELETE /tags/{id} documents only 204, but an id that is missing or not the caller's answers 400 {\"message\":\"Not found or no tag.delete access\"}: requireAccess in server/src/utils/access.ts throws BadRequestException (https://github.com/immich-app/immich/blob/v3.3.5/server/src/utils/access.ts)."
+	},
+	{
+		"check": "response.status-is-documented",
+		"verdict": "SPEC_BUG",
+		"operationId": "getMyApiKey",
+		"why": "GET /api-keys/me documents only 200, but a caller signed in by session rather than API key answers 403 {\"message\":\"Not authenticated with an API Key\"}: getMine in server/src/services/api-key.service.ts (https://github.com/immich-app/immich/blob/v3.3.5/server/src/services/api-key.service.ts) throws ForbiddenException."
 	}
 ]
