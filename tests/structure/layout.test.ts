@@ -87,7 +87,9 @@ describe("layout", () => {
 			expect.arrayContaining(["dist/cli/main.js", "dist/errors/message.js", "dist/security/redact.js"]),
 		)
 	})
+})
 
+describe("the package", () => {
 	it("ships no test, fixture or tests/ file in the package", () => {
 		const packed = spawnSync("npm", ["pack", "--dry-run", "--json", "--ignore-scripts"], {
 			cwd: ROOT,
@@ -97,6 +99,12 @@ describe("layout", () => {
 		expect(manifests).toHaveLength(1)
 		const shipped = manifests.flatMap((manifest) => manifest.files.map((file) => file.path))
 		expect(shipped.length).toBeGreaterThan(0)
-		expect(shipped.filter((path) => /\.test\.|__fixtures__|^tests\/|^lint\//.test(path))).toEqual([])
+		expect(shipped.filter((path) => /\.test\.|__fixtures__|^tests\/|^lint\/|^\.tmp\//.test(path))).toEqual([])
+		/* A compiled module whose source is gone (a rename the output kept) would ship code nothing builds. */
+		const orphans = shipped
+			.filter((path) => /^dist\/.+\.js$/.test(path))
+			.map((path) => path.replace(/^dist\//, "src/").replace(/\.js$/, ".ts"))
+			.filter((source) => !existsSync(join(ROOT, source)))
+		expect(orphans).toEqual([])
 	})
 })
