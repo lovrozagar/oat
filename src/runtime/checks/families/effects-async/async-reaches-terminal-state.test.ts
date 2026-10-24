@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { CheckContext, Listed } from "../../core/context.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
 import { ASSERTED } from "../../../finding.ts"
@@ -35,11 +35,27 @@ const startJob = op(model, "startJob")
 const done = { body: { result: "ok", status: "done" }, status: 200 }
 const pending = { body: { status: "pending" }, status: 200 }
 
-/** Answers each poll in turn, repeating the last answer. */
+/** Answers each poll in turn, repeating the last answer, each after 45ms of real time: a slow host. */
 function polls(...answers: ReturnType<Handler>[]): Handler {
 	let at = 0
-	return () => answers[Math.min(at++, answers.length - 1)]
+	return () => {
+		stall(45)
+		return answers[Math.min(at++, answers.length - 1)]
+	}
 }
+
+/* Blocks the thread for `ms` of real time, which no fake timer shortens. */
+function stall(ms: number): void {
+	Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
+}
+
+/* The poll budget is virtual time: a run's verdict never depends on how fast the host is. */
+beforeEach(() => {
+	vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] })
+})
+afterEach(() => {
+	vi.useRealTimers()
+})
 
 async function watched(respond: Responder, asyncOps: OperationModel[] = [startJob], fields: Partial<Listed> = {}) {
 	const recordCreated = vi.fn<NonNullable<CheckContext["recordCreated"]>>()
@@ -48,8 +64,9 @@ async function watched(respond: Responder, asyncOps: OperationModel[] = [startJo
 		respond,
 		fields: { asyncOps, recordCreated, recordUnidentified, ...fields },
 	})
-	const outcome = await check.run(stage.ctx, undefined)
-	return { ...stage, outcome, recordCreated, recordUnidentified }
+	const running = check.run(stage.ctx, undefined)
+	await vi.runAllTimersAsync()
+	return { ...stage, outcome: await running, recordCreated, recordUnidentified }
 }
 
 const started = (poll: Handler, start: Answer = { body: { id: "j1" }, status: 202 }): Responder =>
