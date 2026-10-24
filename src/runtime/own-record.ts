@@ -15,6 +15,7 @@ import { isSecretJsonKey } from "../security/credential-names.ts"
 import { operationResolver } from "../spec/graph/resolver.ts"
 import type { OperationModel, SpecModel } from "../spec/graph/types.ts"
 import { SAFE } from "../spec/methods.ts"
+import { type CredentialRecord, heldCredential } from "./credential-records.ts"
 import type { Exchange } from "./exchange.ts"
 import { SELF_IDENTITY } from "./self/operations.ts"
 
@@ -31,6 +32,8 @@ export interface OwnRecords {
 	disposable: () => Promise<string | { blocked: string }>
 	/** Takes what the principal's self read answered: its own ids, which no config names, join its identity. */
 	learn?: (principal: string, answer: unknown) => void
+	/** Every record holding a live credential the run depends on, every principal's (`mintedRecords`). */
+	credentials?: () => readonly CredentialRecord[]
 }
 
 /*
@@ -64,6 +67,14 @@ export function ownRecordsFrom(base: Omit<OwnRecords, "learn">): OwnRecords {
 /** A write refused before it was sent: it would change how a principal signs in. Its message names the fields. */
 export class ProtectedWriteError extends Error {
 	override name = "ProtectedWriteError"
+}
+
+/**
+ * A write that names a record the run depends on: a credential it holds, or a configured principal's
+ * own record it would remove or replace. The check that sent it stands down, naming the record.
+ */
+export class HeldRecordError extends ProtectedWriteError {
+	override name = "HeldRecordError"
 }
 
 /** Why `operationId` is not sent as `principal`'s with `fields`: the reason a stand-down gives. */
@@ -156,6 +167,50 @@ function scalarText(value: unknown): string[] {
 	return typeof value === "string" || typeof value === "number" ? [String(value)] : []
 }
 
+/** Throws for a request the guard never sends: one naming a held record, or one changing a protected field. */
+function refuse(
+	records: OwnRecords,
+	write: { identity: Readonly<Record<string, unknown>> | undefined; op: OperationModel; path: Record<string, string> },
+	sent: { body: unknown; method: string; principal: string | undefined },
+): void {
+	if (!SAFE.has(sent.method.toUpperCase())) refuseHeld(records, write, sent)
+	const { identity, op } = write
+	if (identity === undefined || !isPlain(sent.body)) return
+	/* Deep, as guardWrite drops: `{ user: { password } }` changes the password as surely as `{ password }`. */
+	const fields = [...protectedFields(records.signIn, { ...write, identity }, keysOf(sent.body))]
+	if (fields.length > 0)
+		throw new ProtectedWriteError(protectedReason(op.operationId, sent.principal as string, fields))
+}
+
+/*
+ * A write the run must never send, whoever sends it: one that changes or removes a record holding a
+ * credential the run depends on. And one a configured principal sends to remove or replace its own
+ * record, which would end the account every later check signs in as.
+ */
+function refuseHeld(
+	records: OwnRecords,
+	write: { identity: Readonly<Record<string, unknown>> | undefined; op: OperationModel; path: Record<string, string> },
+	sent: { method: string; principal: string | undefined },
+): void {
+	const held = heldCredential(write.op, write.path, records.credentials?.() ?? [])
+	if (held !== undefined) {
+		throw new HeldRecordError(
+			`${write.op.operationId} would change ${held.entity} ${held.id}, a credential the run holds ` +
+				`(minted by ${held.operationId}): oat never sends that`,
+		)
+	}
+	const replaces = sent.method.toUpperCase() === "DELETE" || sent.method.toUpperCase() === "PUT"
+	if (write.identity === undefined || !replaces) return
+	if (!ownRecord({ identity: write.identity, op: write.op, path: write.path })) return
+	const owner = probeOwner(sent.principal as string)
+	const op = write.op.operationId
+	throw new HeldRecordError(
+		sent.method.toUpperCase() === "DELETE"
+			? `${op} would remove ${owner}'s own record: oat never sends that`
+			: `${op} is a full replace of ${owner}'s own record, which could clear its sign-in fields: oat never sends that`,
+	)
+}
+
 /**
  * `client`, and every view of it, refusing any write that would still change a protected field of
  * its sender's own record (`ProtectedWriteError`, nothing sent): what every check sends through, so
@@ -166,13 +221,11 @@ export function guardedClient(client: Client, records: OwnRecords, model: SpecMo
 	const request = async (method: string, path: string, options: RequestOptions): Promise<Exchange> => {
 		const principal = "principal" in options.as ? options.as.principal : undefined
 		const identity = principal === undefined ? undefined : records.identityOf(principal)
-		const resolved = identity === undefined ? null : resolve(method, path)
+		const writes = !SAFE.has(method.toUpperCase())
+		const resolved = identity === undefined && !writes ? null : resolve(method, path)
 		const op = resolved === null ? undefined : model.byOperationId.get(resolved.operationId)
-		if (op !== undefined && resolved !== null && isPlain(options.body)) {
-			const write = { identity: identity as Readonly<Record<string, unknown>>, op, path: resolved.pathParams }
-			/* Deep, as guardWrite drops: `{ user: { password } }` changes the password as surely as `{ password }`. */
-			const fields = [...protectedFields(records.signIn, write, keysOf(options.body))]
-			if (fields.length > 0) throw new ProtectedWriteError(protectedReason(op.operationId, principal as string, fields))
+		if (op !== undefined && resolved !== null) {
+			refuse(records, { identity, op, path: resolved.pathParams }, { body: options.body, method, principal })
 		}
 		const exchange = await client.request(method, path, options)
 		if (op?.identity === SELF_IDENTITY && SAFE.has(method.toUpperCase()) && exchange.status < 300) {

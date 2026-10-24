@@ -7,9 +7,9 @@ import { CHECKS } from "../../checks/registry.ts"
 import type { Client } from "../../../client/client.ts"
 import { UnsatisfiedSecurity } from "../../../client/credential-source.ts"
 import { FencedError } from "../../fence.ts"
-import { guardedClient, ProtectedWriteError } from "../../own-record.ts"
+import { guardedClient, HeldRecordError, ProtectedWriteError } from "../../own-record.ts"
 import { ownRecordsOf } from "../own-records.ts"
-import { type FindingCollector, isRootCause, type Outcome } from "../../finding.ts"
+import { type FindingCollector, isRootCause, type Outcome, standDown } from "../../finding.ts"
 import { isNetworkError } from "../../../errors/network.ts"
 import type { RunContext } from "../context.ts"
 import type { EntityRun } from "./state.ts"
@@ -115,6 +115,11 @@ async function outcomeOf(
 	try {
 		return await runOn(check, view, loop.plans.get(check.id))
 	} catch (error) {
+		/* A record the run depends on was never the check's to change: nothing to judge, not a failure. */
+		if (error instanceof HeldRecordError) {
+			loop.outcomes.set(check.id, standDown(error.message))
+			return undefined
+		}
 		const unresolved = await unresolvedBy(
 			{ attributed, checkId: check.id, ctx: loop.run.ctx, entity: loop.run.entity.name },
 			error,

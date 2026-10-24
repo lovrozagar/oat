@@ -56,3 +56,32 @@ describe("ownRecordsOf", () => {
 		enrolled.blocked = undefined
 	})
 })
+
+describe("ownRecordsOf and the credentials the run holds", () => {
+	it("knows each record a mint recipe made, from what the credential store sent", () => {
+		const create = { createdIdFrom: null, entity: "api-key", operationId: "apiKey.create", recordPath: null }
+		const minted = {
+			issuedBy: "credentials",
+			operationId: "apiKey.create",
+			responseBody: { id: "k-1", key: "ak_1" },
+			responseHeaders: {},
+			status: 201,
+			url: "http://api.test/keys",
+		}
+		const ctx = {
+			...contextOf(),
+			client: { exchangesFor: (id: string) => (id === "apiKey.create" ? [minted] : []) },
+			model: {
+				byOperationId: new Map([["apiKey.create", create]]),
+				entities: new Map([["api-key", { identity: "id", name: "api-key" }]]),
+			},
+			options: {
+				security: {
+					apiKey: { mint: { from: "$.key", operationId: "apiKey.create", with: "jwt" } },
+					jwt: { login: LOGIN },
+				},
+			},
+		} as unknown as RunContext
+		expect(ownRecordsOf(ctx).credentials?.()).toEqual([{ entity: "api-key", id: "k-1", operationId: "apiKey.create" }])
+	})
+})

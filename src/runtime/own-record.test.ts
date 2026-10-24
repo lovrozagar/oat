@@ -10,6 +10,7 @@ import {
 	guardedClient,
 	ownRecordsFrom,
 	guardWrite,
+	HeldRecordError,
 	type OwnRecords,
 	ownRecord,
 	protectedFields,
@@ -118,8 +119,8 @@ describe("guardWrite", () => {
 
 describe("guardedClient", () => {
 	const ops = [
-		{ identity: null, method: "PUT", operationId: "me.update", path: "/users/me", pathParams: [] },
-		{ identity: null, method: "PUT", operationId: "user.update", path: "/users/{id}", pathParams: ["id"] },
+		{ identity: null, method: "PATCH", operationId: "me.update", path: "/users/me", pathParams: [] },
+		{ identity: null, method: "PATCH", operationId: "user.update", path: "/users/{id}", pathParams: ["id"] },
 		{ identity: null, method: "GET", operationId: "me.get", path: "/users/me", pathParams: [] },
 	].map((one) => ({ ...one, statuses: { exact: [200], ranges: [] } }))
 	const model = {
@@ -146,30 +147,30 @@ describe("guardedClient", () => {
 
 	it("refuses a write that would change a protected field of the sender's own record, sending nothing", async () => {
 		const { client, sent } = staged()
-		const write = client.request("PUT", "/users/me", { as: { principal: "alpha" }, body: { email: "e", note: "n" } })
+		const write = client.request("PATCH", "/users/me", { as: { principal: "alpha" }, body: { email: "e", note: "n" } })
 		await expect(write).rejects.toThrow(ProtectedWriteError)
 		await expect(write).rejects.toThrow(
 			"me.update would change email on alpha's own record, which alpha signs in with: oat never sends that",
 		)
 		await expect(
-			client.view({}).request("PUT", "/users/u-1", { as: { principal: "alpha#probe-1" }, body: { password: "p" } }),
+			client.view({}).request("PATCH", "/users/u-1", { as: { principal: "alpha#probe-1" }, body: { password: "p" } }),
 		).rejects.toThrow("user.update would change password on alpha's own record")
 		expect(sent).toEqual([])
 	})
 
 	it("sends another record's write, a disposable's, an anonymous one, a read and an unknown route", async () => {
 		const { client, sent } = staged()
-		await client.request("PUT", "/users/u-2", { as: { principal: "alpha" }, body: { password: "p" } })
-		await client.request("PUT", "/users/me", { as: { principal: "disposable-0" }, body: { password: "p" } })
-		await client.request("PUT", "/users/me", { as: { anonymous: true }, body: { password: "p" } })
-		await client.request("PUT", "/users/me", { as: { principal: "alpha" }, body: { note: "n" } })
+		await client.request("PATCH", "/users/u-2", { as: { principal: "alpha" }, body: { password: "p" } })
+		await client.request("PATCH", "/users/me", { as: { principal: "disposable-0" }, body: { password: "p" } })
+		await client.request("PATCH", "/users/me", { as: { anonymous: true }, body: { password: "p" } })
+		await client.request("PATCH", "/users/me", { as: { principal: "alpha" }, body: { note: "n" } })
 		await client.request("GET", "/users/me", { as: { principal: "alpha" } })
 		await client.request("PATCH", "/elsewhere", { as: { principal: "alpha" }, body: { password: "p" } })
 		expect(sent.map(([method, path]) => `${method} ${path}`)).toEqual([
-			"PUT /users/u-2",
-			"PUT /users/me",
-			"PUT /users/me",
-			"PUT /users/me",
+			"PATCH /users/u-2",
+			"PATCH /users/me",
+			"PATCH /users/me",
+			"PATCH /users/me",
 			"GET /users/me",
 			"PATCH /elsewhere",
 		])
@@ -178,8 +179,8 @@ describe("guardedClient", () => {
 
 const REACH_OPS = [
 	{ identity: "self", method: "GET", operationId: "me.get", path: "/me", pathParams: [] },
-	{ identity: null, method: "PUT", operationId: "me.update", path: "/users/me", pathParams: [] },
-	{ identity: null, method: "PUT", operationId: "user.update", path: "/users/{id}", pathParams: ["id"] },
+	{ identity: null, method: "PATCH", operationId: "me.update", path: "/users/me", pathParams: [] },
+	{ identity: null, method: "PATCH", operationId: "user.update", path: "/users/{id}", pathParams: ["id"] },
 ].map((one) => ({ ...one, statuses: { exact: [200], ranges: [] } }))
 const REACH_MODEL = {
 	byOperationId: new Map(REACH_OPS.map((one) => [one.operationId, one])),
@@ -202,7 +203,7 @@ describe("guardedClient's reach", () => {
 		}
 		const client = guardedClient(inner as unknown as Client, learning(), REACH_MODEL)
 		for (const body of [{ user: { password: "p" } }, { data: { attributes: { email: "e" } } }]) {
-			await expect(client.request("PUT", "/users/me", { as: { principal: "alpha" }, body })).rejects.toThrow(
+			await expect(client.request("PATCH", "/users/me", { as: { principal: "alpha" }, body })).rejects.toThrow(
 				ProtectedWriteError,
 			)
 		}
@@ -219,10 +220,10 @@ describe("guardedClient's reach", () => {
 		const client = guardedClient(inner as unknown as Client, learning(), REACH_MODEL)
 		await client.request("GET", "/me", { as: { principal: "alpha" } })
 		await expect(
-			client.request("PUT", "/users/u-9", { as: { principal: "alpha" }, body: { password: "p" } }),
+			client.request("PATCH", "/users/u-9", { as: { principal: "alpha" }, body: { password: "p" } }),
 		).rejects.toThrow("user.update would change password on alpha's own record")
 		await expect(
-			client.request("PUT", "/users/u-8", { as: { principal: "alpha" }, body: { password: "p" } }),
+			client.request("PATCH", "/users/u-8", { as: { principal: "alpha" }, body: { password: "p" } }),
 		).resolves.toBeDefined()
 	})
 })
@@ -248,12 +249,119 @@ describe("guardedClient learning and every way it sends", () => {
 		const client = guardedClient(real, learning(), REACH_MODEL)
 		const write = { as: { principal: "alpha" }, body: { email: "e" } } as const
 		const senders = [
-			() => client.request("PUT", "/users/me", write),
-			() => client.view({}).request("PUT", "/users/me", write),
-			() => client.view({}).view({}).request("PUT", "/users/me", write),
-			() => (client.readOnlyView({}) as unknown as Client).request("PUT", "/users/me", write),
+			() => client.request("PATCH", "/users/me", write),
+			() => client.view({}).request("PATCH", "/users/me", write),
+			() => client.view({}).view({}).request("PATCH", "/users/me", write),
+			() => (client.readOnlyView({}) as unknown as Client).request("PATCH", "/users/me", write),
 		]
 		for (const send of senders) await expect(send()).rejects.toThrow(/would change email|does not mutate/)
 		expect(wire.sent).toEqual([])
+	})
+})
+
+const HELD_OPS = [
+	{
+		entity: "api-key",
+		identity: null,
+		method: "PATCH",
+		operationId: "apiKey.update",
+		path: "/keys/{id}",
+		pathParams: ["id"],
+	},
+	{
+		entity: "api-key",
+		identity: null,
+		method: "DELETE",
+		operationId: "apiKey.revoke",
+		path: "/keys/{id}",
+		pathParams: ["id"],
+	},
+	{
+		entity: "api-key",
+		identity: null,
+		method: "GET",
+		operationId: "apiKey.get",
+		path: "/keys/{id}",
+		pathParams: ["id"],
+	},
+	{
+		entity: "user",
+		identity: null,
+		method: "DELETE",
+		operationId: "user.delete",
+		path: "/users/{id}",
+		pathParams: ["id"],
+	},
+	{
+		entity: "user",
+		identity: null,
+		method: "PUT",
+		operationId: "user.replace",
+		path: "/users/{id}",
+		pathParams: ["id"],
+	},
+].map((one) => ({ ...one, statuses: { exact: [200], ranges: [] } }))
+const HELD_MODEL = {
+	byOperationId: new Map(HELD_OPS.map((one) => [one.operationId, one])),
+	operations: HELD_OPS,
+} as unknown as SpecModel
+const HELD: OwnRecords = {
+	credentials: () => [{ entity: "api-key", id: "k-1", operationId: "apiKey.create" }],
+	disposable: () => Promise.resolve({ blocked: "no signup" }),
+	identityOf: (principal) => (probeOwner(principal) === "alpha" ? identity : undefined),
+	signIn,
+}
+
+function heldStage() {
+	const sent: string[] = []
+	const inner = {
+		request: (method: string, path: string) => (sent.push(`${method} ${path}`), Promise.resolve({} as Exchange)),
+		view: () => inner,
+	}
+	return { client: guardedClient(inner as unknown as Client, HELD, HELD_MODEL), sent }
+}
+
+describe("guardedClient and the credentials the run holds", () => {
+	it("refuses a change or removal of a credential record the run holds, whoever sends it, sending nothing", async () => {
+		const { client, sent } = heldStage()
+		await expect(client.request("DELETE", "/keys/k-1", { as: { principal: "beta" } })).rejects.toThrow(
+			"apiKey.revoke would change api-key k-1, a credential the run holds (minted by apiKey.create): oat never sends that",
+		)
+		await expect(
+			client.request("PATCH", "/keys/k-1", { as: { principal: "alpha" }, body: { name: "n" } }),
+		).rejects.toThrow(ProtectedWriteError)
+		await expect(client.request("DELETE", "/keys/k-1", { as: { anonymous: true } })).rejects.toThrow(
+			ProtectedWriteError,
+		)
+		expect(sent).toEqual([])
+	})
+
+	it("reads a credential record, and changes a record the run made for its checks", async () => {
+		const { client, sent } = heldStage()
+		await client.request("GET", "/keys/k-1", { as: { principal: "alpha" } })
+		await client.request("GET", "/keys/k-1", { as: { anonymous: true } })
+		await client.request("DELETE", "/keys/k-2", { as: { principal: "beta" } })
+		await client.request("PATCH", "/keys/k-2", { as: { principal: "alpha" }, body: { name: "n" } })
+		expect(sent).toEqual(["GET /keys/k-1", "GET /keys/k-1", "DELETE /keys/k-2", "PATCH /keys/k-2"])
+	})
+})
+
+describe("guardedClient and a principal's own record", () => {
+	it("refuses to remove or replace a configured principal's own record, and lets a disposable's go", async () => {
+		const { client, sent } = heldStage()
+		await expect(client.request("DELETE", "/users/u-1", { as: { principal: "alpha" } })).rejects.toThrow(
+			"user.delete would remove alpha's own record: oat never sends that",
+		)
+		await expect(
+			client.request("PUT", "/users/u-1", { as: { principal: "alpha" }, body: { note: "n" } }),
+		).rejects.toThrow(
+			"user.replace is a full replace of alpha's own record, which could clear its sign-in fields: oat never sends that",
+		)
+		await expect(client.request("DELETE", "/users/u-1", { as: { principal: "alpha" } })).rejects.toThrow(
+			HeldRecordError,
+		)
+		await client.request("DELETE", "/users/u-1", { as: { principal: "disposable-0" } })
+		await client.request("DELETE", "/users/u-2", { as: { principal: "alpha" } })
+		expect(sent).toEqual(["DELETE /users/u-1", "DELETE /users/u-2"])
 	})
 })

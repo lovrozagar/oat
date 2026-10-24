@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { MissingValueError } from "../../../errors/missing-value.ts"
+import { HeldRecordError } from "../../own-record.ts"
 import { UnsatisfiedSecurity } from "../../../client/credential-source.ts"
 import { FencedError } from "../../fence.ts"
 import { checkOf, loopOf } from "../__fixtures__/checks.ts"
@@ -158,6 +159,14 @@ describe("runCheck errors", () => {
 		const { ctx, outcome } = await ran({ id: "c.fenced", run: throwing(fenced) })
 		expect(outcome).toEqual({ kind: "unresolved", reason: "a request was fenced" })
 		expect(ctx.findings.findings[0]).toMatchObject({ check: "fence", summary: "c.fenced was fenced: no writes" })
+	})
+
+	it("stands a check down, naming the record, when its write names a record the run depends on", async () => {
+		const reason =
+			"apiKey.revoke would change api-key k-1, a credential the run holds (minted by apiKey.create): oat never sends that"
+		const { ctx, outcome } = await ran({ id: "c.held", run: throwing(new HeldRecordError(reason)) })
+		expect(outcome).toEqual({ kind: "stood-down", reason })
+		expect(ctx.findings.findings).toEqual([])
 	})
 
 	it("leaves a check unresolved for a value nobody supplied", async () => {

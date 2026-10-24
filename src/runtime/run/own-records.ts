@@ -1,4 +1,5 @@
 import { probeOwner } from "../../credentials/probe-principal.ts"
+import { mintedRecords } from "../credential-records.ts"
 import { signInFields } from "../../credentials/sign-in-fields.ts"
 import { type OwnRecords, ownRecordsFrom } from "../own-record.ts"
 import type { RunContext } from "./context.ts"
@@ -26,7 +27,17 @@ function build(ctx: RunContext): OwnRecords {
 	 */
 	const identityOf = (principal: string): Readonly<Record<string, unknown>> | undefined =>
 		ctx.principals.byId.get(probeOwner(principal))?.identity
+	/* Each mint recipe's operation: what it answered the credential store is a record the run holds. */
+	const mintOps = new Set(
+		recipesOf(ctx).flatMap((recipe) => (recipe.mint === undefined ? [] : [recipe.mint.operationId])),
+	)
 	return ownRecordsFrom({
+		credentials: () =>
+			mintedRecords({
+				exchanges: [...mintOps].flatMap((operationId) => ctx.client.exchangesFor(operationId)),
+				mintOps,
+				model: ctx.model,
+			}),
 		disposable: () => {
 			disposable ??= enrollerOf(ctx)("own-record").then((enrolled) => ("blocked" in enrolled ? enrolled : enrolled.id))
 			return disposable

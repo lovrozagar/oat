@@ -1250,6 +1250,12 @@
 	"src/runtime/cookies/save-as.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/cookies/set-cookie.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/create-tracker.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/runtime/credential-records.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
 	"src/runtime/created-id.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/disposable/after.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/disposable/check.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
