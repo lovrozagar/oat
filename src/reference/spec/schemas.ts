@@ -6,6 +6,15 @@ import { writableFields } from "../model/fields.ts"
 import type { JsonSchema } from "../../spec/types.ts"
 import type { Json, SpecContext } from "./types.ts"
 
+/* A string's lengths and patterns: one pattern as itself, more as an `allOf`, as generators emit them. */
+function stringBounds(field: FieldDef, base: JsonSchema): void {
+	if (field.maxLength !== undefined) base.maxLength = field.maxLength
+	if (field.minLength !== undefined) base.minLength = field.minLength
+	const patterns = field.patterns ?? []
+	if (patterns.length === 1) base.pattern = patterns[0]
+	if (patterns.length > 1) base.allOf = patterns.map((pattern) => ({ pattern }))
+}
+
 export function fieldSchema(field: FieldDef): JsonSchema {
 	const base: JsonSchema =
 		field.ref === undefined ? { type: field.type } : { $ref: `#/components/schemas/${field.ref}` }
@@ -19,7 +28,7 @@ export function fieldSchema(field: FieldDef): JsonSchema {
 	if (field.multipleOf !== undefined) base.multipleOf = field.multipleOf
 	if (field.const !== undefined) base.const = field.const
 	if (field.enum !== undefined) base.enum = [...field.enum]
-	if (field.maxLength !== undefined) base.maxLength = field.maxLength
+	stringBounds(field, base)
 	if (field.generated === true) base.readOnly = true
 	if (field.writeOnly === true) base.writeOnly = true
 	if (field.privileged === true) base["x-privileged"] = true

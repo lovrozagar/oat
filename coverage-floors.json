@@ -248,6 +248,7 @@
 	"src/reference/model/webhook.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/reference/model/row.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/reference/model/shaped.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/reference/model/string-guard.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/reference/model/table-shape.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/reference/model/table.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/reference/model/timestamps.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },

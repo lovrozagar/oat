@@ -1,15 +1,33 @@
 /** Routes about the caller: its profile, its account, its own project, a register and a logout. */
 
+import { PHONE_PATTERN, STRING_GUARD } from "../model/string-guard.ts"
 import { errorResponses } from "./errors.ts"
 import { jsonResponse, ok } from "./operation.ts"
 import type { Json, SpecContext } from "./types.ts"
 import type { JsonSchema } from "../../spec/types.ts"
 
 /** The signed-up caller is the record. No list, no create, no path id. */
+/* Under the string guard: the name guarded, and a phone number whose own pattern sits beside the guard. */
+const GUARDED_PROFILE: Readonly<Record<string, JsonSchema>> = {
+	first_name: { maxLength: 64, pattern: STRING_GUARD, type: "string" },
+	phone_number: {
+		anyOf: [
+			{
+				allOf: [{ pattern: PHONE_PATTERN }, { pattern: STRING_GUARD }],
+				maxLength: 15,
+				minLength: 7,
+				type: "string",
+			},
+			{ type: "null" },
+		],
+	},
+}
+
 export function callerProfilePaths(ctx: SpecContext): Json {
 	const schema: JsonSchema = {
 		additionalProperties: false,
-		properties: { first_name: { maxLength: 64, type: "string" } },
+		properties:
+			ctx.shape.stringGuard === true ? { ...GUARDED_PROFILE } : { first_name: { maxLength: 64, type: "string" } },
 		required: ["first_name"],
 		type: "object",
 	}

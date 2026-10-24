@@ -1,3 +1,4 @@
+import { PHONE_PATTERN } from "./string-guard.ts"
 import type { EntityDef, EntityShape, FieldDef } from "./types.ts"
 
 /**
@@ -39,6 +40,18 @@ function extraFields(shape: EntityShape): FieldDef[] {
 			? [{ maxLength: 64, name: "secret", required: true, type: "string", writeOnly: true } satisfies FieldDef]
 			: []),
 		...(shape.richSchema === true ? richFields() : []),
+		...(shape.stringGuard === true
+			? [
+					{
+						maxLength: 15,
+						minLength: 7,
+						name: "phone",
+						nullable: true,
+						patterns: [PHONE_PATTERN],
+						type: "string",
+					} satisfies FieldDef,
+				]
+			: []),
 		...(shape.largeRecords === true ? [{ generated: true, name: "padding", type: "string" } satisfies FieldDef] : []),
 		...(shape.specLayout === true
 			? [{ generated: true, name: "tree", nullable: true, ref: "TreeNode", type: "object" } satisfies FieldDef]

@@ -140,3 +140,30 @@ describe("the caller's own record, by what it may change", () => {
 		expect((await call("GET", "/v1/me")).body).toEqual({ first_name: "Ada" })
 	})
 })
+
+describe("the caller's profile under the string guard", () => {
+	it("keeps a phone number its patterns admit, and refuses one they refuse or a name the guard refuses", async () => {
+		const { call } = await api({ shape: "string-guard" })
+		const update = (body: Record<string, unknown>) => call("PATCH", "/v1/me", { body })
+		expect((await update({ first_name: "Grace", phone_number: "+38591234567" })).body).toEqual({
+			first_name: "Grace",
+			phone_number: "+38591234567",
+		})
+		expect((await update({ first_name: "Grace", phone_number: null })).body).toEqual({ first_name: "Grace" })
+		const refused = [
+			{ first_name: "Gr\u0000ace" },
+			{ first_name: "Grace", phone_number: "Oat" },
+			{ first_name: "Grace", phone_number: 38591234567 },
+		]
+		for (const body of refused) {
+			expect((await update(body)).status).toBe(400)
+		}
+	})
+
+	it("leaves the profile as it was without the shape", async () => {
+		const { call } = await api()
+		expect((await call("PATCH", "/v1/me", { body: { first_name: "Grace", phone_number: "Oat" } })).body).toEqual({
+			first_name: "Grace",
+		})
+	})
+})

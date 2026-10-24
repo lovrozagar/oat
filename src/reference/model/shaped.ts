@@ -1,6 +1,7 @@
 import { ENTITIES } from "./entities.ts"
 import { renameIdentity } from "./identity.ts"
 import { TABLE } from "./table.ts"
+import { guardStrings } from "./string-guard.ts"
 import { shapeTable } from "./table-shape.ts"
 import type { EntityDef, EntityShape, FieldDef } from "./types.ts"
 
@@ -21,7 +22,8 @@ export function shapedEntities(shape: EntityShape): EntityDef[] {
 			field.name === entity.identity || linkParams.has(field.name) ? idField(field, shape.ids) : { ...field },
 		)
 		const unique = entity.name === TABLE.name ? shapeTable(entity, fields, shape) : entity.unique
-		return { ...entity, fields, ...(unique === undefined ? {} : { unique }) }
+		const served = shape.stringGuard === true ? guardStrings(fields) : fields
+		return { ...entity, fields: served, ...(unique === undefined ? {} : { unique }) }
 	})
 }
 

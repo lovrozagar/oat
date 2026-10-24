@@ -72,6 +72,21 @@ describe("validateBody", () => {
 	})
 })
 
+describe("coerceField and a string's patterns and minimum", () => {
+	const guarded = field({ minLength: 7, patterns: ["^\\+[1-9]\\d{7,14}$", "^[^\\u0000\\uD800-\\uDFFF]*$"] })
+
+	it("takes a value every pattern admits, an astral character included", () => {
+		expect(coerceField(guarded, "+38591234567", CLEAN)).toBe("+38591234567")
+		expect(coerceField(field({ patterns: ["^[^\\u0000\\uD800-\\uDFFF]*$"] }), "a 🙂", CLEAN)).toBe("a 🙂")
+	})
+
+	it("refuses a value one pattern refuses, or one under the minimum", () => {
+		expect(() => coerceField(guarded, "+3859\u0000123", CLEAN)).toThrow('field "f" must match ')
+		expect(() => coerceField(guarded, "38591234567", CLEAN)).toThrow('field "f" must match ')
+		expect(() => coerceField(field({ minLength: 7 }), "short", CLEAN)).toThrow('field "f" is shorter than 7')
+	})
+})
+
 describe("coerceField", () => {
 	it("admits null only where the field is nullable", () => {
 		expect(coerceField(field({ nullable: true }), null, CLEAN)).toBeNull()

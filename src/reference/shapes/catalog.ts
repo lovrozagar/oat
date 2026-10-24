@@ -169,6 +169,11 @@ export const SHAPES: readonly NamedShape[] = [
 	},
 	{ name: "form-create", shape: { formCreate: true }, why: "create takes a form-encoded body, not JSON" },
 	{
+		name: "string-guard",
+		shape: { stringGuard: true },
+		why: "every written string carries a guard pattern, beside its own pattern in an allOf where it has one",
+	},
+	{
 		name: "rich-schema",
 		shape: { richSchema: true },
 		why: "required date-time, a bounded number, a const, and one schema used twice in a body",

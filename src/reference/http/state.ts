@@ -76,6 +76,12 @@ export interface Grant {
 	token: string
 }
 
+/** The signed-up caller's profile; a phone number only under the string guard. */
+export interface Profile {
+	first_name: string
+	phone_number?: string
+}
+
 export interface ReferenceState {
 	untagged: boolean
 	defects: DefectSet
@@ -103,7 +109,7 @@ export interface ReferenceState {
 	inboxes: Map<string, Array<{ id: string; message: string }>>
 	grants: Map<string, Grant>
 	/** The caller's own profile, per principal key. */
-	profiles: Map<string, { first_name: string }>
+	profiles: Map<string, Profile>
 	/** Accounts, issued and revoked tokens, API keys and failed logins. */
 	auth: AuthState
 	/** Under `tableKey: "slug"`, each table's slug by its internal id: the identity a client knows. */

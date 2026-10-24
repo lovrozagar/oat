@@ -23,6 +23,9 @@ export interface FieldDef {
 	nullable?: boolean
 	enum?: readonly string[]
 	maxLength?: number
+	minLength?: number
+	/** Patterns a string must match, each with the `u` flag; more than one is declared as an `allOf`. */
+	patterns?: readonly string[]
 	/** Server-assigned; never accepted from a client. */
 	generated?: boolean
 	/** Present in responses but rejected as a write after creation. */
@@ -80,4 +83,5 @@ export interface EntityShape {
 	clientIds?: { min: number; max: number }
 	identityField?: string
 	tableKey?: "slug"
+	stringGuard?: boolean
 }

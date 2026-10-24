@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { ENTITIES } from "../model/entities.ts"
+import { PHONE_PATTERN, STRING_GUARD } from "../model/string-guard.ts"
 import { callerProfilePaths, callerRootPaths } from "./caller.ts"
 import type { Json } from "./types.ts"
 
@@ -76,6 +77,37 @@ describe("callerRootPaths", () => {
 		expect(paths["/v1/projects/{project_id}/overview"]?.["get"]).toMatchObject({
 			operationId: "project.overview",
 			"x-entity": { action: "read", identity: "root", name: "overview" },
+		})
+	})
+})
+
+describe("callerProfilePaths under the string guard", () => {
+	it("guards first_name and adds a nullable phone_number whose own pattern sits beside the guard in an allOf", () => {
+		const paths = callerProfilePaths({ entities: ENTITIES, shape: { stringGuard: true } }) as Paths
+		const body = paths["/v1/me"]?.["patch"] as Json
+		expect(body).toMatchObject({
+			requestBody: {
+				content: {
+					"application/json": {
+						schema: {
+							properties: {
+								first_name: { maxLength: 64, pattern: STRING_GUARD, type: "string" },
+								phone_number: {
+									anyOf: [
+										{
+											allOf: [{ pattern: PHONE_PATTERN }, { pattern: STRING_GUARD }],
+											maxLength: 15,
+											minLength: 7,
+											type: "string",
+										},
+										{ type: "null" },
+									],
+								},
+							},
+						},
+					},
+				},
+			},
 		})
 	})
 })

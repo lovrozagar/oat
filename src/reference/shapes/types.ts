@@ -35,6 +35,11 @@ export interface ReferenceShape {
 	formCreate?: boolean
 	/** Required date-time, a bounded number, a `const`, and one component schema used twice. */
 	richSchema?: boolean
+	/**
+	 * Every written string carries a guard pattern (no NUL, no unpaired surrogate), beside its own
+	 * pattern in an `allOf` where it has one, and the server enforces each: what some generators emit.
+	 */
+	stringGuard?: boolean
 	/** Each record carries a large generated field, so one page exceeds 256 KiB. */
 	largeRecords?: boolean
 	/** Responses documented as `2XX` and `default` rather than exact codes. */

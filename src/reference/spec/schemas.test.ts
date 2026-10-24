@@ -67,6 +67,17 @@ describe("fieldSchema", () => {
 	})
 })
 
+describe("fieldSchema and a string's patterns", () => {
+	it("declares one pattern as itself and more as an allOf, beside the minimum", () => {
+		expect(fieldSchema({ name: "a", patterns: ["^a"], type: "string" })).toEqual({ pattern: "^a", type: "string" })
+		expect(fieldSchema({ minLength: 7, name: "a", patterns: ["^a", "^[^b]*$"], type: "string" })).toEqual({
+			allOf: [{ pattern: "^a" }, { pattern: "^[^b]*$" }],
+			minLength: 7,
+			type: "string",
+		})
+	})
+})
+
 describe("record schemas", () => {
 	it("closes an entity's record and requires its required fields", () => {
 		const schema = itemSchema(TABLE)

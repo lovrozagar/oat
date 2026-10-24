@@ -6,7 +6,8 @@ import { authenticate } from "../auth/credentials.ts"
 import type { Account, Principal } from "../auth/types.ts"
 import { readJson, requireJson } from "../body.ts"
 import { HttpError } from "../errors.ts"
-import type { ReferenceState } from "../state.ts"
+import { PHONE_PATTERN, STRING_GUARD } from "../../model/string-guard.ts"
+import type { Profile, ReferenceState } from "../state.ts"
 import { type ReferenceRequest, type ReferenceResponse, respond } from "../wire.ts"
 
 /** A route: its answer, or `undefined` when the request is not one of its. */
@@ -47,18 +48,43 @@ export const overview: Route = async (state, request) => {
 	return respond(200, { extractions: 0, project_id: match[1] as string })
 }
 
+/* A profile update's body as the caller's profile, or why it is refused. Under the string guard
+ * the name must pass the guard, and a phone number, when one is sent, its own pattern and the guard. */
+function profileFrom(body: unknown, guarded: boolean): Profile {
+	const fields = body !== null && typeof body === "object" ? (body as Record<string, unknown>) : {}
+	const name = fields["first_name"]
+	if (typeof name !== "string" || name.length === 0 || name.length > 64 || (guarded && !admits(name, [STRING_GUARD]))) {
+		throw new HttpError(400, "invalid_input", 'field "first_name" must be a string')
+	}
+	const phone = guarded ? phoneFrom(fields["phone_number"]) : undefined
+	return phone === undefined ? { first_name: name } : { first_name: name, phone_number: phone }
+}
+
+/* A phone number sent, `null` or left out as none: 7 to 15 long, its own pattern and the guard met. */
+function phoneFrom(phone: unknown): string | undefined {
+	if (phone === undefined || phone === null) return undefined
+	if (typeof phone !== "string" || !isPhone(phone)) {
+		throw new HttpError(400, "invalid_input", 'field "phone_number" must be a phone number')
+	}
+	return phone
+}
+
+function isPhone(phone: string): boolean {
+	const length = [...phone].length
+	return length >= 7 && length <= 15 && admits(phone, [PHONE_PATTERN, STRING_GUARD])
+}
+
+function admits(value: string, patterns: readonly string[]): boolean {
+	return patterns.every((pattern) => new RegExp(pattern, "u").test(value))
+}
+
 export const me: Route = async (state, request) => {
 	if (request.url.pathname !== "/v1/me" || (request.method !== "GET" && request.method !== "PATCH")) return undefined
 	const principal = authenticate(state, request)
 	const current = state.profiles.get(principal.key) ?? { first_name: "Ada" }
 	if (request.method === "GET") return respond(200, current)
 	requireJson(request, state.defects)
-	const body = await readJson(request)
-	const name = body !== null && typeof body === "object" ? (body as { first_name?: unknown }).first_name : undefined
-	if (typeof name !== "string" || name.length === 0 || name.length > 64) {
-		throw new HttpError(400, "invalid_input", 'field "first_name" must be a string')
-	}
-	const next = { first_name: name }
+	const next = profileFrom(await readJson(request), state.shape.stringGuard === true)
 	if (state.defects.has("CALLER_UPDATE_DROPPED")) return respond(200, current)
 	state.profiles.set(principal.key, next)
 	return respond(200, next)

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { ENTITIES } from "./entities.ts"
 import { shapedEntities } from "./shaped.ts"
+import { PHONE_PATTERN, STRING_GUARD } from "./string-guard.ts"
 import type { EntityDef } from "./types.ts"
 
 const field = (entity: EntityDef | undefined, name: string) =>
@@ -39,5 +40,23 @@ describe("shapedEntities", () => {
 	it("never leaks one server's shape into another's", () => {
 		shapedEntities({ ids: "uuid", richSchema: true, tableKey: "slug" })
 		expect(shapedEntities({})).toEqual(ENTITIES)
+	})
+})
+
+describe("shapedEntities under the string guard", () => {
+	it("guards every written string of every entity, and gives the table a phone with a pattern of its own", () => {
+		const entities = shapedEntities({ stringGuard: true })
+		const table = entities.find((entity) => entity.name === "table")
+		expect(field(table, "name")?.patterns).toEqual([STRING_GUARD])
+		expect(field(table, "id")?.patterns).toBeUndefined()
+		expect(field(table, "phone")).toMatchObject({
+			minLength: 7,
+			nullable: true,
+			patterns: [PHONE_PATTERN, STRING_GUARD],
+		})
+		for (const entity of entities) {
+			const written = entity.fields.filter((one) => one.type === "string" && one.generated !== true)
+			for (const one of written) expect(one.patterns, `${entity.name}.${one.name}`).toContain(STRING_GUARD)
+		}
 	})
 })

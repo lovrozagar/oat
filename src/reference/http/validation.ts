@@ -125,7 +125,18 @@ function coerceString(field: FieldDef, value: unknown, defects: DefectSet): stri
 	if (field.const !== undefined && value !== field.const)
 		throw invalid(`field "${field.name}" must be "${field.const}"`)
 	assertFormat(field, value)
+	assertPatterns(field, value)
 	return defects.has("STRING_PAYLOAD_MANGLED") ? value.replace(/[^\x20-\x7E]/g, "").trim() : value
+}
+
+/* The minimum, in code points, and every pattern the field declares. */
+function assertPatterns(field: FieldDef, value: string): void {
+	if (field.minLength !== undefined && [...value].length < field.minLength) {
+		throw invalid(`field "${field.name}" is shorter than ${field.minLength}`)
+	}
+	for (const pattern of field.patterns ?? []) {
+		if (!new RegExp(pattern, "u").test(value)) throw invalid(`field "${field.name}" must match ${pattern}`)
+	}
 }
 
 function assertFormat(field: FieldDef, value: string): void {
