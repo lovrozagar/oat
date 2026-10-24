@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, onTestFinished, vi } from "vitest"
 import type { ProgressSnapshot } from "../../runtime/progress/types.ts"
 import { bufferWriter } from "../writer.ts"
 import { folder } from "../__fixtures__/files.ts"
@@ -58,6 +58,11 @@ describe("runProgress", () => {
 	})
 
 	it("rewrites progress.json at most once a second, and at the end, with how long since the last answer", async () => {
+		/* The real clock is fixed, so how long ago the last answer came is exact. */
+		vi.useFakeTimers({ now: Date.UTC(2026, 0, 1), toFake: ["Date"] })
+		onTestFinished(() => {
+			vi.useRealTimers()
+		})
 		const dir = folder()
 		const progress = runProgress(bufferWriter(), dir, { quiet: true, startedAt: Date.now() })
 		const read = () =>
@@ -82,9 +87,9 @@ describe("runProgress", () => {
 				phase: "done",
 			}),
 		)
-		expect(read().lastAgoMs).toBeGreaterThanOrEqual(5_000)
+		expect(read().lastAgoMs).toBe(5_000)
 		progress.onProgress(snap({ inflight: { at: Date.now(), method: "GET", url: "u" }, phase: "done" }))
-		expect(read().lastAgoMs).toBeLessThan(1_000)
+		expect(read().lastAgoMs).toBe(0)
 		await closed(progress)
 	})
 })

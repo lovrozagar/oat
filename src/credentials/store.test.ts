@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, onTestFinished, vi } from "vitest"
 import type { SecurityConfig } from "../config/types/security.ts"
 import { answerOf, BEARER, fakePorts, NOW } from "./__fixtures__/ports.ts"
 import { harness, SCHEMES } from "./__fixtures__/store.ts"
@@ -75,6 +75,11 @@ describe("createStore: identity and reasons", () => {
 
 describe("createStore: clock and isolation", () => {
 	it("reads the system clock unless given one, and finds no principal on the prototype", async () => {
+		/* Fixed before the store exists: it reads the clock it was made with. */
+		vi.useFakeTimers({ now: Date.UTC(2026, 0, 1), toFake: ["Date"] })
+		onTestFinished(() => {
+			vi.useRealTimers()
+		})
 		const { ports } = fakePorts()
 		const store = createStore({
 			ports,
@@ -82,10 +87,8 @@ describe("createStore: clock and isolation", () => {
 			schemes: SCHEMES,
 			security: { jwt: { expiresIn: 60, static: "s" } },
 		})
-		const before = Date.now()
 		const held = (await store.acquire({ principal: "ann", scheme: "jwt" })) as Credential
-		expect(held.expiresAt).toBeGreaterThanOrEqual(before + 60_000)
-		expect(held.expiresAt).toBeLessThanOrEqual(Date.now() + 60_000)
+		expect(held.expiresAt).toBe(Date.UTC(2026, 0, 1) + 60_000)
 		expect(await store.acquire({ principal: "constructor", scheme: "jwt" })).toEqual({
 			blocked: 'no principal "constructor" in the config',
 		})

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, onTestFinished, vi } from "vitest"
 import type { SecurityConfig } from "../../config/types/security.ts"
 import type { Credential } from "../../credentials/store.ts"
 import type { RunOptions } from "./types.ts"
@@ -69,13 +69,17 @@ const OAUTH = { principal: "alpha", scheme: "oauth" }
 
 describe("runStore: a token answered as a form", () => {
 	it("signs a login in from a form answer, renews by its refresh token, and holds both as secrets", async () => {
+		vi.useFakeTimers({ now: Date.UTC(2026, 0, 1), toFake: ["Date"] })
+		onTestFinished(() => {
+			vi.useRealTimers()
+		})
 		const options = loginAnswering(FORM)
 		const ctx = await connected(options)
 		const held = await ctx.store.acquire(ALPHA)
 		expect(held).not.toHaveProperty("blocked")
 		const { expiresAt, value } = held as Credential
 		expect(value).toBe("acc-1-9f8e7d")
-		expect(expiresAt).toBeGreaterThan(Date.now() + 3_500_000)
+		expect(expiresAt).toBe(Date.UTC(2026, 0, 1) + 3_600_000)
 		const renewed = await ctx.store.refresh({ ...ALPHA, sentValue: value })
 		expect((renewed as Credential).value).toBe("acc-2-9f8e7d")
 		const logins = options.seen.filter((request) => request.path === "/login")
@@ -89,12 +93,16 @@ describe("runStore: a token answered as a form", () => {
 	})
 
 	it("takes an OAuth 2 client-credentials token from a form answer, and renews by its refresh token", async () => {
+		vi.useFakeTimers({ now: Date.UTC(2026, 0, 1), toFake: ["Date"] })
+		onTestFinished(() => {
+			vi.useRealTimers()
+		})
 		const options = grantAnswering(FORM)
 		const ctx = await connected(options)
 		const held = await ctx.store.acquire(OAUTH)
 		expect(held).not.toHaveProperty("blocked")
 		const { expiresAt, value } = held as Credential
-		expect([value, (expiresAt ?? 0) > Date.now() + 3_500_000]).toEqual(["acc-1-9f8e7d", true])
+		expect([value, expiresAt]).toEqual(["acc-1-9f8e7d", Date.UTC(2026, 0, 1) + 3_600_000])
 		await ctx.store.refresh({ ...OAUTH, sentValue: value })
 		const grants = options.seen.filter((request) => request.path === "/token")
 		const renewal = new URLSearchParams(String(grants[1]?.body))

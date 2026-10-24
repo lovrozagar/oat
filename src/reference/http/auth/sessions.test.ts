@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, onTestFinished, vi } from "vitest"
 import { memoryStore } from "../engines.ts"
 import { HttpError } from "../errors.ts"
 import { referenceState } from "../reference.ts"
@@ -30,11 +30,15 @@ const flip = (token: string): string => `${token.slice(0, -2)}${token.endsWith("
 
 describe("newAuthState", () => {
 	it("seeds the principals as accounts, throttles only when asked, and reads the wall clock by default", () => {
+		vi.useFakeTimers({ now: Date.UTC(2026, 0, 1), toFake: ["Date"] })
+		onTestFinished(() => {
+			vi.useRealTimers()
+		})
 		const auth = newAuthState({})
 		expect([...auth.accounts.keys()]).toEqual(PRINCIPALS.map((principal) => principal.key))
 		expect(auth.throttle).toBe(false)
 		expect(newAuthState({ throttleLogins: true }).throttle).toBe(true)
-		expect(Math.abs(auth.clock() - Date.now())).toBeLessThan(5000)
+		expect(auth.clock()).toBe(Date.UTC(2026, 0, 1))
 	})
 })
 

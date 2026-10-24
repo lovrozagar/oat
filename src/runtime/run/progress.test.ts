@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, onTestFinished, vi } from "vitest"
 import type { RequestStart } from "../../client/types.ts"
 import type { Exchange } from "../exchange.ts"
 import type { ProgressSnapshot } from "../progress/types.ts"
@@ -40,6 +40,10 @@ const answer = {
 
 describe("RunProgress ticks", () => {
 	it("moves the run and publishes where it is, keeping what a tick leaves out", () => {
+		vi.useFakeTimers({ now: Date.UTC(2026, 0, 1), toFake: ["Date"] })
+		onTestFinished(() => {
+			vi.useRealTimers()
+		})
 		const { progress, snaps } = staged(2)
 		progress.tick({
 			check: "c1",
@@ -63,7 +67,7 @@ describe("RunProgress ticks", () => {
 		})
 		expect(snaps[1]).toMatchObject({ check: "c1", entity: "note", phase: "teardown", requests: 0 })
 		expect(snaps[1]).not.toHaveProperty("message")
-		expect(snaps[0]?.elapsedMs).toBeGreaterThanOrEqual(0)
+		expect(snaps[0]?.elapsedMs).toBe(0)
 	})
 
 	it("counts requests from what it was given, once given", () => {
