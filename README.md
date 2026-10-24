@@ -126,6 +126,7 @@ The full list, with what you see and what to do instead, is in [docs/limits.md](
 - [Assumptions](docs/assumptions.md): what oat assumes, and how to declare an exception
 - [Limits](docs/limits.md): what oat cannot do, and what to do instead
 - [Reference defects](docs/reference-defects.md): the named lies `oat serve --defects` can tell
+- [Releasing](docs/releasing.md): how a tag publishes to npm with provenance, and the steps to cut one
 
 ## License
 
