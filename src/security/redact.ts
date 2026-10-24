@@ -25,6 +25,13 @@ export interface PlacedSecrets {
 /* Headers whose value is `<scheme> <credential>`, so the scheme word is no secret. */
 const SCHEMED_HEADERS: ReadonlySet<string> = /* @__PURE__ */ new Set(["authorization", "proxy-authorization"])
 
+/*
+ * An otpauth URI's `secret` parameter, raw and percent-encoded (inside another URL, as a QR service
+ * takes it): a TOTP seed by its scheme alone, whether or not a key beside it named it.
+ */
+const OTPAUTH_SECRET = /(otpauth:\/\/[^\s"'<>?]*\?(?:[^\s"'<>#]*?&)?secret=)[^&#\s"'<>]*/gi
+const OTPAUTH_SECRET_ENCODED = /(otpauth%3A%2F%2F[^\s"'<>&]*?secret%3D)[^&#%\s"'<>]*/gi
+
 /* `application/x-www-form-urlencoded`, with or without parameters. */
 const FORM_MEDIA_TYPE = /^\s*application\/x-www-form-urlencoded\s*(;|$)/i
 
@@ -114,14 +121,14 @@ export class Redactor {
 		return isSecretHeaderName(name) || this.#headers.has(name.toLowerCase())
 	}
 
-	/** `text` with every registered credential value, and every registered cookie's value, replaced. */
+	/** `text` with every registered credential value, every registered cookie's value and every otpauth secret replaced. */
 	text(text: string): string {
 		let out = text
 		for (const secret of this.#secrets) {
 			if (out.includes(secret)) out = out.split(secret).join(REDACTED)
 		}
 		for (const pair of this.#cookies.values()) out = out.replace(pair, `$1$2=${REDACTED}`)
-		return out
+		return out.replace(OTPAUTH_SECRET, `$1${REDACTED}`).replace(OTPAUTH_SECRET_ENCODED, `$1${REDACTED}`)
 	}
 
 	/** A recorded body as it may be written down: text by its media type, anything else as JSON. */
