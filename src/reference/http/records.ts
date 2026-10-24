@@ -28,7 +28,15 @@ export function tombstoned(entity: EntityDef, record: Row): boolean {
 
 /** A record as it leaves the server: write-only fields never do. */
 export function present(state: ReferenceState, entity: EntityDef, record: Row): Row {
-	const out = { ...decorate(state.defects, record) }
+	return shown(state, entity, decorate(state.defects, record))
+}
+
+/**
+ * A record as every answer shows it, the listing's rows too: without its write-only fields, and
+ * under `relatedRecord` with the related one nested.
+ */
+export function shown(state: ReferenceState, entity: EntityDef, record: Row): Row {
+	const out = { ...record }
 	for (const field of entity.fields) if (field.writeOnly === true) delete out[field.name]
 	/* Under `relatedRecord`, each record carries a related one with an id of its own. That id is 1 —
 	 * the id of a real record too, so a tester that takes it for the record's own deletes somebody

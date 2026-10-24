@@ -135,6 +135,28 @@ describe("filters in each grammar", () => {
 	})
 })
 
+describe("a listed record", () => {
+	it("is presented as the item read presents it: no write-only field, and the related record nested", async () => {
+		const secret = await api({ shape: "write-only-field" })
+		await secret.call("POST", TABLES, { body: { name: "a", secret: "s3cret" } })
+		const listed = (await secret.call("GET", TABLES)).body["tables"] as Array<Record<string, unknown>>
+		expect(listed[0]).toMatchObject({ name: "a" })
+		expect(listed[0]).not.toHaveProperty("secret")
+		const wrapped = await api({ shape: "wrapped-records" })
+		await wrapped.table("b")
+		const rows = (await wrapped.call("GET", TABLES)).body["data"] as Array<Record<string, unknown>>
+		expect(rows.every((row) => JSON.stringify(row["Status"]) === JSON.stringify({ ID: 1, Name: "open" }))).toBe(true)
+	})
+
+	it("is presented so in a stale listing too: the lie is which rows it holds, not how they are shown", async () => {
+		const stale = await api({ defects: ["STALE_LIST"], shape: "wrapped-records" })
+		await stale.table("c")
+		const rows = (await stale.call("GET", TABLES)).body["data"] as Array<Record<string, unknown>>
+		expect(rows.length).toBeGreaterThan(0)
+		expect(rows.every((row) => JSON.stringify(row["Status"]) === JSON.stringify({ ID: 1, Name: "open" }))).toBe(true)
+	})
+})
+
 describe("sorting", () => {
 	it("reads a repeated sort parameter in order", async () => {
 		const { call } = await api({ shape: "wrapped-records" })

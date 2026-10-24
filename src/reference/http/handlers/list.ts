@@ -7,7 +7,7 @@ import { fieldsWhere } from "../../model/fields.ts"
 import type { EntityDef } from "../../model/types.ts"
 import { type Row, SqlError } from "../../store-api.ts"
 import { equalityFilter, paginated, selectParam, staleWindow, toCanonicalOrder } from "../listing-query.ts"
-import { fieldList, present, skewForList, snapshotKey, wraps } from "../records.ts"
+import { fieldList, present, shown, skewForList, snapshotKey, wraps } from "../records.ts"
 import type { ReferenceState } from "../state.ts"
 import { type Json, type ReferenceRequest, type ReferenceResponse, respond } from "../wire.ts"
 import type { EntityCall } from "./entity.ts"
@@ -37,7 +37,7 @@ export async function list(
 			/* Applied to the collection only — the item route never passes through here — so a
 			 * skewed field makes the two projections disagree exactly as a stale denormalised
 			 * listing does. */
-			transform: (record) => skewForList(defects, record),
+			transform: (record) => shown(state, entity, skewForList(defects, record)),
 		},
 		defects,
 	})
@@ -81,7 +81,7 @@ function staleListing(state: ReferenceState, url: URL, call: EntityCall): Refere
 	const window = plain ? staleWindow(url, dialect, call.entity) : null
 	const frozen = state.staleSnapshot.get(snapshotKey(call.entity, call.scope))
 	if (!state.defects.has("STALE_LIST") || window === null || frozen === undefined) return undefined
-	const items = frozen.slice(window.offset, window.offset + window.limit)
+	const items = frozen.slice(window.offset, window.offset + window.limit).map((row) => shown(state, call.entity, row))
 	const page = paginated(
 		{ dialect, entity: call.entity, url },
 		{
