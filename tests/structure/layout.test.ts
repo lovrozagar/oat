@@ -89,24 +89,31 @@ describe("layout", () => {
 	})
 })
 
+/* `npm pack` starts npm and walks the package: a loaded host took 24s, past the 20s default. */
+const PACK_TIMEOUT_MS = 120_000
+
 describe("the package", () => {
-	it("ships no test, fixture or tests/ file in the package", () => {
-		const packed = spawnSync("npm", ["pack", "--dry-run", "--json", "--ignore-scripts"], {
-			cwd: ROOT,
-			encoding: "utf8",
-		})
-		const manifests = packedManifests(packed.stdout)
-		expect(manifests).toHaveLength(1)
-		const shipped = manifests.flatMap((manifest) => manifest.files.map((file) => file.path))
-		expect(shipped.length).toBeGreaterThan(0)
-		expect(shipped.filter((path) => /\.test\.|__fixtures__|^tests\/|^lint\/|^\.tmp\//.test(path))).toEqual([])
-		/* A compiled module whose source is gone (a rename the output kept) would ship code nothing builds. */
-		const orphans = shipped
-			.filter((path) => /^dist\/.+\.js$/.test(path))
-			.map((path) => path.replace(/^dist\//, "src/").replace(/\.js$/, ".ts"))
-			.filter((source) => !existsSync(join(ROOT, source)))
-		expect(orphans).toEqual([])
-		/* A source map points at src/, which the package does not ship: it would only add size. */
-		expect(shipped.filter((path) => path.endsWith(".map"))).toEqual([])
-	})
+	it(
+		"ships no test, fixture or tests/ file in the package",
+		() => {
+			const packed = spawnSync("npm", ["pack", "--dry-run", "--json", "--ignore-scripts"], {
+				cwd: ROOT,
+				encoding: "utf8",
+			})
+			const manifests = packedManifests(packed.stdout)
+			expect(manifests).toHaveLength(1)
+			const shipped = manifests.flatMap((manifest) => manifest.files.map((file) => file.path))
+			expect(shipped.length).toBeGreaterThan(0)
+			expect(shipped.filter((path) => /\.test\.|__fixtures__|^tests\/|^lint\/|^\.tmp\//.test(path))).toEqual([])
+			/* A compiled module whose source is gone (a rename the output kept) would ship code nothing builds. */
+			const orphans = shipped
+				.filter((path) => /^dist\/.+\.js$/.test(path))
+				.map((path) => path.replace(/^dist\//, "src/").replace(/\.js$/, ".ts"))
+				.filter((source) => !existsSync(join(ROOT, source)))
+			expect(orphans).toEqual([])
+			/* A source map points at src/, which the package does not ship: it would only add size. */
+			expect(shipped.filter((path) => path.endsWith(".map"))).toEqual([])
+		},
+		PACK_TIMEOUT_MS,
+	)
 })
