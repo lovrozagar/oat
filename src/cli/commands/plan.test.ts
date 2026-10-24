@@ -107,3 +107,12 @@ describe("targetedScope", () => {
 		expect(() => targetedScope({} as never, { authCreates: new Set() })).toThrow(TypeError)
 	})
 })
+
+describe("commandPlan and the writer", () => {
+	it("names the config's writer as the principal that satisfies an operation", async () => {
+		const writer = bufferWriter()
+		expect(await commandPlan(writer, { config: referenceConfig(folder(), { writer: "beta" }) })).toBe(0)
+		expect(writer.text()).toMatch(/table\.create .* beta via jwt/)
+		expect(writer.text()).not.toMatch(/table\.create .* alpha via jwt/)
+	})
+})

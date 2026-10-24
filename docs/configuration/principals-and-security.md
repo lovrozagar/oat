@@ -20,7 +20,14 @@ principals: {
 }
 ```
 
-The key is the principal's id, the stable name in reports. Every other field that is not one of the named ones is identity data, read only as `{principal.<key>}` in recipes; it never fills a parameter.
+The key is the principal's id, the stable name in reports. One principal is the writer: it makes the records every check works on, and the rest act on them. `writer: "<id>"` at the top level names it; unset, the first principal in the map writes. A sort-keys lint rule reorders a map's keys, and with them the writer, so a config under one names its `writer`:
+
+```ts
+writer: "alpha",
+principals: { admin: { … }, alpha: { … }, beta: { … } },
+```
+
+A `writer` that names no principal exits 2, listing the principals there are. `oat doctor` prints who writes and why. Every other field that is not one of the named ones is identity data, read only as `{principal.<key>}` in recipes; it never fills a parameter.
 
 Rules that matter:
 

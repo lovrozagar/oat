@@ -16,7 +16,11 @@ import { modelled } from "./spec.ts"
 function configView(config: OatConfig | undefined): Pick<PlanView, "credentials" | "hooks"> {
 	if (config === undefined) return {}
 	return {
-		credentials: { principals: config.principals ?? {}, security: config.security ?? {} },
+		credentials: {
+			principals: config.principals ?? {},
+			security: config.security ?? {},
+			...(config.writer === undefined ? {} : { writer: config.writer }),
+		},
 		hooks: config.hooks,
 	}
 }

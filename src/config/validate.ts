@@ -133,6 +133,7 @@ export function configRules(): Record<string, Rule> {
 		seed: integer(Number.MIN_SAFE_INTEGER),
 		spec: string,
 		uploads: object,
+		writer: string,
 	}
 }
 
@@ -156,10 +157,18 @@ function carrierProblems(config: RawOf<OatConfig>): string[] {
 	]
 }
 
+/* A writer that names no principal: the run would write as someone the config does not declare. */
+function writerProblems(config: RawOf<OatConfig>): string[] {
+	const { principals, writer } = config
+	if (typeof writer !== "string" || !isRecord(principals) || writer in principals) return []
+	return [`writer names no principal: "${writer}" (principals: ${Object.keys(principals).join(", ")})`]
+}
+
 /* The credentials config, by the validators that also run against the document, minus what needs it. */
 function credentialProblems(config: RawOf<OatConfig>): string[] {
 	return [
 		...(config.principals === undefined ? [] : principalMapProblems(config)),
+		...writerProblems(config),
 		...securityMapProblems(config),
 		...removedProblems(config),
 		...carrierProblems(config),

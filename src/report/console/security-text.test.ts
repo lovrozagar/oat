@@ -70,7 +70,9 @@ describe("securityLines: schemes", () => {
 describe("securityLines: requirements", () => {
 	it("groups operations by requirement with the satisfying principal", () => {
 		const lines = securityLines(securityFacts(model(anyrow), ANYROW))
-		expect(lines.slice(3, 9)).toEqual([
+		expect(lines.slice(3, 11)).toEqual([
+			"",
+			"  writer — alpha (first principal)",
 			"",
 			"  requirements — 3 operations",
 			"    anonymous                       1",
@@ -78,7 +80,7 @@ describe("securityLines: requirements", () => {
 			"    jwt | apiKey[rows:read]         1   alpha via jwt",
 			"",
 		])
-		expect(lines).toHaveLength(9)
+		expect(lines).toHaveLength(11)
 	})
 
 	it("omits the principal column without a config", () => {
@@ -98,7 +100,7 @@ describe("securityLines: requirements", () => {
 describe("securityLines: what a run cannot send", () => {
 	it("lists schemes with no recipe, and the operations no principal can send", () => {
 		const facts = securityFacts(model(legacy), credentials({ jwt: { static: "t" } }))
-		expect(securityLines(facts).slice(5)).toEqual([
+		expect(securityLines(facts).slice(7)).toEqual([
 			"    legacy                          2   none — no credential for legacy",
 			"    jwt                             1   alpha",
 			"",
@@ -160,5 +162,16 @@ describe("planSecurityLines and targetSecurity", () => {
 		expect(targetSecurity(facts, "auth.login")).toBe("  anonymous")
 		expect(targetSecurity(securityFacts(model(anyrow)), "me.get")).toBe("  jwt")
 		expect(targetSecurity(facts, "no.such")).toBe("")
+	})
+})
+
+describe("securityLines: the writer", () => {
+	it("names the writer and why: the config's writer, or the first principal", () => {
+		const two = { alpha: {}, beta: {} }
+		const named = securityLines(securityFacts(model(anyrow), { ...credentials(ANYROW.security, two), writer: "beta" }))
+		expect(named).toContain("  writer — beta (config writer)")
+		const first = securityLines(securityFacts(model(anyrow), credentials(ANYROW.security, two)))
+		expect(first).toContain("  writer — alpha (first principal)")
+		expect(securityLines(securityFacts(model(anyrow))).join("\n")).not.toContain("writer —")
 	})
 })

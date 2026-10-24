@@ -31,4 +31,4 @@ These are by design. Do not look for a flag that turns them off.
 - **`--only` takes plan names** (`store`, not `stores` or `/v1/stores`).
 - **`--ops` trusts support operations.** A targeted green means the targets passed, given that what they needed worked. A defect in an untargeted operation is out of scope, even when a target called it.
 - **The default cohort is 7.** `pagination.limit-respects-documented-max` needs `cohortSize` above the documented maximum.
-- **The first principal is the writer.** Further principals are peers and a rank lattice, not a pool of writers.
+- **One principal writes:** the one `writer` names, or the first. Further principals are peers and a rank lattice, not a pool of writers.

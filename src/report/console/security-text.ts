@@ -91,6 +91,7 @@ export function securityLines(facts: SecurityFacts): string[] {
 		`  security — ${plural(facts.schemes.length, "scheme")}`,
 		...schemeRows(facts),
 		"",
+		...(facts.alpha === undefined ? [] : [`  writer — ${facts.alpha} (${facts.writerFrom})`, ""]),
 		`  requirements — ${plural(facts.operations.length, "operation")}`,
 		...groupRows(facts),
 		...(facts.configured ? [] : [HINT]),

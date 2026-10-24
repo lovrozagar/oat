@@ -99,6 +99,17 @@ describe("commandDoctor and the operations a recipe names", () => {
 	})
 })
 
+describe("commandDoctor and the writer", () => {
+	it("names the writer the config names, and the first principal otherwise", async () => {
+		const named = bufferWriter()
+		await commandDoctor(named, { config: referenceConfig(folder(), { writer: "beta" }) })
+		expect(named.text()).toContain("  writer — beta (config writer)")
+		const first = bufferWriter()
+		await commandDoctor(first, { config: referenceConfig() })
+		expect(first.text()).toContain("  writer — alpha (first principal)")
+	})
+})
+
 describe("commandDoctor and the operations a login sends", () => {
 	it("leaves out what the auth flow owns, as a run does: the account it signs up, and its sign-in call's gap", async () => {
 		const writer = bufferWriter()

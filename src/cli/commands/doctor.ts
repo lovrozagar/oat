@@ -22,7 +22,11 @@ export async function commandDoctor(writer: Writer, flags: Args["flags"]): Promi
 						...(config.hooks === undefined ? {} : { hooks: config.hooks }),
 						...(config.allow === undefined ? {} : { allowRemoved: removed }),
 						authCreates: authStepOperationIds(config),
-						credentials: { principals: config.principals ?? {}, security: config.security ?? {} },
+						credentials: {
+							principals: config.principals ?? {},
+							security: config.security ?? {},
+							...(config.writer === undefined ? {} : { writer: config.writer }),
+						},
 					},
 		danglingRefs,
 		externalRefs,

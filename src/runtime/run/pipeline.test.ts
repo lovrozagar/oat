@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import type { Recipe } from "../../config/types/security.ts"
 import type { Responder } from "../checks/__fixtures__/harness.ts"
 import {
+	bearerOnly,
 	contextOf,
 	LOGIN,
 	notesApi,
@@ -14,6 +15,7 @@ import {
 import { keysApi, keysDoc, MINTED } from "./__fixtures__/keys.ts"
 import { closeOut, run } from "./pipeline.ts"
 import { scopeReport } from "./result.ts"
+import { run as libraryRun } from "../../index.ts"
 
 /* The email login, whose session the login operation itself ends when sent with it. */
 const REVOCABLE_EMAIL: Recipe = {
@@ -30,6 +32,20 @@ const ORIGIN = { baseUrl: "http://other.test", id: "other", spec: "http://other.
  * The whole run, stage after stage, against a correct in-memory notes API: what it seeds it
  * removes, what it tests it reports, and the stages run in order.
  */
+
+describe("run and the writer", () => {
+	it("acts as the writer the options name, not the first principal, for a library caller too", async () => {
+		const options = optionsFor(bearerOnly(notesApi(notesDoc()), "beta-key"), {
+			principals: { alpha: {}, beta: { security: { bearer: { static: "beta-key" } } } },
+			writer: "beta",
+		})
+		const result = await libraryRun(options)
+		expect(result.entitiesTested).toEqual(["note"])
+		const creates = options.seen.filter((request) => request.method === "POST")
+		expect(creates.length).toBeGreaterThan(0)
+		expect(creates.every((request) => request.headers["authorization"] === "Bearer beta-key")).toBe(true)
+	})
+})
 
 describe("run", () => {
 	it("tests a correct API end to end, removing everything it created", async () => {

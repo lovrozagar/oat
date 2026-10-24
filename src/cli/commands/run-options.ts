@@ -7,6 +7,7 @@ import { type Args, list, str } from "../flags.ts"
 
 /** Config fields a run takes as they are written. */
 const AS_WRITTEN = [
+	"writer",
 	"globalHeaders",
 	"hooks",
 	"uploads",

@@ -5,6 +5,7 @@ import type {
 	RecipeKind,
 	SecurityConfig,
 } from "../../config/types/security.ts"
+import { writerFirst } from "../../credentials/writer.ts"
 import { effectiveRecipe, own } from "../../credentials/effective.ts"
 import { recipeKind } from "../../credentials/recipes/acquire.ts"
 import { satisfy } from "../../credentials/satisfy.ts"
@@ -24,6 +25,8 @@ import type { SecurityScheme } from "../../spec/security/schemes.ts"
 export interface SecurityCredentials {
 	security: SecurityConfig
 	principals: PrincipalsConfig
+	/** The config's `writer`, when it names one. */
+	writer?: string
 }
 
 /** One declared scheme: where its credential goes, and the recipe that makes it. */
@@ -71,8 +74,10 @@ export interface RequirementGroup {
 export interface SecurityFacts {
 	/** Whether a config was read: without one, nothing is said of recipes or principals. */
 	configured: boolean
-	/** The first principal in config order: the run's alpha. */
+	/** The principal the run writes as: the config's `writer`, or the first in config order. */
 	alpha: string | undefined
+	/** Why `alpha` writes: the config names it, or it is the first principal. */
+	writerFrom: "config writer" | "first principal" | undefined
 	schemes: SchemeFact[]
 	operations: OperationFact[]
 	groups: RequirementGroup[]
@@ -197,14 +202,28 @@ function named(credentials: SecurityCredentials, scheme: string): boolean {
 	return Object.values(credentials.principals).some((principal) => principal.security?.[scheme] !== undefined)
 }
 
+/* Why the writer writes: the config names it, or it is the first principal; nothing without one. */
+function writerFrom(
+	alpha: string | undefined,
+	credentials: SecurityCredentials | undefined,
+): SecurityFacts["writerFrom"] {
+	if (alpha === undefined) return undefined
+	return credentials?.writer === alpha ? "config writer" : "first principal"
+}
+
 /** Everything doctor and plan say about credentials, for `model` and, when there is one, the config's. */
 export function securityFacts(model: SpecModel, credentials?: SecurityCredentials): SecurityFacts {
 	const schemes = [...model.schemes.values()]
-	const operations = model.operations.map((op) => operationFact(op, credentials))
-	const alpha = credentials === undefined ? undefined : Object.keys(credentials.principals)[0]
+	const ordered =
+		credentials === undefined
+			? undefined
+			: { ...credentials, principals: writerFirst(credentials.principals, credentials.writer) }
+	const operations = model.operations.map((op) => operationFact(op, ordered))
+	const alpha = ordered === undefined ? undefined : Object.keys(ordered.principals)[0]
 	const undeclared = [...new Set(model.operations.flatMap((op) => op.security.undeclared))].toSorted()
 	return {
 		alpha,
+		writerFrom: writerFrom(alpha, credentials),
 		blocking: operations.filter((op) => op.unsatisfied !== undefined).length,
 		configured: credentials !== undefined,
 		groups: groupsOf(operations, alpha),

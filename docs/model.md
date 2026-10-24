@@ -16,7 +16,7 @@
 
 Every pass names its tier. `verified`: a later exchange shows a value from the call, such as the read holding the created id, the list without the deleted one, or the session refused after the logout. `contract`: the call got a documented success and its body matched the schema, and nothing later showed more. An operation oat could not call at all stays `untested` with the reason (`unresolved param team_id`, `contract call returned 409 …`); declare a scenario for it.
 
-The first principal is the writer. Isolation needs a second principal with a different `tenant`. A rank lattice needs two or more principals that share a `tenant` and differ in `rank`. Invite checks need `x-invite` plus a peer with `inviteAs`.
+The writer is the principal `writer` names, or the first one. Isolation needs a second principal with a different `tenant`. A rank lattice needs two or more principals that share a `tenant` and differ in `rank`. Invite checks need `x-invite` plus a peer with `inviteAs`.
 
 oat never needs ground truth about your data. A filter and its negation must partition the set; a page walk must cover the collection; a record read four ways must read the same.
 

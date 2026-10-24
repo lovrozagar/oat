@@ -22,3 +22,7 @@ A config with any of these exits 2, naming the replacement:
 | `x-auth-flows`, in the config or the document                | a `security.<scheme>` recipe                                       |
 | a credential in `globalHeaders` (`Authorization`, `Cookie`…) | the scheme places it; `redact.headers` for a non-credential secret |
 | `hooks.resolvePrincipalAuth`                                 | `{ hook: true }` and `hooks.resolveCredential`                     |
+
+## The writer is named, or the first principal
+
+An array kept its order; a map's key order is easy to lose, and a sort-keys lint rule reorders it. The writer, the principal that makes the records every check works on, is the one top-level `writer` names, or else the first key of `principals`. A config whose principals a linter sorts, or that wants a writer other than its first entry, sets `writer: "<id>"`. `oat doctor` prints who writes and why.

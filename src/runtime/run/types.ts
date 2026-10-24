@@ -30,6 +30,8 @@ export interface RunOptions {
 	baseUrl: string
 	/** The config's principals, by id. */
 	principals: PrincipalsConfig
+	/** The principal that writes; unset, the first of `principals`. */
+	writer?: string
 	/** One recipe per scheme the document declares; see `OatConfig.security`. */
 	security?: SecurityConfig
 	/** Extra secret header names; see `OatConfig.redact`. */

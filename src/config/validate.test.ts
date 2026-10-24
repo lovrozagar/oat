@@ -204,3 +204,18 @@ describe("what 0.25.0 removed, with what replaces it", () => {
 		])
 	})
 })
+
+describe("the writer", () => {
+	const two = { ...valid, principals: { alpha: { tenant: "t1" }, beta: { tenant: "t2" } } }
+
+	it("accepts a writer that names a principal", () => {
+		expect(configProblems({ ...two, writer: "beta" }, { forRun: true })).toEqual([])
+	})
+
+	it("names a writer that is no principal, with the ones there are, and a writer that is not a string", () => {
+		expect(configProblems({ ...two, writer: "gamma" }, { forRun: true })).toEqual([
+			'config.writer names no principal: "gamma" (principals: alpha, beta)',
+		])
+		expect(configProblems({ ...two, writer: 1 })).toContain("config.writer must be a string")
+	})
+})

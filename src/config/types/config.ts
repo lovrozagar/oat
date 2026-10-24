@@ -102,6 +102,8 @@ export interface OatConfig {
 	 * needs several that share a tenant and differ in `rank`. Extra principals are not ignored.
 	 */
 	principals: PrincipalsConfig
+	/** The principal that writes: makes the records every check works on. Unset, the first principal. */
+	writer?: string
 	/** How each scheme the document declares gets its credential: one recipe per scheme. */
 	security?: SecurityConfig
 	hooks?: Hooks

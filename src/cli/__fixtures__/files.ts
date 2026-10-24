@@ -37,13 +37,14 @@ export function notesConfig(dir: string = folder(), extra: Record<string, unknow
 	})
 }
 
-/** The reference's document on disk, and the config it is run with: its jwt login and its minted API key. */
-export function referenceConfig(dir: string = folder()): string {
+/** The reference's document on disk, and the config it is run with (its jwt login and its minted API key), with what `extra` adds. */
+export function referenceConfig(dir: string = folder(), extra: Record<string, unknown> = {}): string {
 	return json(dir, "oat.config.json", {
 		baseUrl: "http://api.test",
 		principals: PRINCIPALS,
 		security: SECURITY,
 		spec: notesSpec(dir, buildSpec()),
+		...extra,
 	})
 }
 

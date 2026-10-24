@@ -1,4 +1,5 @@
 import type { OriginSpec } from "../../config/types/config.ts"
+import { writerFirst } from "../../credentials/writer.ts"
 import { assertSecurity } from "../../credentials/validate/security.ts"
 import { applyGrammarOverrides } from "../../spec/grammar-overrides.ts"
 import { buildModel } from "../../spec/graph/build.ts"
@@ -64,7 +65,8 @@ export async function load(options: RunOptions): Promise<Loaded> {
 		findings,
 		hooks: options.hooks ?? {},
 		model: primary.model,
-		options,
+		/* Every reader of the principals takes the first as the writer. */
+		options: { ...options, principals: writerFirst(options.principals, options.writer) },
 		origins,
 		profile,
 		progress,
