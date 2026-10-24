@@ -73,6 +73,25 @@ const petBranch = (field: string): JsonSchema => ({
 	type: "object",
 })
 
+describe("SchemaValidator formats", () => {
+	it("enforces the formats ajv-formats knows, url among them, and lets an unknown format pass", () => {
+		const validator = new SchemaValidator()
+		const op = returning("200", "application/json", {
+			properties: { image: { format: "url", type: "string" }, shade: { format: "made-up", type: "string" } },
+			type: "object",
+		})
+		expect(
+			validator.validate("get", op, { responseBody: { image: "https://a.test/s.svg", shade: "x" }, status: 200 }).ok,
+		).toBe(true)
+		expect(
+			validator.validate("get", op, { responseBody: { image: "images/seat.svg", shade: "x" }, status: 200 }),
+		).toEqual({
+			errors: ['/image must match format "url"'],
+			ok: false,
+		})
+	})
+})
+
 describe("SchemaValidator.documentsNoBody", () => {
 	it("is true when the response the status falls under declares no body, exactly, by range or by default", () => {
 		const validator = new SchemaValidator()
