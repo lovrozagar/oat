@@ -4,6 +4,7 @@ import { payloadFits, REQUIRED_IDS, STRING_PAYLOADS, type StringPayload } from "
 import type { CheckContext } from "../../core/context.ts"
 import { propertySchemaOf, requestSchemaOf, withheldProperties } from "../../payloads/body.ts"
 import type { JsonSchema } from "../../../../spec/types.ts"
+import { admits, stringConstraints } from "../../../generate/string-constraints.ts"
 
 export const ASCII_PAYLOAD_PROBE = "oat-payload-probe"
 
@@ -22,13 +23,22 @@ function unionBranchOf(union: unknown, type: string): JsonSchema | undefined {
 	) as JsonSchema | undefined
 }
 
-/** A string schema with nothing (enum, pattern, format) that would make an arbitrary string invalid. */
+/**
+ * A string schema with nothing that would make a payload invalid: no enum, no format, and no
+ * pattern, in an `allOf` or not, that refuses the control or a payload the field's lengths fit. A
+ * pattern every payload meets, such as a guard on every string, is no constraint.
+ */
 function isUnconstrainedString(schema: JsonSchema): boolean {
 	const type = schema.type
 	const isString = type === "string" || (Array.isArray(type) && type.includes("string"))
 	if (!isString && type !== undefined) return false
-	if (Array.isArray(schema.enum)) return false
-	return typeof schema.pattern !== "string" && typeof schema.format !== "string"
+	const constraints = stringConstraints(schema)
+	if (constraints.enum !== undefined || constraints.format !== undefined) return false
+	if (constraints.patterns.length === 0) return true
+	const fitting = STRING_PAYLOADS.filter((payload) =>
+		payloadFits(payload.value, constraints.maxLength, constraints.minLength),
+	)
+	return [ASCII_PAYLOAD_PROBE, ...fitting.map((payload) => payload.value)].every((value) => admits(constraints, value))
 }
 
 function isNullable(propertySchema: JsonSchema, union: unknown): boolean {

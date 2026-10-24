@@ -82,6 +82,27 @@ describe("pickPayloadField", () => {
 	})
 })
 
+describe("pickPayloadField under a guard pattern on every string", () => {
+	const guard = "^[^\\u0000\\uD800-\\uDFFF]*$"
+
+	it("takes a string whose pattern admits every payload, and skips one whose allOf pattern refuses them", () => {
+		const phone = {
+			oneOf: [
+				{
+					allOf: [{ pattern: "^\\+[1-9]\\d{7,14}$" }, { pattern: guard }],
+					maxLength: 15,
+					minLength: 7,
+					type: "string",
+				},
+				{ type: "null" },
+			],
+		}
+		const name = { maxLength: 128, pattern: guard, type: "string" }
+		expect(picked({ name, phone })).toEqual({ maxLength: 128, minLength: undefined, name: "name", score: 128 })
+		expect(picked({ phone })).toBeNull()
+	})
+})
+
 describe("payloadCases", () => {
 	const field = { maxLength: undefined, minLength: undefined, name: "name" }
 	const all = (ctx: CheckContext, writeOp: OperationModel) => payloadCases(ctx, writeOp, field)
