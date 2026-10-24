@@ -41,6 +41,8 @@ export const RECORD_DEFECTS = {
 	READ_DROPS_FIELD: "the item read omits a field the record holds",
 	/** A table's item read answers a member its documented schema does not declare; its listing does not. */
 	READ_BODY_DIVERGES: "the item read answers a member its documented schema does not declare",
+	/** The item read answers the write-only fields a row holds, a password say; its listing does not. */
+	WRITE_ONLY_LEAKED: "the item read answers a field the document marks writeOnly",
 	/**
 	 * PATCH of the signed-up caller returns 200 and leaves the record unchanged.
 	 *

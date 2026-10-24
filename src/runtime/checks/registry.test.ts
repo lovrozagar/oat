@@ -33,15 +33,16 @@ describe("the check registry", () => {
 	})
 
 	it("judges the transcript last, after every check that writes to it", () => {
-		const last = CHECKS.slice(-5).map((check) => check.id)
+		const last = CHECKS.slice(-6).map((check) => check.id)
 		expect(last).toEqual([
 			"response.status-is-documented",
 			"schema.error-response-matches-document",
 			"schema.read-response-matches-document",
+			"response.write-only-not-returned",
 			"schema.problem-json-shape",
 			"spec.declared-rate-limit-is-honoured",
 		])
-		for (const check of entityChecks(CHECKS).slice(-5)) expect(check.judgesTranscript).toBe(true)
+		for (const check of entityChecks(CHECKS).slice(-6)) expect(check.judgesTranscript).toBe(true)
 		/* The precondition check writes the 412 the status and problem judges read. */
 		expect(at("concurrency.if-match-enforced")).toBe(at("response.status-is-documented") - 1)
 	})
@@ -55,6 +56,7 @@ const ADDED_CHECKS: ReadonlySet<string> = new Set([
 	"concurrency.if-match-enforced",
 	"schema.problem-json-shape",
 	"schema.read-response-matches-document",
+	"response.write-only-not-returned",
 ])
 
 function judgedDocument(): OpenApiDocument {
@@ -91,7 +93,11 @@ describe("registering the precondition checks", () => {
 			await ctx.client.request("GET", path, { as: { principal: "alpha" }, operationId })
 		}
 		const drawn: string[] = []
-		const added = ["schema.read-response-matches-document", "schema.problem-json-shape"]
+		const added = [
+			"schema.read-response-matches-document",
+			"response.write-only-not-returned",
+			"schema.problem-json-shape",
+		]
 		const judges = [...moved, ...added.flatMap((id) => now.filter((judge) => judge.id === id))]
 		const outcomes: string[] = []
 		for (const judge of judges) {
@@ -108,6 +114,7 @@ describe("registering the precondition checks", () => {
 		expect(outcomes).toEqual([
 			...moved.map((judge) => `${judge.id}: asserted`),
 			"schema.read-response-matches-document: asserted",
+			"response.write-only-not-returned: stood-down",
 			"schema.problem-json-shape: stood-down",
 		])
 		expect(drawn).toEqual([])

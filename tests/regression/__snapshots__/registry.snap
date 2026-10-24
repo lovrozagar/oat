@@ -1211,6 +1211,13 @@
     "needs": "an item read or a listing with a documented success schema"
   },
   {
+    "id": "response.write-only-not-returned",
+    "dependsOn": [],
+    "mutates": false,
+    "judgesTranscript": true,
+    "needs": "a property the record's schema or a write's body marks writeOnly, and an item read or a listing"
+  },
+  {
     "id": "schema.problem-json-shape",
     "dependsOn": [],
     "mutates": false,

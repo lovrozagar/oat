@@ -95,6 +95,7 @@ const PREFIXED_CHECK_IDS = [
 	"response.no-server-error",
 	"response.public-get-returns-success",
 	"response.status-is-documented",
+	"response.write-only-not-returned",
 	"schema.error-response-matches-document",
 	"schema.problem-json-shape",
 	"schema.read-response-matches-document",

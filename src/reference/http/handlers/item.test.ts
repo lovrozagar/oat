@@ -40,6 +40,16 @@ describe("reading a record", () => {
 		expect((await call("GET", `${JOBS}/${String(job["id"])}`)).body).not.toHaveProperty("cache_status")
 	})
 
+	it("answers the write-only fields a row holds on its item read under WRITE_ONLY_LEAKED, never in its listing", async () => {
+		const { call } = await api({ defects: ["WRITE_ONLY_LEAKED"], shape: "write-only-field" })
+		const made = (await call("POST", TABLES, { body: { name: "a", secret: "s3cret" } })).body
+		expect((await call("GET", `${TABLES}/${String(made["id"])}`)).body).toMatchObject({ secret: "s3cret" })
+		expect(JSON.stringify((await call("GET", TABLES)).body)).not.toContain("s3cret")
+		const plain = await api({ defects: ["WRITE_ONLY_LEAKED"] })
+		const row = (await plain.call("POST", TABLES, { body: { name: "b" } })).body
+		expect((await plain.call("GET", `${TABLES}/${String(row["id"])}`)).body).not.toHaveProperty("secret")
+	})
+
 	it("wraps the record beside its fields under recordEnvelope", async () => {
 		const { call } = await api({ shape: "wrapped-records" })
 		const { body } = await call("GET", `${TABLES}/1`)

@@ -16,6 +16,9 @@ export const CLIENT_ID_ONLY: ReadonlySet<DefectName> = /* @__PURE__ */ new Set<D
 	"CLIENT_ID_OVERWRITES",
 ])
 
+/* Only a record with a write-only field can leak one: the write-only-field shape runs these. */
+export const WRITE_ONLY_FIELD_ONLY: ReadonlySet<DefectName> = /* @__PURE__ */ new Set<DefectName>(["WRITE_ONLY_LEAKED"])
+
 /**
  * The only defects a remote D1 can say anything an in-process engine cannot.
  *
@@ -167,6 +170,7 @@ const DIALECT_INSENSITIVE: ReadonlySet<DefectName> = /* @__PURE__ */ new Set<Def
 	"CREATE_DROPS_FIELD",
 	"READ_DROPS_FIELD",
 	"READ_BODY_DIVERGES",
+	"WRITE_ONLY_LEAKED",
 	"STRING_PAYLOAD_MANGLED",
 	"ENUM_NOT_VALIDATED",
 	"MAXLENGTH_NOT_VALIDATED",
@@ -212,7 +216,7 @@ export function defectsFor(backend: Backend, dialect: string, filter?: readonly 
 			 * no physical column names, so a DDL/read mismatch has nowhere to happen. */
 			.filter((name) => backend !== "memory" || !SQL_ONLY.has(name))
 			/* Shape-only defects run in the recall pass of the shape that names them. */
-			.filter((name) => !CLIENT_ID_ONLY.has(name))
+			.filter((name) => !CLIENT_ID_ONLY.has(name) && !WRITE_ONLY_FIELD_ONLY.has(name))
 			/* Likewise a dialect that has no cursor cannot drift one. */
 			.filter((name) => DIALECTS_WITH_CURSOR.has(dialect) || !CURSOR_ONLY.has(name))
 			/* Likewise a shape with no total cannot report a wrong one. */

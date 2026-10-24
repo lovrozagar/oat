@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest"
-import { CLIENT_ID_ONLY, DECLARED_SORT_ONLY, defectsFor, SQL_ONLY } from "../../src/conformance/matrix/defects.ts"
+import {
+	CLIENT_ID_ONLY,
+	DECLARED_SORT_ONLY,
+	defectsFor,
+	SQL_ONLY,
+	WRITE_ONLY_FIELD_ONLY,
+} from "../../src/conformance/matrix/defects.ts"
 import { DEFECTS } from "../../src/reference/defects/table.ts"
 import { delta, type GoldenTarget, goldenRun, normalize, removeRun } from "../support/golden.ts"
 
@@ -22,6 +28,7 @@ const LEGS: ReadonlyArray<{ leg: string; target: GoldenTarget; defects: readonly
 	{ defects: defectsFor("memory", "postgrest").filter((name) => !RACE_TIMED.has(name)), leg: "clean", target: {} },
 	{ defects: [...SQL_ONLY], leg: "clean.sqlite", target: { backend: "sqlite" } },
 	{ defects: [...CLIENT_ID_ONLY], leg: "clean.client-ids", target: { shape: "client-ids" } },
+	{ defects: [...WRITE_ONLY_FIELD_ONLY], leg: "clean.write-only-field", target: { shape: "write-only-field" } },
 	{ defects: [...DECLARED_SORT_ONLY], leg: "clean.template", target: { dialect: "template" } },
 ]
 

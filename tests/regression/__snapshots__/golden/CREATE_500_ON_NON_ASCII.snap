@@ -58,6 +58,26 @@
           "needs": "a declared maxLimit, and more records than it (the cohort is missing its \"unicode\" variant, which failed to seed)"
         },
         {
+          "check": "response.write-only-not-returned",
+          "entity": "job",
+          "needs": "a property the record's schema or a write's body marks writeOnly, and an item read or a listing (the cohort is missing its \"unicode\" variant, which failed to seed)"
+        },
+        {
+          "check": "response.write-only-not-returned",
+          "entity": "row",
+          "needs": "a property the record's schema or a write's body marks writeOnly, and an item read or a listing (the cohort is missing its \"unicode\" variant, which failed to seed)"
+        },
+        {
+          "check": "response.write-only-not-returned",
+          "entity": "table",
+          "needs": "a property the record's schema or a write's body marks writeOnly, and an item read or a listing (the cohort is missing its \"unicode\" variant, which failed to seed)"
+        },
+        {
+          "check": "response.write-only-not-returned",
+          "entity": "webhook",
+          "needs": "a property the record's schema or a write's body marks writeOnly, and an item read or a listing (the cohort is missing its \"unicode\" variant, which failed to seed)"
+        },
+        {
           "check": "sort.nulls-first-last",
           "entity": "job",
           "needs": "a declared nulls token, a dotted sort grammar, and a null in the cohort (the cohort is missing its \"unicode\" variant, which failed to seed)"
@@ -108,6 +128,26 @@
           "check": "pagination.limit-respects-documented-max",
           "entity": "table",
           "needs": "a declared maxLimit, and more records than it"
+        },
+        {
+          "check": "response.write-only-not-returned",
+          "entity": "job",
+          "needs": "a property the record's schema or a write's body marks writeOnly, and an item read or a listing"
+        },
+        {
+          "check": "response.write-only-not-returned",
+          "entity": "row",
+          "needs": "a property the record's schema or a write's body marks writeOnly, and an item read or a listing"
+        },
+        {
+          "check": "response.write-only-not-returned",
+          "entity": "table",
+          "needs": "a property the record's schema or a write's body marks writeOnly, and an item read or a listing"
+        },
+        {
+          "check": "response.write-only-not-returned",
+          "entity": "webhook",
+          "needs": "a property the record's schema or a write's body marks writeOnly, and an item read or a listing"
         },
         {
           "check": "sort.nulls-first-last",

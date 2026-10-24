@@ -156,6 +156,7 @@ export const SHAPES: readonly NamedShape[] = [
 		why: "update is PUT, replacing the record; there is no PATCH",
 	},
 	{
+		exhibits: ["WRITE_ONLY_LEAKED"],
 		name: "write-only-field",
 		shape: { writeOnlyField: true },
 		why: "create accepts a writeOnly field it never returns",

@@ -47,10 +47,13 @@ export interface ItemsOptions {
 	read?: unknown
 	/** A `select` sparse-fieldset parameter on the list. */
 	select?: true
+	/** The record's schema everywhere it appears, in place of ITEM. */
+	record?: unknown
 }
 
 export function itemsDocument(options: ItemsOptions = {}): OpenApiDocument {
 	const id = { in: "path", name: "id", required: true, schema: options.id ?? { type: "string" } }
+	const item = options.record ?? ITEM
 	return {
 		info: { title: "items", version: "1" },
 		openapi: "3.1.0",
@@ -61,14 +64,14 @@ export function itemsDocument(options: ItemsOptions = {}): OpenApiDocument {
 					...(options.select === true
 						? { parameters: [{ in: "query", name: "select", schema: { type: "string" } }] }
 						: {}),
-					responses: { "200": json({ items: ITEM, type: "array" }) },
+					responses: { "200": json({ items: item, type: "array" }) },
 					...entity("list"),
 				},
 				post: {
 					operationId: "item.create",
-					requestBody: { content: { "application/json": { schema: ITEM } } },
+					requestBody: { content: { "application/json": { schema: item } } },
 					responses: {
-						"201": options.created === null ? { description: "created" } : json(options.created ?? ITEM),
+						"201": options.created === null ? { description: "created" } : json(options.created ?? item),
 						"409": json(options.conflict ?? ERROR),
 					},
 					"x-unique": ["name"],
@@ -85,14 +88,14 @@ export function itemsDocument(options: ItemsOptions = {}): OpenApiDocument {
 				get: {
 					operationId: "item.read",
 					parameters: [id],
-					responses: { "200": json(options.read ?? ITEM), "404": json(options.missing ?? ERROR) },
+					responses: { "200": json(options.read ?? item), "404": json(options.missing ?? ERROR) },
 					...entity("read"),
 				},
 				patch: {
 					operationId: "item.update",
 					parameters: [id],
-					requestBody: { content: { "application/json": { schema: ITEM } } },
-					responses: options.update ?? { "200": json(ITEM), "403": json(ERROR) },
+					requestBody: { content: { "application/json": { schema: item } } },
+					responses: options.update ?? { "200": json(item), "403": json(ERROR) },
 					"x-feature-gate": "pro",
 					...entity("update"),
 				},

@@ -145,7 +145,7 @@ describe("recall over the registry", () => {
 	it("leaves a check unproven when the one task that proves it is gone", () => {
 		/* The picks off the default pass are the only ones naming their checks, on either proof path. */
 		const sole = picks.filter((pick) => pick.place.name !== "memory:postgrest")
-		expect(sole.map((pick) => pick.place.recall).toSorted()).toEqual([false, true])
+		expect(new Set(sole.map((pick) => pick.place.recall))).toEqual(new Set([false, true]))
 		for (const removed of sole) {
 			const rest = picks.filter((pick) => pick !== removed).map((pick) => answers.get(pick) as Answer)
 			const verdict = renderUnproven(proven(rest))

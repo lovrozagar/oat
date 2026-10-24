@@ -3677,6 +3677,31 @@
         "needs": "a public GET or HEAD with no id, no query, and a documented success status"
       },
       {
+        "check": "response.write-only-not-returned",
+        "entity": "job",
+        "needs": "a property the record's schema or a write's body marks writeOnly, and an item read or a listing"
+      },
+      {
+        "check": "response.write-only-not-returned",
+        "entity": "notice",
+        "needs": "a property the record's schema or a write's body marks writeOnly, and an item read or a listing"
+      },
+      {
+        "check": "response.write-only-not-returned",
+        "entity": "row",
+        "needs": "a property the record's schema or a write's body marks writeOnly, and an item read or a listing"
+      },
+      {
+        "check": "response.write-only-not-returned",
+        "entity": "table",
+        "needs": "a property the record's schema or a write's body marks writeOnly, and an item read or a listing"
+      },
+      {
+        "check": "response.write-only-not-returned",
+        "entity": "webhook",
+        "needs": "a property the record's schema or a write's body marks writeOnly, and an item read or a listing"
+      },
+      {
         "check": "schema.problem-json-shape",
         "entity": "notice",
         "needs": "an answer this entity drew served as application/problem+json"
@@ -6935,6 +6960,11 @@
         },
         {
           "check": "response.public-get-returns-success",
+          "ran": 2,
+          "skipped": 5
+        },
+        {
+          "check": "response.write-only-not-returned",
           "ran": 2,
           "skipped": 5
         },

@@ -458,6 +458,12 @@
 		"functions": 100,
 		"lines": 100
 	},
+	"src/runtime/checks/families/conformance/response-write-only-not-returned.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
 	"src/runtime/checks/families/conformance/schema-error-response-matches-document.ts": {
 		"statements": 100,
 		"branches": 100,

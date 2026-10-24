@@ -24,6 +24,9 @@ export async function read(state: ReferenceState, call: ItemCall): Promise<Refer
 	const shown = present(state, call.entity, row)
 	if (state.defects.has("READ_DROPS_FIELD") && call.entity.name === state.table.name) delete shown["description"]
 	if (state.defects.has("READ_BODY_DIVERGES") && call.entity.name === state.table.name) shown["cache_status"] = "hit"
+	if (state.defects.has("WRITE_ONLY_LEAKED")) {
+		for (const field of call.entity.fields) if (field.writeOnly === true) shown[field.name] = row[field.name]
+	}
 	return respond(200, answerRead(state, call.entity, shown), { etag: etagOf(row) })
 }
 

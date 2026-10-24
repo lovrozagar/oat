@@ -1,0 +1,140 @@
+{
+  "exitCode": 1,
+  "report": {
+    "outcome": {
+      "exitCode": {
+        "now": 1,
+        "was": 0
+      },
+      "reason": {
+        "now": "2 root-cause findings",
+        "was": "no defects found in what was graded"
+      },
+      "result": {
+        "now": "defects",
+        "was": "clean"
+      }
+    },
+    "scope": {
+      "operations": {
+        "added": [
+          {
+            "checks": {
+              "failed": [
+                "response.write-only-not-returned",
+                "schema.read-response-matches-document"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.alternative-accepted",
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic",
+                "auth.scope-enforced",
+                "concurrency.if-match-enforced",
+                "consistency.projections-agree",
+                "invalidation.declared-route-changes",
+                "payload.string-survives",
+                "response.status-is-documented",
+                "schema.error-response-matches-document",
+                "tenant.denial-does-not-reveal-existence",
+                "tenant.item-not-readable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 2,
+            "operationId": "table.get",
+            "reason": null,
+            "status": "failed"
+          }
+        ],
+        "removed": [
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.alternative-accepted",
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic",
+                "auth.scope-enforced",
+                "concurrency.if-match-enforced",
+                "consistency.projections-agree",
+                "invalidation.declared-route-changes",
+                "payload.string-survives",
+                "response.status-is-documented",
+                "response.write-only-not-returned",
+                "schema.error-response-matches-document",
+                "schema.read-response-matches-document",
+                "tenant.denial-does-not-reveal-existence",
+                "tenant.item-not-readable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.get",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          }
+        ]
+      }
+    },
+    "findings": {
+      "added": [
+        {
+          "check": "response.write-only-not-returned",
+          "detail": "table.get returned 200 carrying secret, which the document marks writeOnly: a value a client sends and the server never returns.",
+          "entity": "table",
+          "operations": [
+            "table.get"
+          ],
+          "evidence": [
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID"
+            }
+          ],
+          "summary": "table.get answered a field the document marks writeOnly: secret",
+          "verdict": "SECURITY"
+        },
+        {
+          "check": "schema.read-response-matches-document",
+          "detail": "table.get returned 200 with a body that fails the declared schema: (root) must NOT have additional properties. Either the handler answers other than it promises or the document is out of date — both break generated clients.",
+          "entity": "table",
+          "operations": [
+            "table.get"
+          ],
+          "evidence": [
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID"
+            }
+          ],
+          "summary": "table.get answered a body its documented schema does not describe",
+          "verdict": "SPEC_BUG"
+        }
+      ]
+    },
+    "summary": {
+      "SECURITY": {
+        "now": 1,
+        "was": null
+      },
+      "SPEC_BUG": {
+        "now": 1,
+        "was": null
+      }
+    }
+  }
+}

@@ -610,6 +610,11 @@
           "needs": "a public GET or HEAD with no id, no query, and a documented success status"
         },
         {
+          "check": "response.write-only-not-returned",
+          "entity": "row",
+          "needs": "a property the record's schema or a write's body marks writeOnly, and an item read or a listing"
+        },
+        {
           "check": "select.unknown-field-rejected",
           "entity": "row",
           "needs": "`select.unknown` declared"
@@ -2536,6 +2541,11 @@
             "skipped": 4
           },
           {
+            "check": "response.write-only-not-returned",
+            "ran": 2,
+            "skipped": 4
+          },
+          {
             "check": "schema.problem-json-shape",
             "ran": 4,
             "skipped": 2
@@ -3119,6 +3129,11 @@
           },
           {
             "check": "response.public-get-returns-success",
+            "ran": 2,
+            "skipped": 5
+          },
+          {
+            "check": "response.write-only-not-returned",
             "ran": 2,
             "skipped": 5
           },
