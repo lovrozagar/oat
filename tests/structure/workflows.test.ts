@@ -35,6 +35,13 @@ describe("hasHeading", () => {
 	})
 })
 
+describe("the changelog", () => {
+	it("has a heading for the version package.json names, so that version's tag can be released", () => {
+		const { version } = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as { version: string }
+		expect(hasHeading(readFileSync(join(ROOT, "CHANGELOG.md"), "utf8"), version)).toBe(true)
+	})
+})
+
 describe("the workflows", () => {
 	it("give every job that runs on a machine an explicit timeout", () => {
 		for (const name of WORKFLOWS) {
