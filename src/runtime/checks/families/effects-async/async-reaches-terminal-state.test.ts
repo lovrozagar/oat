@@ -244,3 +244,22 @@ describe("each fixture", () => {
 		expect(run.findings.findings).toMatchObject([{ entity: "startJob · documents.ts", fixture: "documents.ts" }])
 	})
 })
+
+describe("a polled job that settles past its budget", () => {
+	it("notes a job that finished only after its budget, so a slow host stays visible", async () => {
+		const slowly = polls(pending, done)
+		const run = await watched(
+			started((...request) => {
+				vi.advanceTimersByTime(50)
+				return slowly(...request)
+			}),
+		)
+		expect(run.findings.findings).toEqual([])
+		expect(run.outcome).toEqual({
+			kind: "asserted",
+			note: expect.stringMatching(
+				/^startJob waited \d+ms for x-async, over its \d+ms budget; the host or the server is slow$/,
+			),
+		})
+	})
+})

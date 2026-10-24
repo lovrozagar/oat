@@ -4,10 +4,10 @@ import type { WaitSpec } from "../../../../spec/extensions/async.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
 import { bindAfterCreateEffects, bindMissingPathParams } from "../../../effects/scope.ts"
 import { fillPath } from "../../../fill-path.ts"
-import { ASSERTED, type Outcome } from "../../../finding.ts"
+import { ASSERTED, asserted, type Outcome } from "../../../finding.ts"
 import type { UploadContext } from "../../../upload.ts"
 import { forEachInvocation } from "../../../upload-each.ts"
-import { driveWait } from "../../../wait.ts"
+import { driveWait, overBudget } from "../../../wait.ts"
 import type { CheckContext, WriteContext } from "../../core/context.ts"
 import { when } from "../../core/plan.ts"
 import { encodeOpBody } from "../../payloads/body.ts"
@@ -27,6 +27,7 @@ export const sideEffectArrives: Check = defineCheck({
 	needs: "an operation declaring x-wait",
 	subjects: subjectsOf.waits,
 	async run(all): Promise<Outcome> {
+		const notes: string[] = []
 		for (const op of all.waitOps) {
 			const ctx = forOperation(all, op)
 			const spec = op.wait
@@ -41,10 +42,10 @@ export const sideEffectArrives: Check = defineCheck({
 			}
 
 			await forEachInvocation(op.operationId, ctx.uploads, (uploads, slot) =>
-				invokeAndWait({ check: this.id, ctx, fixture: slot?.filename, op, pollOp, spec }, uploads),
+				invokeAndWait({ check: this.id, ctx, fixture: slot?.filename, notes, op, pollOp, spec }, uploads),
 			)
 		}
-		return ASSERTED
+		return notes.length === 0 ? ASSERTED : asserted([...new Set(notes)].join("; "))
 	},
 })
 
@@ -52,6 +53,8 @@ export const sideEffectArrives: Check = defineCheck({
 interface Invocation {
 	check: string
 	ctx: WriteContext
+	/** Where a wait that concluded only past its budget leaves its note. */
+	notes: string[]
 	op: OperationModel
 	pollOp: OperationModel
 	spec: WaitSpec
@@ -90,7 +93,11 @@ async function invokeAndWait(run: Invocation, uploads: UploadContext): Promise<v
 		spec,
 		writeOpId: op.operationId,
 	})
-	if (!outcome.timedOut) return
+	if (!outcome.timedOut) {
+		const late = overBudget(op.operationId, { elapsedMs: outcome.elapsedMs, kind: "x-wait", timeoutMs: spec.timeoutMs })
+		if (late !== undefined) run.notes.push(late)
+		return
+	}
 	ctx.findings.backend(run.check, subject(ctx.entityName, op.operationId, fixture), {
 		summary: `${op.operationId} side effect did not appear within ${spec.timeoutMs}ms`,
 		detail:

@@ -203,3 +203,25 @@ describe("a write that cannot be judged", () => {
 		expect(run.findings.findings).toMatchObject([{ entity: "sendNote · documents.ts", fixture: "documents.ts" }])
 	})
 })
+
+describe("a side effect that arrives past its budget", () => {
+	it("notes a side effect that arrived only after its budget, so a slow host stays visible", async () => {
+		let polled = 0
+		/* Each poll spends 30ms of the run's clock: the second one, which delivers, ends past the 25ms budget. */
+		const respond = routes({
+			"GET /inbox": () => {
+				vi.advanceTimersByTime(30)
+				return polled++ < 1 ? empty : delivered
+			},
+			"POST /notes": () => ({ body: {}, status: 201 }),
+		})
+		const run = await waited(respond)
+		expect(run.findings.findings).toEqual([])
+		expect(run.outcome).toEqual({
+			kind: "asserted",
+			note: expect.stringMatching(
+				/^sendNote waited \d+ms for x-wait, over its 25ms budget; the host or the server is slow$/,
+			),
+		})
+	})
+})

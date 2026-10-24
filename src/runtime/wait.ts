@@ -110,6 +110,21 @@ export function leastPolls(timeoutMs: number): number {
 	return timeoutMs > 0 ? LEAST_POLLS : 0
 }
 
+/**
+ * The run note for a wait that concluded only past its declared budget, or `undefined` within it: the
+ * verdict stands, and the slowness of the host or the server stays visible.
+ */
+export function overBudget(
+	operationId: string,
+	wait: { kind: "x-wait" | "x-async"; elapsedMs: number; timeoutMs: number },
+): string | undefined {
+	if (wait.elapsedMs <= wait.timeoutMs) return undefined
+	return (
+		`${operationId} waited ${Math.round(wait.elapsedMs)}ms for ${wait.kind}, over its ${wait.timeoutMs}ms ` +
+		"budget; the host or the server is slow"
+	)
+}
+
 export async function driveWait(options: WaitDrive): Promise<WaitOutcome> {
 	const run: Waiting = { began: performance.now(), exchanges: [], polls: 0 }
 	let path: string

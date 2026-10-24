@@ -3,9 +3,10 @@ import { defineCheck } from "../../core/define.ts"
 import type { AsyncSpec } from "../../../../spec/extensions/async.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
 import { type AsyncOutcome, driveAsync, inspectStreamAsync, matchesPredicate } from "../../../async.ts"
+import { overBudget } from "../../../wait.ts"
 import type { Exchange } from "../../../exchange.ts"
 import { fillPath } from "../../../fill-path.ts"
-import { ASSERTED, type Outcome } from "../../../finding.ts"
+import { ASSERTED, asserted, type Outcome } from "../../../finding.ts"
 import { receiptId } from "../../../proven-id.ts"
 import type { UploadContext } from "../../../upload.ts"
 import { forEachInvocation } from "../../../upload-each.ts"
@@ -23,16 +24,17 @@ export const asyncReachesTerminalState: Check = defineCheck({
 	needs: "an operation declaring x-async",
 	subjects: subjectsOf.async,
 	async run(all): Promise<Outcome> {
+		const notes: string[] = []
 		for (const op of all.asyncOps) {
 			const ctx = forOperation(all, op)
 			const spec = op.async
 			if (spec === null) continue
 
 			await forEachInvocation(op.operationId, ctx.uploads, (uploads, slot) =>
-				watchJob({ check: this.id, ctx, fixture: slot?.filename, op, spec }, uploads),
+				watchJob({ check: this.id, ctx, fixture: slot?.filename, notes, op, spec }, uploads),
 			)
 		}
-		return ASSERTED
+		return notes.length === 0 ? ASSERTED : asserted([...new Set(notes)].join("; "))
 	},
 })
 
@@ -40,6 +42,8 @@ export const asyncReachesTerminalState: Check = defineCheck({
 interface Invocation {
 	check: string
 	ctx: WriteContext
+	/** Where a job that settled only past its budget leaves its note. */
+	notes: string[]
 	op: OperationModel
 	spec: AsyncSpec
 	fixture: string | undefined
@@ -172,7 +176,15 @@ function judgePolled(run: Invocation, start: Exchange, outcome: AsyncOutcome): v
 		})
 		return
 	}
-	if (outcome.succeeded) return
+	if (outcome.succeeded) {
+		const late = overBudget(run.op.operationId, {
+			elapsedMs: outcome.elapsedMs,
+			kind: "x-async",
+			timeoutMs: run.spec.timeoutMs,
+		})
+		if (late !== undefined) run.notes.push(late)
+		return
+	}
 	ctx.findings.gap(run.check, about(run), {
 		summary: `${op.operationId} reached a non-success terminal state`,
 		detail: `terminal state did not satisfy "${outcome.unmet}"; downstream effects of this operation are untested`,
