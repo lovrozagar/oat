@@ -95,3 +95,11 @@ See [docs/migrating-0.25.md](docs/migrating-0.25.md) for each change and what to
   gap, never a crash or silence.
 - And about a hundred smaller fixes across seeding, teardown, the contract floor, credentials and
   reports; the commit log since v0.24.0 lists each one.
+
+### Security
+
+- Run artifacts (saved exchanges, reports and repros) no longer show a secret the backend issues
+  mid-run. A value answered under a secret key, such as a TOTP setup's `secret`, is scrubbed
+  wherever else it appears, raw, URL-encoded or base32-normalized. An otpauth URI's `secret` is
+  redacted by its scheme. A `data:` image in a body that had anything redacted, such as the QR
+  code drawing the secret, is redacted too.
