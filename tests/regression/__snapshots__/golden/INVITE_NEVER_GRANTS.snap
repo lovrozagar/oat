@@ -165,7 +165,7 @@
             {
               "method": "POST",
               "status": 200,
-              "url": "http://reference.test/v1/invites/inv_TOKEN/accept"
+              "url": "http://reference.test/v1/invites/<redacted>/accept"
             },
             {
               "method": "POST",

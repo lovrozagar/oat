@@ -1,4 +1,5 @@
 import { isSecretHeaderName, isSecretJsonKey } from "./credential-names.ts"
+import { issuedSecrets } from "./issued-secrets.ts"
 
 /*
  * One redactor per run, for every place an exchange is written down: the journal, the markdown and
@@ -89,6 +90,15 @@ export class Redactor {
 		if (bare !== undefined) this.#addSecret(bare)
 	}
 
+	/**
+	 * Secrets a backend issued in a response `body`, under a secret key: scrubbed from now on wherever
+	 * they appear, in this record and every later one, and never sent elsewhere (`holdsSecret`). Only a
+	 * response is learned from: a request carries values the run made, such as a generated password.
+	 */
+	learn(body: unknown): void {
+		for (const value of issuedSecrets(body)) this.#addSecret(value)
+	}
+
 	/* A value as issued and as a URL or a form writes it: a base64 token's `+/=` reach the wire encoded. */
 	#addSecret(value: string): void {
 		for (const written of [value, ...urlForms(value)]) this.#secrets.add(written)
@@ -142,12 +152,17 @@ export class Redactor {
 		return this.#isSecretParam(name) ? REDACTED : this.text(value)
 	}
 
+	/** `value` with secret keys redacted and every registered or issued value scrubbed, wherever it sits. */
 	json(value: unknown): unknown {
+		return this.#json(value)
+	}
+
+	#json(value: unknown): unknown {
 		if (typeof value === "string") return this.text(value)
-		if (Array.isArray(value)) return value.map((item) => this.json(item))
+		if (Array.isArray(value)) return value.map((item) => this.#json(item))
 		if (value === null || typeof value !== "object") return value
 		const out: Record<string, unknown> = {}
-		for (const [key, child] of Object.entries(value)) out[key] = isSecretJsonKey(key) ? REDACTED : this.json(child)
+		for (const [key, child] of Object.entries(value)) out[key] = isSecretJsonKey(key) ? REDACTED : this.#json(child)
 		return out
 	}
 

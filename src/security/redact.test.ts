@@ -207,3 +207,39 @@ describe("Redactor, placed credentials in bodies", () => {
 		expect(redactor.text("sid=v; echo placed-secret-value")).toBe(`sid=${REDACTED}; echo ${REDACTED}`)
 	})
 })
+
+describe("Redactor, a secret the backend issues", () => {
+	/* The RFC 6238 example secret, spaced and lowercase as a setup answer may show it. */
+	const SECRET = "JBSWY3DPEHPK3PXP"
+	const shown = "jbsw y3dp ehpk 3pxp"
+
+	it("scrubs a value a response issued under a secret key wherever else it appears, before or after that key", () => {
+		const redactor = new Redactor()
+		const body = { link: `https://example.test/setup?code=${SECRET}`, secret: shown }
+		redactor.learn(body)
+		expect(JSON.stringify(redactor.json(body))).not.toContain(SECRET)
+		expect(redactor.text(`echoed: ${SECRET}`)).toBe(`echoed: ${REDACTED}`)
+		expect(redactor.url(`https://example.test/verify?c=${SECRET}`)).not.toContain(SECRET)
+		expect(redactor.holdsSecret(`x${SECRET}x`)).toBe(true)
+	})
+
+	it("learns nothing from a body it only serializes, such as a request the run itself sent", () => {
+		const redactor = new Redactor()
+		expect(redactor.json({ password: "Quarterly Report 0" })).toEqual({ password: REDACTED })
+		expect(redactor.text("description Quarterly Report 0")).toBe("description Quarterly Report 0")
+	})
+
+	it("learns a letters-only base32 secret of 16 characters", () => {
+		const redactor = new Redactor()
+		redactor.learn({ totp_secret: "ABCDEFGHIJKLMNOP" })
+		expect(redactor.text("ABCDEFGHIJKLMNOP")).toBe(REDACTED)
+	})
+
+	it("learns 12 to 15 characters only when not letters alone, and nothing shorter", () => {
+		const redactor = new Redactor()
+		redactor.learn({ api_secret: "ab12cd34ef56", token_type: "Bearer", password_hint: "Abcdefghijklm" })
+		expect(redactor.text("ab12cd34ef56")).toBe(REDACTED)
+		expect(redactor.text("Bearer x")).toBe("Bearer x")
+		expect(redactor.text("Abcdefghijklm")).toBe("Abcdefghijklm")
+	})
+})

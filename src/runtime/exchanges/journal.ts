@@ -191,6 +191,8 @@ export function createExchangeJournal(dir: string, redactor: Redactor): Exchange
 		flush,
 		async record(exchange, meta = {}) {
 			await ensure()
+			/* A secret the response issues may already sit in the request, headers or URL written first. */
+			redactor.learn(exchange.responseBody)
 			const requestBody = await persistRequestBody(exchange.requestBody, store)
 			const responseBody = await persistResponseBody(exchange, store)
 			const rel = `exchanges/${claimStem(exchange, dir, taken)}.json`

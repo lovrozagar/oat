@@ -9,6 +9,8 @@ import { costByCheck, latency, utf8Total } from "./traffic.ts"
 import { byVerdict } from "./verdicts.ts"
 
 function evidenceJson(exchange: Exchange, redactor: Redactor): Record<string, unknown> {
+	/* A secret the response issues may sit in the request or URL rendered first. */
+	redactor.learn(exchange.responseBody)
 	return {
 		at: new Date(exchange.at).toISOString(),
 		durationMs: exchange.durationMs,

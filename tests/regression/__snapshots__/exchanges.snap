@@ -49,7 +49,7 @@
     "GET /health [] → 200"
   ],
   "invite.accept": [
-    "POST /v1/invites/inv_TOKEN/accept [Authorization] → 200"
+    "POST /v1/invites/%3Credacted%3E/accept [Authorization] → 200"
   ],
   "job.create": [
     "POST /v1/projects/proj_alpha/jobs [Authorization,Idempotency-Key,content-type] → 201",

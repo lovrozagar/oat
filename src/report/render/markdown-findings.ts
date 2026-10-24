@@ -16,6 +16,8 @@ function bodyBlock(summary: string, body: unknown): string[] {
 
 /** One exchange: its request line and timing, then its bodies, collapsed. */
 export function exchangeBlock(exchange: Exchange, redactor: Redactor): string[] {
+	/* A secret the response issues may sit in the request or URL rendered first. */
+	redactor.learn(exchange.responseBody)
 	const url = new URL(redactor.url(exchange.url))
 	const lines = [
 		"",

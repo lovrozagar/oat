@@ -362,3 +362,30 @@ describe("exchange journal: blobs", () => {
 	it("stores binary downloads as a blob pointer", storesBinaryAsPointer)
 	it("hashes raw request bytes and URLSearchParams", hashesRawBodies)
 })
+
+describe("createExchangeJournal and a secret the response issues", () => {
+	it("scrubs it from the request body, headers and URL of the same exchange, written before the response", async () => {
+		const secret = "JBSWY3DPEHPK3PXP"
+		const journal = createExchangeJournal(dir, new Redactor())
+		await journal.record(
+			exchangeOf({
+				method: "POST",
+				requestBody: { note: `setup ${secret}` },
+				requestHeaders: { "x-trace": secret },
+				responseBody: { secret },
+				url: `http://h.test/v1/2fa?echo=${secret}`,
+			}),
+		)
+		await journal.flush()
+		const [line] = indexLines()
+		expect(JSON.stringify(fileOf(String(line?.file)))).not.toContain(secret)
+		expect(JSON.stringify(line)).not.toContain(secret)
+	})
+
+	it("learns nothing from a request body, whose values the run itself made", async () => {
+		const redactor = new Redactor()
+		const journal = createExchangeJournal(dir, redactor)
+		await journal.record(exchangeOf({ method: "POST", requestBody: { password: "Quarterly Report 0" } }))
+		expect(redactor.text("Quarterly Report 0")).toBe("Quarterly Report 0")
+	})
+})

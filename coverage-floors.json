@@ -1475,6 +1475,7 @@
 	"src/runtime/world/types.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/world/upload-context.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/security/credential-names.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/security/issued-secrets.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/security/redact.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/security/strip.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/spec/allow.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
