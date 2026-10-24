@@ -1,0 +1,8 @@
+# Every real-API target in one stack, for a look by hand: `docker compose -f tests/targets/docker-compose.yml up`.
+# tests/targets/run.test.ts brings each one up alone, as its own project. Images are pinned by digest in each file.
+include:
+  - crapi/compose.yml
+  - immich/compose.yml
+  - keycloak/compose.yml
+  - typesense/compose.yml
+  - vampi/compose.yml

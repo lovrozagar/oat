@@ -1,0 +1,26 @@
+[
+	{
+		"check": "tenant.item-not-readable-cross-tenant",
+		"verdict": "SECURITY",
+		"operationId": "api_views.books.get_by_title",
+		"why": "Broken Object Level Authorization: in vulnerable mode GET /books/v1/{book_title} returns any user's book and its secret, though only the owner should see it (README, List of Vulnerabilities; api_views/books.py get_by_title). https://github.com/erev0s/VAmPI#list-of-vulnerabilities"
+	},
+	{
+		"check": "auth.privileged-field-ignored",
+		"verdict": "SECURITY",
+		"operationId": "api_views.users.register_user",
+		"why": "Mass Assignment: POST /users/v1/register takes an `admin` field and makes whoever signs up an admin (README, List of Vulnerabilities; api_views/users.py register_user). https://github.com/erev0s/VAmPI#list-of-vulnerabilities"
+	},
+	{
+		"check": "world.teardown",
+		"verdict": "COVERAGE_GAP",
+		"entity": "book",
+		"why": "VAmPI documents no book delete (openapi3.yml has only get_all_books, add_new_book and get_by_title under /books/v1), so the books a run adds stay behind."
+	},
+	{
+		"check": "schema.read-response-matches-document",
+		"verdict": "SPEC_BUG",
+		"operationId": "api_views.books.get_by_title",
+		"why": "openapi3.yml declares the 200 of GET /books/v1/{book_title} as {type: array, items: {book_title, owner, secret}}, but VAmPI answers the one book as an object (\"(root) must be array\"). https://github.com/erev0s/VAmPI openapi_specs/openapi3.yml"
+	}
+]

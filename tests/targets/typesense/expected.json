@@ -1,0 +1,8 @@
+[
+	{
+		"check": "schema.read-response-matches-document",
+		"verdict": "SPEC_BUG",
+		"operationId": "searchCollection",
+		"why": "SearchResultHit.document is declared {type: object, description: \"Can be any key-value pair\", additionalProperties: {type: object}}, so every document value would have to be an object, while real documents hold strings, numbers and booleans (\"/hits/0/document/author must be object\"). The schema contradicts its own description; it should be additionalProperties: true. Spec: typesense/typesense-api-spec openapi.yml at 9963d6c, components.schemas.SearchResultHit."
+	}
+]

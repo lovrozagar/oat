@@ -84,6 +84,7 @@
 		"test": "bun run build && bun run test:unit && bun run test:integration && node dist/cli.js conformance",
 		"test:e2e": "bun run build && vitest run -c vitest.e2e.config.ts",
 		"test:integration": "vitest run --project integration",
+		"test:targets": "vitest run -c vitest.targets.config.ts",
 		"test:unit": "vitest run --project unit --coverage",
 		"typecheck": "bun run check",
 		"verify": "bun scripts/verify.ts"

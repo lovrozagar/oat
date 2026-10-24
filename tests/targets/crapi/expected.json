@@ -1,0 +1,44 @@
+[
+	{
+		"check": "tenant.item-not-readable-cross-tenant",
+		"verdict": "SECURITY",
+		"operationId": "get_order_byID",
+		"why": "BOLA / excessive data exposure: GET /workshop/api/shop/orders/{order_id} returns any user's order, including their name, phone and masked card and payment details, with no ownership check. crAPI challenge 4 (Excessive Data Exposure — an endpoint that leaks sensitive information of other users). https://github.com/OWASP/crAPI/blob/main/docs/challenges.md"
+	},
+	{
+		"check": "auth.missing-credential-refused",
+		"verdict": "SECURITY",
+		"operationId": "get_order_byID",
+		"why": "Unauthenticated access: the order read answers 200 with another user's order when sent no credential at all, though the spec marks it bearerAuth. crAPI challenge 14 (an endpoint that does not perform authentication checks). https://github.com/OWASP/crAPI/blob/main/docs/challenges.md"
+	},
+	{
+		"check": "auth.invalid-credential-refused",
+		"verdict": "SECURITY",
+		"operationId": "get_order_byID",
+		"why": "Broken JWT validation: the endpoint accepts a garbage bearer token and a real JWT whose signature was altered, so crAPI does not verify the token signature. crAPI challenge 15 (forge valid JWT tokens). https://github.com/OWASP/crAPI/blob/main/docs/challenges.md"
+	},
+	{
+		"check": "validation.enum-enforced",
+		"verdict": "BACKEND_BUG",
+		"operationId": "create_order",
+		"why": "An order for a product that does not exist crashes the handler: POST /workshop/api/shop/orders with {\"product_id\":3,\"quantity\":1} answers 500 with Django's HTML \"Server Error (500)\" page instead of a 400 or 404. The overlay narrows product_id to the two seeded products, so 3 is the out-of-enum probe; the crash is crAPI's for any unknown product."
+	},
+	{
+		"check": "response.no-server-error",
+		"verdict": "BACKEND_BUG",
+		"operationId": "get_order_byID",
+		"why": "Reading an order that does not exist crashes the handler: GET /workshop/api/shop/orders/2147483116 answers 500 with Django's HTML \"Server Error (500)\" page instead of 404."
+	},
+	{
+		"check": "world.teardown",
+		"verdict": "COVERAGE_GAP",
+		"entity": "order",
+		"why": "crAPI documents no order delete, so the orders a run places stay behind (cleanup 0/4); the config says so."
+	},
+	{
+		"check": "schema.read-response-matches-document",
+		"verdict": "SPEC_BUG",
+		"operationId": "get_order_byID",
+		"why": "The order read answers values its schema forbids: product.image_url is \"images/seat.svg\", a relative path, against Product.image_url {type: string, format: url}, and created_on is \"2026-10-23T23:13:21.194283\", with no UTC offset and so not RFC 3339, against Order.created_on {format: date-time}. With the read overlay off it also answers { order } where the document requires { orders } (README.md)."
+	}
+]

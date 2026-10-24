@@ -1,0 +1,25 @@
+# Typesense, a single node on a throwaway data dir: a fresh install with only its bootstrap API key.
+services:
+  typesense:
+    # typesense/typesense:30.2
+    image: typesense/typesense:30.2@sha256:610f2d34b1f93d00762869da2c67736775e5798d19a2c8b91b014b8a0cc1e110
+    command: ["--data-dir", "/data", "--api-key", "oat-bootstrap-key", "--enable-cors"]
+    tmpfs:
+      - /data
+    ports:
+      - "127.0.0.1:18108:8108"
+    healthcheck:
+      # No curl in the image, and /bin/sh is dash: bash's /dev/tcp asks /health, which answers
+      # {"ok":true} once the node can serve.
+      test:
+        - CMD
+        - bash
+        - -c
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/8108 &&
+          printf 'GET /health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
+          grep -q '"ok":true' <&3
+      interval: 2s
+      timeout: 5s
+      retries: 60
+      start_period: 5s

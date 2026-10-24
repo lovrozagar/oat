@@ -54,6 +54,7 @@ export interface ReportFinding {
 	check: string
 	entity: string
 	verdict: string
+	summary?: string
 	origin?: string
 	operations?: string[]
 	known?: { reason: string }

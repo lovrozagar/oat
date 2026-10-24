@@ -1,0 +1,20 @@
+[
+	{
+		"check": "response.status-is-documented",
+		"verdict": "SPEC_BUG",
+		"operationId": "DELETE /admin/realms/{realm}/groups/{group-id}",
+		"why": "Deleting a group that is gone answers 404, which the Admin REST API document (keycloak.org/docs-api/26.8.1/rest-api/openapi.json) leaves out: it declares only 204 for this operation."
+	},
+	{
+		"check": "response.status-is-documented",
+		"verdict": "SPEC_BUG",
+		"operationId": "DELETE /admin/realms/{realm}/users/{user-id}",
+		"why": "Deleting a user that is gone answers 404, which the Admin REST API document (keycloak.org/docs-api/26.8.1/rest-api/openapi.json) leaves out: it declares only 204, 400, 403 for this operation."
+	},
+	{
+		"check": "world.seed",
+		"verdict": "COVERAGE_GAP",
+		"entity": "user",
+		"why": "Keycloak's person-name validator refuses characters the document permits: POST /admin/realms/{realm}/users with the \"metacharacter\" seed variant answers 400 {\"field\":\"firstName\",\"errorMessage\":\"error-person-name-invalid-character\",\"params\":[\"firstName\"]}, though UserRepresentation.firstName is a plain string. The document should state the constraint."
+	}
+]

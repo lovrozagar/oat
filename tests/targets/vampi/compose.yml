@@ -1,0 +1,15 @@
+# VAmPI, the vulnerable build (vulnerable=1): https://github.com/erev0s/VAmPI
+services:
+  vampi:
+    # erev0s/vampi:latest, built 2026-04-07 from f16052d
+    image: erev0s/vampi@sha256:0a5a224b6e14ae7da6a6ea265178ff71286ff903aec74adee98f660bb0e4ca12
+    environment:
+      vulnerable: "1"
+      tokentimetolive: "3600"
+    ports:
+      - 127.0.0.1:15002:5000
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:5000/"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
