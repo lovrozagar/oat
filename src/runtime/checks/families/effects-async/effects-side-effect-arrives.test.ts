@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
 import { ASSERTED } from "../../../finding.ts"
 import { contextFor, modelOf, op, type Responder } from "../../__fixtures__/harness.ts"
@@ -36,10 +36,24 @@ withOperation(doc, "post /gated-notes", {
 const model = modelOf(doc)
 const sendNote = op(model, "sendNote")
 
+/* The poll budget is virtual time: a run's verdict never depends on how fast the host is. */
+beforeEach(() => {
+	vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] })
+})
+afterEach(() => {
+	vi.useRealTimers()
+})
+
 async function waited(respond: Responder, waitOps: OperationModel[] = [sendNote], fields: Partial<Listed> = {}) {
 	const stage = contextFor(model, "listWidgets", { respond, fields: { waitOps, ...fields } })
-	const outcome = await check.run(stage.ctx, undefined)
-	return { ...stage, outcome }
+	const running = check.run(stage.ctx, undefined)
+	await vi.runAllTimersAsync()
+	return { ...stage, outcome: await running }
+}
+
+/* Blocks the thread for `ms` of real time, which no fake timer shortens. */
+function stall(ms: number): void {
+	Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
 }
 
 const delivered = { body: { items: ["n1"] }, status: 200 }
@@ -58,8 +72,12 @@ describe("plan", () => {
 describe("a write whose side effect is polled", () => {
 	it("passes a side effect that arrives, after sending the write's body", async () => {
 		let polled = 0
+		/* A slow host: each poll takes 15ms of real time, so three of them outlast the 25ms budget on a wall clock. */
 		const respond = routes({
-			"GET /inbox": () => (polled++ < 2 ? empty : delivered),
+			"GET /inbox": () => {
+				stall(15)
+				return polled++ < 2 ? empty : delivered
+			},
 			"POST /notes": () => ({ body: {}, status: 201 }),
 		})
 		const run = await waited(respond)
