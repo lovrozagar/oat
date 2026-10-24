@@ -12,7 +12,7 @@ export interface EntityConfig {
 
 /** Query capabilities, plus the grammar filter terms are written in when oat cannot infer it. */
 export type QueryConfig = QueryCapabilities & {
-	/** A preset name or a template; outranks `x-query.grammar`. See docs/configuration.md. */
+	/** A preset name or a template; outranks `x-query.grammar`. See docs/configuration/reference.md. */
 	grammar?: DeclaredFilterGrammar
 	/** A preset name or a template; outranks `x-query.sortGrammar`. */
 	sortGrammar?: DeclaredSortGrammar

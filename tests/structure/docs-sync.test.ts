@@ -88,7 +88,7 @@ const SURFACES: Readonly<Record<string, Surface>> = {
 		undocumented: [],
 	},
 	"top-level config fields": {
-		doc: "configuration.md",
+		doc: "configuration/reference.md",
 		names: () => Object.keys(configRules()),
 		written: code,
 		undocumented: [],

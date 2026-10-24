@@ -117,7 +117,8 @@ The full list, with what you see and what to do instead, is in [docs/limits.md](
 ## Docs
 
 - [Commands](docs/commands.md): `run`, `doctor`, `plan`, `init`, `serve`, `conformance`
-- [Configuration](docs/configuration.md): every field, principals, security recipes, hooks, uploads
+- [Configuration](docs/configuration/reference.md): every field; then [principals and security](docs/configuration/principals-and-security.md), [hooks](docs/configuration/hooks.md), [origins and uploads](docs/configuration/origins-and-uploads.md)
+- [Migrating to 0.25](docs/migrating-0.25.md): the removed config fields, and relative paths now read from the config's folder
 - [How oat reads a document](docs/model.md): how a run works, entities, seeding, query grammars
 - [OpenAPI tags](docs/tags.md): every `x-*` tag and what it unlocks
 - [Checks and verdicts](docs/checks.md): what each check needs and asserts
