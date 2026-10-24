@@ -98,6 +98,18 @@ async function sawEffect(options: WaitDrive, exchange: Exchange, attempt: number
 	return pointerIsOccupied(found) || hookHit ? { matched: found } : undefined
 }
 
+/*
+ * A wait concludes "not there" only once its time is up and it has polled at least this often. On a slow or
+ * starved host one poll can spend the whole budget; a verdict on that poll would call a delivery that was
+ * still coming a miss. A budget of 0 means no wait at all: nothing is polled.
+ */
+export const LEAST_POLLS = 3
+
+/** The polls a wait of `timeoutMs` sends at the least before it may conclude: none for no time at all. */
+export function leastPolls(timeoutMs: number): number {
+	return timeoutMs > 0 ? LEAST_POLLS : 0
+}
+
 export async function driveWait(options: WaitDrive): Promise<WaitOutcome> {
 	const run: Waiting = { began: performance.now(), exchanges: [], polls: 0 }
 	let path: string
@@ -106,15 +118,16 @@ export async function driveWait(options: WaitDrive): Promise<WaitOutcome> {
 	} catch {
 		return waited(run, undefined)
 	}
-	while (performance.now() - run.began < options.spec.timeoutMs) {
+	const minimum = leastPolls(options.spec.timeoutMs)
+	while (performance.now() - run.began < options.spec.timeoutMs || run.polls < minimum) {
 		const exchange = await pollOnce(options, path)
 		run.exchanges.push(exchange)
 		run.polls += 1
 		const seen = await sawEffect(options, exchange, run.polls)
 		if (seen !== undefined) return waited(run, seen)
 		const remaining = options.spec.timeoutMs - (performance.now() - run.began)
-		if (remaining <= 0) break
-		await sleep(Math.min(options.spec.pollIntervalMs, remaining))
+		if (remaining <= 0 && run.polls >= minimum) break
+		await sleep(remaining > 0 ? Math.min(options.spec.pollIntervalMs, remaining) : options.spec.pollIntervalMs)
 	}
 	return waited(run, undefined)
 }

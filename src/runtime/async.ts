@@ -12,6 +12,7 @@ import type { Client } from "../client/client.ts"
 import type { Exchange } from "./exchange.ts"
 import { type SseEvent, sseEvents } from "./sse.ts"
 import { fillPath } from "./fill-path.ts"
+import { leastPolls } from "./wait.ts"
 
 /** What polling saw, however it ended. */
 interface Polled {
@@ -243,12 +244,15 @@ export async function driveAsync(input: AsyncDrive): Promise<AsyncOutcome> {
 			unfillable: (error as Error).message,
 		}
 	}
-	while (performance.now() - run.began < input.spec.timeoutMs) {
+	/* Never "timed out" on one late poll: a slow host can spend the whole budget on it. */
+	const minimum = leastPolls(input.spec.timeoutMs)
+	while (performance.now() - run.began < input.spec.timeoutMs || run.polls < minimum) {
 		const exchange = await pollOnce(input, method, path)
 		run.exchanges.push(exchange)
 		run.polls += 1
 		const outcome = settledBy(input.spec, exchange, run)
 		if (outcome !== undefined) return outcome
+		if (performance.now() - run.began >= input.spec.timeoutMs && run.polls >= minimum) break
 		await sleep(input.spec.pollIntervalMs)
 	}
 	return unfinished(run, "timed-out")

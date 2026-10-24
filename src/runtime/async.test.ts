@@ -194,6 +194,11 @@ describe("driveAsync, choosing where to poll", () => {
 	})
 })
 
+/* A slow server: each poll answers after 30ms, the job running at first and, for `late`, done on the second. */
+const late: Answer = (_sent, index) =>
+	new Promise((done) => setTimeout(() => done(json(index === 0 ? { status: "running" } : { status: "done" }, 200)), 30))
+const slow: Answer = () => new Promise((done) => setTimeout(() => done(json({ status: "running" }, 200)), 30))
+
 describe("driveAsync, when the job does not finish", () => {
 	it("tells a job that vanished after it was served", async () => {
 		const { outcome } = drive(answers([404, {}], [200, { status: "running" }], [404, {}]))
@@ -203,8 +208,18 @@ describe("driveAsync, when the job does not finish", () => {
 	it("tells a job served running and then gone from one still running at the deadline", async () => {
 		const vanished = drive(answers([200, { status: "running" }], [404, {}]))
 		expect(await vanished.outcome).toMatchObject({ state: "vanished" })
-		const slow = drive(answers([200, { status: "running" }]), { spec: { timeoutMs: 60 } })
-		expect(await slow.outcome).toMatchObject({ state: "timed-out" })
+		const running = drive(answers([200, { status: "running" }]), { spec: { timeoutMs: 60 } })
+		expect(await running.outcome).toMatchObject({ state: "timed-out" })
+	})
+
+	it("finds a job a slow server finishes after the budget, rather than calling it timed out on one poll", async () => {
+		const { outcome } = drive(late, { spec: { timeoutMs: 5 } })
+		expect(await outcome).toMatchObject({ polls: 2, succeeded: true, timedOut: false })
+	})
+
+	it("calls a slow server's job timed out only once it has polled three times", async () => {
+		const { outcome } = drive(slow, { spec: { timeoutMs: 5 } })
+		expect(await outcome).toMatchObject({ polls: 3, state: "timed-out", timedOut: true })
 	})
 
 	it("times out on a job that never ends", async () => {

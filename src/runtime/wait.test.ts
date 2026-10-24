@@ -52,6 +52,10 @@ const slow: Answer = () => new Promise((done) => setTimeout(() => done(json([], 
 const always = (): Promise<true | null> => Promise.resolve(true)
 const never = (): Promise<true | null> => Promise.resolve(null)
 
+/* A slow server whose first answer is empty and whose second carries the effect. */
+const late: Answer = (_sent, index) =>
+	new Promise((done) => setTimeout(() => done(json(index === 0 ? [] : [1], 200)), 30))
+
 describe("driveWait, with nothing declared", () => {
 	it("stops at the first occupied success answer", async () => {
 		const { outcome, sent } = wait(answers([409, { error: "x" }], [200, []], [200, [{ id: "m1" }]]))
@@ -67,9 +71,14 @@ describe("driveWait, with nothing declared", () => {
 		expect(await instant.outcome).toMatchObject({ polls: 0, timedOut: true })
 	})
 
-	it("stops polling once a slow answer has spent the time left", async () => {
+	it("calls a slow server's wait timed out only once it has polled three times, never on one late poll", async () => {
 		const { outcome } = wait(slow, { spec: { timeoutMs: 5 } })
-		expect(await outcome).toMatchObject({ polls: 1, timedOut: true })
+		expect(await outcome).toMatchObject({ polls: 3, timedOut: true })
+	})
+
+	it("finds a side effect a slow server delivers after the budget, rather than reporting it missed", async () => {
+		const { outcome } = wait(late, { spec: { timeoutMs: 5 } })
+		expect(await outcome).toMatchObject({ polls: 2, timedOut: false })
 	})
 })
 

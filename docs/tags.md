@@ -227,7 +227,7 @@ x-async:
 
 `x-async` means **POST is a receipt, then poll**. It is not how you mark a stream. A stream is a success response that lists `text/event-stream`.
 
-When the start response is JSON, oat polls `poll` until `until` matches, then treats that payload as the result. `poll` may be an operationId or `"GET /path/{id}"`. Defaults: `timeoutMs: 120000`, `pollIntervalMs: 2000`.
+When the start response is JSON, oat polls `poll` until `until` matches, then treats that payload as the result. `poll` may be an operationId or `"GET /path/{id}"`. Defaults: `timeoutMs: 120000`, `pollIntervalMs: 2000`. A job is called timed out only once `timeoutMs` has passed and oat has polled at least three times, so a slow host that spends the whole budget on one poll never turns a job still running into a verdict; `timeoutMs: 0` polls nothing.
 
 When the start response is `text/event-stream`, oat parses `event:` / `data:` frames. `data` is JSON when it starts with `{` / `[`. `idFrom` is resolved against **each event's JSON `data`**, first hit wins — `$.batch_id` on `event: batch` data `{ "batch_id": "…" }` works. A frame named `complete` / `error`, or one whose `data` matches `until`, is the terminal record; `successWhen` is applied to it and oat does **not** GET the poll route. Poll only if the stream ended without a terminal frame **and** `idFrom` resolved.
 
@@ -282,7 +282,7 @@ x-wait:
   pollIntervalMs: 1000
 ```
 
-Put this on the **write**. After that write succeeds, oat polls `operationId` until `until` (JSON path `$.items.0` or JSON pointer `/items/0`) is non-empty, or `hooks.awaitSideEffect` returns `true`. Default `timeoutMs` is **30s**. Timeout is a **finding** (`effects.side-effect-arrives`), not a coverage gap.
+Put this on the **write**. After that write succeeds, oat polls `operationId` until `until` (JSON path `$.items.0` or JSON pointer `/items/0`) is non-empty, or `hooks.awaitSideEffect` returns `true`. Default `timeoutMs` is **30s**. Timeout is a **finding** (`effects.side-effect-arrives`), not a coverage gap, and oat reaches it only once `timeoutMs` has passed and it has polled at least three times: on a slow host one poll can spend the whole budget, and a side effect still on its way is not a missed one.
 
 Use this for queue consumers and webhook inboxes (1–30 s), not for the same request. `x-effects` still asserts cardinality; `x-wait` asserts “this other GET eventually has a body”. If the poll path needs a parent id the write created, oat binds it the same way `x-effects` does.
 

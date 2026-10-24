@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
 import { Client } from "../../src/client/client.ts"
-import { driveWait, pointerIsOccupied, readPointer } from "../../src/runtime/wait.ts"
+import { driveWait, LEAST_POLLS, pointerIsOccupied, readPointer } from "../../src/runtime/wait.ts"
 import { buildModel } from "../../src/spec/graph/build.ts"
 import { dereference } from "../../src/spec/load/dereference.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
@@ -200,7 +200,7 @@ describe("driveWait", () => {
 		expect(hookRecord).toEqual({ from: "write" })
 	})
 
-	it("stops polling once the wall clock budget is exhausted mid-request", async () => {
+	it("times out only after three polls, though one poll outlasts the whole budget", async () => {
 		const url = await pollServer((_req, res) => {
 			void (async () => {
 				await new Promise((done) => setTimeout(done, 20))
@@ -210,8 +210,9 @@ describe("driveWait", () => {
 		const outcome = await waitOn(url, {
 			spec: { operationId: "inbox.list", pollIntervalMs: 50, timeoutMs: 15, until: "$.items.0" },
 		})
+		/* Each poll alone outlasts the budget, so a missed delivery is concluded at the third and no later. */
 		expect(outcome.timedOut).toBe(true)
-		expect(outcome.polls).toBe(1)
+		expect(outcome.polls).toBe(LEAST_POLLS)
 	})
 
 	it("does not stop on a 4xx when there is no until and no hook", async () => {
