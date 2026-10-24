@@ -1,5 +1,6 @@
 /** The field an update to the caller changes and reads back: a plain string, or else a boolean. */
 
+import { admits, stringConstraints } from "../generate/string-constraints.ts"
 import type { JsonSchema } from "../../spec/types.ts"
 
 const PREFERRED_FIELDS: readonly string[] = ["first_name", "display_name", "name", "nickname"]
@@ -32,11 +33,22 @@ function unwrap(schema: JsonSchema): JsonSchema {
 	return schema
 }
 
-/** A string the probe can set and read back unchanged: free text, not an enum, a format or a pattern. */
-function freeText(rec: JsonSchema): boolean {
-	if (Array.isArray(rec.enum)) return false
-	if (rec.format === "email" || rec.format === "uri" || rec.format === "date-time") return false
-	return typeof rec.pattern !== "string"
+/* The two values the probe alternates between, cut to the field's cap. */
+const PROBE_VALUES = ["Oat", "Xot"] as const
+
+/**
+ * A string the probe can set and read back unchanged: not an enum or a format a backend rewrites,
+ * and every value it writes within the field's lengths and patterns, `allOf` and a nullable union
+ * folded in. A pattern both values meet, such as a guard on every string, is no reason to skip it.
+ */
+function stringField(name: string, raw: JsonSchema): ProbeField | null {
+	const constraints = stringConstraints(raw)
+	if (constraints.enum !== undefined) return null
+	if (constraints.format === "email" || constraints.format === "uri" || constraints.format === "date-time") return null
+	const maxLength = Number.isFinite(constraints.maxLength) ? constraints.maxLength : 64
+	if (maxLength < 4) return null
+	const field: ProbeField = { kind: "string", maxLength, name }
+	return PROBE_VALUES.every((value) => admits(constraints, value.slice(0, maxLength))) ? field : null
 }
 
 /** What one property offers the probe: a string, a boolean, or nothing. */
@@ -46,9 +58,7 @@ function fieldOf(name: string, value: unknown): ProbeField | null {
 	const rec = unwrap(raw)
 	if (rec.readOnly === true) return null
 	if (rec.type === "boolean") return { kind: "boolean", maxLength: 0, name }
-	if (rec.type !== "string" || !freeText(rec)) return null
-	const maxLength = typeof rec.maxLength === "number" ? rec.maxLength : 64
-	return maxLength < 4 ? null : { kind: "string", maxLength, name }
+	return rec.type === "string" ? stringField(name, raw) : null
 }
 
 /** The field an update to the caller changes, never one of `avoid`. */
@@ -73,7 +83,7 @@ export function probeField(schema: unknown, avoid: ReadonlySet<string> = new Set
 
 export function nextValue(field: ProbeField, current: unknown): boolean | string {
 	if (field.kind === "boolean") return current !== true
-	const primary = "Oat".slice(0, field.maxLength)
-	const alternate = "Xot".slice(0, field.maxLength)
+	const primary = PROBE_VALUES[0].slice(0, field.maxLength)
+	const alternate = PROBE_VALUES[1].slice(0, field.maxLength)
 	return current === primary ? alternate : primary
 }

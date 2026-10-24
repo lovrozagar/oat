@@ -76,3 +76,29 @@ describe("nextValue", () => {
 		expect(nextValue({ kind: "string", maxLength: 2, name: "n" }, "x")).toBe("Oa")
 	})
 })
+
+describe("probeField under a guard pattern on every string", () => {
+	const guard = "^[^\\u0000\\uD800-\\uDFFF]*$"
+	const phone = {
+		anyOf: [
+			{ allOf: [{ pattern: "^\\+[1-9]\\d{7,14}$" }, { pattern: guard }], maxLength: 15, minLength: 7, type: "string" },
+			{ type: "null" },
+		],
+	}
+
+	it("takes a field whose pattern admits both probe values", () => {
+		expect(probeField(object({ display_name: { maxLength: 64, pattern: guard, type: "string" } }))).toEqual({
+			kind: "string",
+			maxLength: 64,
+			name: "display_name",
+		})
+	})
+
+	it("skips a field whose own pattern or minLength, in or beside an allOf, refuses the probe values", () => {
+		expect(probeField(object({ phone_number: phone }))).toBeNull()
+		expect(probeField(object({ password: { minLength: 8, type: "string" } }))).toBeNull()
+		expect(probeField(object({ phone_number: phone, first_name: { pattern: guard, type: "string" } }))?.name).toBe(
+			"first_name",
+		)
+	})
+})
