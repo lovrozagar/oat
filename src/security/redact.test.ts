@@ -257,3 +257,18 @@ describe("Redactor, an otpauth URI", () => {
 		expect(redactor.url(encoded)).not.toContain("GEZDGNBV")
 	})
 })
+
+describe("Redactor, an image beside a redacted secret", () => {
+	const png = `data:image/png;base64,${"iVBORw0KGgo".repeat(40)}`
+
+	it("redacts a data: image in a body that had something redacted, keeping its key", () => {
+		const redactor = new Redactor()
+		expect(redactor.json({ mfa: { qr_code: png, secret: "GEZDGNBVGY3TQOJQ" } })).toEqual({
+			mfa: { qr_code: REDACTED, secret: REDACTED },
+		})
+	})
+
+	it("keeps the images of a body with nothing redacted", () => {
+		expect(new Redactor().json({ avatar: png, name: "Ada" })).toEqual({ avatar: png, name: "Ada" })
+	})
+})

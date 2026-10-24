@@ -56,6 +56,14 @@ function urlForms(value: string): string[] {
 	return [percent, strict, new URLSearchParams([["", value]]).toString().slice(1)]
 }
 
+/* `value` with every `data:image/` string replaced, each key kept. */
+function withoutImages(value: unknown): unknown {
+	if (typeof value === "string") return /^data:image\//i.test(value) ? REDACTED : value
+	if (Array.isArray(value)) return value.map(withoutImages)
+	if (value === null || typeof value !== "object") return value
+	return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, withoutImages(child)]))
+}
+
 export class Redactor {
 	readonly #headers = new Set<string>()
 	readonly #secrets = new Set<string>()
@@ -159,17 +167,30 @@ export class Redactor {
 		return this.#isSecretParam(name) ? REDACTED : this.text(value)
 	}
 
-	/** `value` with secret keys redacted and every registered or issued value scrubbed, wherever it sits. */
+	/**
+	 * `value` with secret keys redacted and every registered or issued value scrubbed, wherever it sits.
+	 * A body that had anything redacted loses its `data:image/` strings too: a QR code draws the secret
+	 * beside it, and no scrub by value reaches the pixels.
+	 */
 	json(value: unknown): unknown {
-		return this.#json(value)
+		const seen = { redacted: false }
+		const out = this.#json(value, seen)
+		return seen.redacted ? withoutImages(out) : out
 	}
 
-	#json(value: unknown): unknown {
-		if (typeof value === "string") return this.text(value)
-		if (Array.isArray(value)) return value.map((item) => this.#json(item))
+	#json(value: unknown, seen: { redacted: boolean }): unknown {
+		if (typeof value === "string") {
+			const scrubbed = this.text(value)
+			if (scrubbed !== value) seen.redacted = true
+			return scrubbed
+		}
+		if (Array.isArray(value)) return value.map((item) => this.#json(item, seen))
 		if (value === null || typeof value !== "object") return value
 		const out: Record<string, unknown> = {}
-		for (const [key, child] of Object.entries(value)) out[key] = isSecretJsonKey(key) ? REDACTED : this.#json(child)
+		for (const [key, child] of Object.entries(value)) {
+			if (isSecretJsonKey(key)) seen.redacted = true
+			out[key] = isSecretJsonKey(key) ? REDACTED : this.#json(child, seen)
+		}
 		return out
 	}
 
