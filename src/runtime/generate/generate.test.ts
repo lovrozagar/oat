@@ -326,3 +326,36 @@ describe("generate on a schema whose reading fails", () => {
 		expect(generate(schema)).toEqual({ ok: false, pointer: "/", reason: "generation failed: boom" })
 	})
 })
+
+/** The value made at cohort index 1, or why none could be. */
+function guarded(schema: unknown, variant: Variant = "baseline"): unknown {
+	const made = generate(schema, { index: 1, variant })
+	return made.ok ? made.value : made.reason
+}
+
+describe("generate under a guard pattern on every string", () => {
+	const guard = "^[^\\u0000\\uD800-\\uDFFF]*$"
+	const phone = "^\\+[1-9]\\d{7,14}$"
+
+	it("keeps the realistic text a guard admits, in every variant", () => {
+		expect(guarded({ pattern: guard, type: "string" })).toBe("Quarterly Report 1")
+		expect(guarded({ maxLength: 64, pattern: guard, type: "string" }, "unicode")).toMatch(/^äöüß/u)
+	})
+
+	it("meets the field's own pattern and the guard in an allOf, through a nullable union", () => {
+		const schema = {
+			anyOf: [
+				{ allOf: [{ pattern: phone }, { pattern: guard }], maxLength: 15, minLength: 7, type: "string" },
+				{ type: "null" },
+			],
+		}
+		const made = guarded({ properties: { phone_number: schema }, required: ["phone_number"], type: "object" })
+		const number = (made as { phone_number: unknown }).phone_number
+		expect(number).toMatch(new RegExp(phone, "u"))
+		expect(number).toMatch(new RegExp(guard, "u"))
+	})
+
+	it("keeps the plain text when it meets the own pattern and the guard alike", () => {
+		expect(guarded({ allOf: [{ pattern: "^[A-Z]" }, { pattern: guard }], type: "string" })).toBe("Quarterly Report 1")
+	})
+})

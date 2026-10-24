@@ -1300,6 +1300,7 @@
 	"src/runtime/generate/object.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/generate/pattern.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/generate/probes.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/runtime/generate/string-constraints.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/generate/string.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/generate/text.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/generate/types.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
