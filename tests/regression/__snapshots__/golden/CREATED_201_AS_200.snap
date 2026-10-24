@@ -15,11 +15,6 @@
         "was": "clean"
       }
     },
-    "checksRun": {
-      "removed": [
-        "schema.success-response-matches-document"
-      ]
-    },
     "checksSuppressed": {
       "added": [
         {
@@ -350,13 +345,6 @@
         }
       ]
     },
-    "costByCheck": {
-      "removed": [
-        {
-          "check": "schema.success-response-matches-document"
-        }
-      ]
-    },
     "summary": {
       "SPEC_BUG": {
         "now": 4,
@@ -368,14 +356,14 @@
         "added": [
           {
             "check": "schema.success-response-matches-document",
-            "ran": 2,
+            "ran": 3,
             "skipped": 1
           }
         ],
         "removed": [
           {
             "check": "schema.success-response-matches-document",
-            "ran": 6,
+            "ran": 7,
             "skipped": 1
           }
         ]

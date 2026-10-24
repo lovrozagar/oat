@@ -1175,8 +1175,8 @@
     "teardown": {
       "records": {},
       "removed": {
-        "now": 110,
-        "was": 114
+        "now": 124,
+        "was": 128
       }
     },
     "findings": {
@@ -1279,44 +1279,44 @@
           {
             "check": "auth.invite-grants-then-revokes",
             "ran": 2,
-            "skipped": 4
+            "skipped": 5
           },
           {
             "check": "tenant.denial-does-not-reveal-existence",
             "ran": 2,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "tenant.item-not-writable-cross-tenant",
             "ran": 2,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "tenant.parent-not-reachable-from-another-root",
             "ran": 2,
-            "skipped": 4
+            "skipped": 5
           }
         ],
         "removed": [
           {
             "check": "auth.invite-grants-then-revokes",
             "ran": 3,
-            "skipped": 4
+            "skipped": 5
           },
           {
             "check": "tenant.denial-does-not-reveal-existence",
             "ran": 6,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "tenant.item-not-writable-cross-tenant",
             "ran": 6,
-            "skipped": 1
+            "skipped": 2
           },
           {
             "check": "tenant.parent-not-reachable-from-another-root",
             "ran": 3,
-            "skipped": 4
+            "skipped": 5
           }
         ]
       }

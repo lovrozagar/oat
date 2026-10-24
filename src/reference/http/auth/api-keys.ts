@@ -11,7 +11,7 @@ export interface ApiKeyNeed {
 	projectId?: string | number | undefined
 }
 
-/** A new key for `creator`, holding `scopes`. */
+/** A new key for `creator`, holding `scopes`, unnamed until its creator names it. */
 export function createApiKey(state: ReferenceState, creator: Principal, scopes: readonly string[]): ApiKey {
 	const { auth } = state
 	auth.sequence += 1
@@ -19,6 +19,7 @@ export function createApiKey(state: ReferenceState, creator: Principal, scopes: 
 	const value = `ak_${createHmac("sha256", auth.secret).update(id).digest("hex").slice(0, 32)}`
 	const key: ApiKey = {
 		id,
+		name: null,
 		projectId: creator.projectId,
 		rank: creator.rank,
 		revoked: false,
@@ -44,9 +45,29 @@ export function findApiKey(state: ReferenceState, caller: Principal, id: string)
 	return key
 }
 
-/** Revokes a key of the caller's tenant. */
+/** Revokes a key of the caller's tenant; under KEY_DELETE_CROSS_TENANT, also a live key of another tenant. */
 export function revokeApiKey(state: ReferenceState, caller: Principal, id: string): void {
-	findApiKey(state, caller, id).revoked = true
+	const anyTenant = [...state.auth.apiKeys.values()].find((item) => item.id === id && !item.revoked)
+	const foreign = anyTenant !== undefined && anyTenant.projectId !== caller.projectId
+	if (state.defects.has("KEY_DELETE_CROSS_TENANT") && foreign) anyTenant.revoked = true
+	else ownedApiKey(state, caller, id).revoked = true
+}
+
+/* The tenant's admins rank 2: they manage every key of their tenant, as each creator manages its own. */
+const ADMIN_RANK = 2
+
+/** A live key of the caller's tenant that the caller may change: its own, or any when it is the tenant's admin. */
+export function ownedApiKey(state: ReferenceState, caller: Principal, id: string): ApiKey {
+	const key = findApiKey(state, caller, id)
+	if (key.sub !== caller.key && caller.rank < ADMIN_RANK) {
+		throw new HttpError(403, "forbidden", `API key ${id} is not the caller's to change`)
+	}
+	return key
+}
+
+/** The caller's tenant's live keys, in the order they were made. */
+export function listApiKeys(state: ReferenceState, caller: Principal): ApiKey[] {
+	return [...state.auth.apiKeys.values()].filter((item) => item.projectId === caller.projectId && !item.revoked)
 }
 
 /**

@@ -1030,134 +1030,134 @@
           {
             "check": "consistency.projections-agree",
             "ran": 2,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.axes-compose",
             "ran": 2,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.filter-and-select-compose",
             "ran": 2,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.filter-search-select-compose",
             "ran": 2,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.filter-search-sort-compose",
             "ran": 2,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.filter-search-sort-select-compose",
             "ran": 2,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.filter-sort-select-compose",
             "ran": 2,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.search-and-select-compose",
             "ran": 2,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.sort-and-select-compose",
             "ran": 2,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "select.nested-honoured",
             "ran": 2,
-            "skipped": 4
+            "skipped": 5
           },
           {
             "check": "select.requested-fields-present",
             "ran": 2,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "select.unknown-field-rejected",
             "ran": 2,
-            "skipped": 4
+            "skipped": 5
           },
           {
             "check": "spec.declared-selectable-is-selectable",
             "ran": 2,
-            "skipped": 2
+            "skipped": 3
           }
         ],
         "removed": [
           {
             "check": "consistency.projections-agree",
             "ran": 5,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.axes-compose",
             "ran": 5,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.filter-and-select-compose",
             "ran": 5,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.filter-search-select-compose",
             "ran": 5,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.filter-search-sort-compose",
             "ran": 5,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.filter-search-sort-select-compose",
             "ran": 5,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.filter-sort-select-compose",
             "ran": 5,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.search-and-select-compose",
             "ran": 5,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.sort-and-select-compose",
             "ran": 5,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "select.nested-honoured",
             "ran": 3,
-            "skipped": 4
+            "skipped": 5
           },
           {
             "check": "select.requested-fields-present",
             "ran": 5,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "select.unknown-field-rejected",
             "ran": 3,
-            "skipped": 4
+            "skipped": 5
           },
           {
             "check": "spec.declared-selectable-is-selectable",
             "ran": 5,
-            "skipped": 2
+            "skipped": 3
           }
         ]
       }

@@ -7,7 +7,7 @@
         "was": 0
       },
       "reason": {
-        "now": "records may remain: 108 teardown could not show gone",
+        "now": "records may remain: 120 teardown could not show gone",
         "was": "no defects found in what was graded"
       },
       "result": {
@@ -36,6 +36,16 @@
           "check": "auth.alternative-accepted",
           "entity": "webhook.get",
           "needs": "webhook.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (profile.get))"
+        },
+        {
+          "check": "auth.invalid-credential-refused",
+          "entity": "apiKey.get",
+          "needs": "apiKey.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (profile.get))"
+        },
+        {
+          "check": "auth.invalid-credential-refused",
+          "entity": "apiKey.revoke",
+          "needs": "a throwaway api-key for apiKey.revoke: signed in again, and the new credential is refused where the old one was accepted (profile.get)"
         },
         {
           "check": "auth.invalid-credential-refused",
@@ -101,6 +111,16 @@
           "check": "auth.invalid-credential-refused",
           "entity": "webhook.update",
           "needs": "webhook.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (profile.get))"
+        },
+        {
+          "check": "auth.missing-credential-refused",
+          "entity": "apiKey.get",
+          "needs": "apiKey.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (profile.get))"
+        },
+        {
+          "check": "auth.missing-credential-refused",
+          "entity": "apiKey.revoke",
+          "needs": "a throwaway api-key for apiKey.revoke: signed in again, and the new credential is refused where the old one was accepted (profile.get)"
         },
         {
           "check": "auth.missing-credential-refused",
@@ -189,6 +209,11 @@
         },
         {
           "check": "auth.role-enforced",
+          "entity": "apiKey.revoke",
+          "needs": "a throwaway api-key for apiKey.revoke: signed in again, and the new credential is refused where the old one was accepted (profile.get)"
+        },
+        {
+          "check": "auth.role-enforced",
           "entity": "job.delete",
           "needs": "a throwaway job for job.delete: signed in again, and the new credential is refused where the old one was accepted (profile.get)"
         },
@@ -291,6 +316,16 @@
           "check": "auth.scope-enforced",
           "entity": "webhook.update",
           "needs": "webhook.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (profile.get))"
+        },
+        {
+          "check": "auth.wrong-scheme-refused",
+          "entity": "apiKey.get",
+          "needs": "apiKey.get's target could not be read back: alpha's credential is BLOCKED (signed in again, and the new credential is refused where the old one was accepted (profile.get))"
+        },
+        {
+          "check": "auth.wrong-scheme-refused",
+          "entity": "apiKey.revoke",
+          "needs": "a throwaway api-key for apiKey.revoke: signed in again, and the new credential is refused where the old one was accepted (profile.get)"
         },
         {
           "check": "auth.wrong-scheme-refused",
@@ -470,6 +505,29 @@
             "entity": "webhook",
             "findings": 0,
             "operationId": "webhook.get",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic",
+                "response.status-is-documented",
+                "schema.error-response-matches-document",
+                "schema.read-response-matches-document"
+              ],
+              "suppressed": []
+            },
+            "entity": "api-key",
+            "findings": 0,
+            "operationId": "apiKey.get",
             "reason": null,
             "status": "passed",
             "evidence": {},
@@ -688,30 +746,22 @@
               "failed": [],
               "gaps": [],
               "inconclusive": [],
-              "passed": [],
-              "suppressed": []
-            },
-            "entity": "api-key",
-            "findings": 0,
-            "operationId": "apiKey.get",
-            "reason": "entity-not-testable: \"api-key\" holds credentials: a security recipe calls apiKey.revoke, so no check may; contract call could not be sent: signed in again, and the new credential is refused where the old one was accepted (profile.get)",
-            "status": "untested",
-            "why": "entity-not-testable: \"api-key\" holds credentials: a security recipe calls apiKey.revoke, so no check may; contract call could not be sent: signed in again, and the new credential is refused where the old one was accepted (profile.get)"
-          },
-          {
-            "checks": {
-              "failed": [],
-              "gaps": [],
-              "inconclusive": [],
-              "passed": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "delete.absent-record-returns-404",
+                "response.status-is-documented"
+              ],
               "suppressed": []
             },
             "entity": "api-key",
             "findings": 0,
             "operationId": "apiKey.revoke",
-            "reason": "entity-not-testable: \"api-key\" holds credentials: a security recipe calls apiKey.revoke, so no check may; unresolved param id: a write is sent only to a record this run created",
-            "status": "untested",
-            "why": "entity-not-testable: \"api-key\" holds credentials: a security recipe calls apiKey.revoke, so no check may; unresolved param id: a write is sent only to a record this run created"
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "unproven",
+            "tier": "contract",
+            "why": "met its contract, but no later read observed what it changed"
           },
           {
             "checks": {
@@ -1016,6 +1066,59 @@
               "passed": [
                 "auth.invalid-credential-refused",
                 "auth.missing-credential-refused",
+                "auth.rank-is-monotonic",
+                "auth.wrong-scheme-refused",
+                "response.status-is-documented",
+                "schema.error-response-matches-document",
+                "schema.read-response-matches-document"
+              ],
+              "suppressed": []
+            },
+            "entity": "api-key",
+            "findings": 0,
+            "operationId": "apiKey.get",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic-on-writes",
+                "auth.revoked-credential-refused",
+                "auth.role-enforced",
+                "auth.wrong-scheme-refused",
+                "delete.absent-record-returns-404",
+                "response.status-is-documented"
+              ],
+              "suppressed": []
+            },
+            "entity": "api-key",
+            "findings": 0,
+            "operationId": "apiKey.revoke",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
                 "auth.rank-is-monotonic-on-writes",
                 "auth.role-enforced",
                 "auth.scope-enforced",
@@ -1245,47 +1348,6 @@
               "gaps": [],
               "inconclusive": [],
               "passed": [
-                "auth.revoked-credential-refused",
-                "delete.absent-record-returns-404"
-              ],
-              "suppressed": []
-            },
-            "entity": "api-key",
-            "findings": 0,
-            "operationId": "apiKey.revoke",
-            "reason": null,
-            "status": "passed",
-            "evidence": {},
-            "sufficiency": "verified",
-            "tier": "verified",
-            "why": "a later exchange shows what this call did"
-          },
-          {
-            "checks": {
-              "failed": [],
-              "gaps": [],
-              "inconclusive": [],
-              "passed": [
-                "response.contract-call"
-              ],
-              "suppressed": []
-            },
-            "entity": "api-key",
-            "findings": 0,
-            "operationId": "apiKey.get",
-            "reason": null,
-            "status": "passed",
-            "evidence": {},
-            "sufficiency": "complete",
-            "tier": "contract",
-            "why": "a read with no declared effects: its contract is the whole promise"
-          },
-          {
-            "checks": {
-              "failed": [],
-              "gaps": [],
-              "inconclusive": [],
-              "passed": [
                 "response.contract-call"
               ],
               "suppressed": []
@@ -1326,6 +1388,78 @@
             "id": "oat-baseline-0-a7a7a7a71@example.test",
             "principal": "disposable-1",
             "reason": "profile.delete as the account answered 401; account.delete as alpha was not sent: signed in again, and the new credential is refused where the old one was accepted (profile.get); account.delete as beta was not sent: signed in again, and the new credential is refused where the old one was accepted (table.get); account.delete as alpha_member was not sent: signed in again, and the new credential is refused where the old one was accepted (table.get); account.delete as alpha_viewer was not sent: signed in again, and the new credential is refused where the old one was accepted (table.get)"
+          },
+          {
+            "entity": "api-key",
+            "id": "apikey_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/api-keys/apikey_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
+          },
+          {
+            "entity": "api-key",
+            "id": "apikey_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/api-keys/apikey_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
+          },
+          {
+            "entity": "api-key",
+            "id": "apikey_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/api-keys/apikey_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
+          },
+          {
+            "entity": "api-key",
+            "id": "apikey_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/api-keys/apikey_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
+          },
+          {
+            "entity": "api-key",
+            "id": "apikey_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/api-keys/apikey_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
+          },
+          {
+            "entity": "api-key",
+            "id": "apikey_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/api-keys/apikey_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
+          },
+          {
+            "entity": "api-key",
+            "id": "apikey_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/api-keys/apikey_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
+          },
+          {
+            "entity": "api-key",
+            "id": "apikey_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/api-keys/apikey_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
+          },
+          {
+            "entity": "api-key",
+            "id": "apikey_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/api-keys/apikey_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
+          },
+          {
+            "entity": "api-key",
+            "id": "apikey_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/api-keys/apikey_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
+          },
+          {
+            "entity": "api-key",
+            "id": "apikey_ID",
+            "principal": "alpha_member",
+            "reason": "DELETE /v1/api-keys/apikey_ID returned alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
+          },
+          {
+            "entity": "api-key",
+            "id": "apikey_ID",
+            "principal": "alpha_viewer",
+            "reason": "DELETE /v1/api-keys/apikey_ID returned alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
           },
           {
             "entity": "credential",
@@ -1980,6 +2114,78 @@
             "removed": false
           },
           {
+            "entity": "api-key",
+            "id": "apikey_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "api-key",
+            "id": "apikey_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "api-key",
+            "id": "apikey_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "api-key",
+            "id": "apikey_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "api-key",
+            "id": "apikey_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "api-key",
+            "id": "apikey_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "api-key",
+            "id": "apikey_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "api-key",
+            "id": "apikey_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "api-key",
+            "id": "apikey_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "api-key",
+            "id": "apikey_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "api-key",
+            "id": "apikey_ID",
+            "principal": "alpha_member",
+            "removed": false
+          },
+          {
+            "entity": "api-key",
+            "id": "apikey_ID",
+            "principal": "alpha_viewer",
+            "removed": false
+          },
+          {
             "entity": "job",
             "id": "job_ID",
             "principal": "alpha",
@@ -2600,6 +2806,18 @@
             "removed": true
           },
           {
+            "entity": "api-key",
+            "id": "apikey_ID",
+            "principal": "alpha_member",
+            "removed": true
+          },
+          {
+            "entity": "api-key",
+            "id": "apikey_ID",
+            "principal": "alpha_viewer",
+            "removed": true
+          },
+          {
             "entity": "job",
             "id": "job_ID",
             "principal": "alpha_member",
@@ -2638,12 +2856,23 @@
         ]
       },
       "removed": {
-        "now": 7,
-        "was": 114
+        "now": 8,
+        "was": 128
       }
     },
     "findings": {
       "added": [
+        {
+          "check": "auth.blocked",
+          "detail": "blocked by signed in again, and the new credential is refused where the old one was accepted (profile.get). apiKey.get was not sent to read /v1/api-keys/apikey_ID back after apiKey.revoke.",
+          "entity": "api-key",
+          "operations": [
+            "apiKey.revoke"
+          ],
+          "evidence": [],
+          "summary": "delete.absent-record-returns-404 needed a credential that is BLOCKED",
+          "verdict": "BLOCKED"
+        },
         {
           "check": "auth.blocked",
           "detail": "blocked by signed in again, and the new credential is refused where the old one was accepted (profile.get). auth.privileged-field-ignored could not complete.",
@@ -2720,7 +2949,7 @@
         "was": null
       },
       "BLOCKED": {
-        "now": 3,
+        "now": 4,
         "was": null
       }
     },
@@ -2779,12 +3008,12 @@
           {
             "check": "auth.invalid-credential-refused",
             "ran": 0,
-            "skipped": 26
+            "skipped": 24
           },
           {
             "check": "auth.missing-credential-refused",
             "ran": 0,
-            "skipped": 26
+            "skipped": 24
           },
           {
             "check": "auth.privileged-field-ignored",
@@ -2804,7 +3033,7 @@
           {
             "check": "auth.role-enforced",
             "ran": 0,
-            "skipped": 37
+            "skipped": 36
           },
           {
             "check": "auth.scope-enforced",
@@ -2814,7 +3043,7 @@
           {
             "check": "auth.wrong-scheme-refused",
             "ran": 0,
-            "skipped": 40
+            "skipped": 38
           },
           {
             "check": "request.invalid-body-refused",

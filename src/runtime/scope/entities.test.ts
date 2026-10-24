@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { PrincipalsConfig, SecurityConfig } from "../../config/types/security.ts"
 import type { OperationModel } from "../../spec/graph/types.ts"
-import { entityOf, referenceModel } from "./__fixtures__/models.ts"
+import { entityOf, keyModel, referenceModel } from "./__fixtures__/models.ts"
 import {
 	authStepOperationIds,
 	createIsAuthProvisioned,
@@ -115,12 +115,61 @@ describe("untestableEntityReason", () => {
 		)
 	})
 
-	it("never makes an entity lane of one whose read, update, delete or list a recipe names", () => {
-		expect(untestableEntityReason(row, model, new Set(["row.delete"]))).toBe(
-			'"row" holds credentials: a security recipe calls row.delete, so no check may',
-		)
-		expect(untestableEntityReason(row, model, new Set(["row.get", "row.list"]))).toMatch(/recipe calls row\.list/)
+	it("tests an entity whose read, update, delete or list a recipe names: the guard keeps its credential records", () => {
+		expect(untestableEntityReason(row, model, new Set(["row.delete"]))).toBeNull()
+		expect(untestableEntityReason(row, model, new Set(["row.get", "row.list"]))).toBeNull()
 		expect(untestableEntityReason(row, model, new Set(["row.create"]))).toBeNull()
+	})
+})
+
+/* A create's 201 answer: a JSON object of these properties. */
+const json = (properties: Record<string, unknown>) => ({
+	content: { "application/json": { schema: { properties, type: "object" } } },
+	description: "made",
+})
+
+describe("untestableEntityReason and where a mint's answer names the record", () => {
+	const mints = Object.assign(new Set(["key.create", "key.delete"]), { mints: new Set(["key.create"]) })
+	const reason = (keys: ReturnType<typeof keyModel>, identity?: null) => {
+		const key = entityOf(keys, "key")
+		return untestableEntityReason(identity === null ? { ...key, identity } : key, keys, mints)
+	}
+	const blind =
+		'"key" holds credentials a security recipe mints with key.create, whose answer names no id to protect them by, so no check may'
+
+	it("keeps out a key whose mint answers no id, under the record path it declares or none", () => {
+		expect(reason(keyModel(json({ key: { type: "string" } })))).toBe(blind)
+		expect(reason(keyModel())).toBe(blind)
+		expect(reason(keyModel(json({ key: { type: "string" } }), { recordPath: "$.data" }))).toBe(blind)
+	})
+
+	it("takes the id from a declared source, a Location, the wrapped record, or the default identity", () => {
+		expect(reason(keyModel(json({ key: { type: "string" } }), { createdIdFrom: "$.handle" }))).toBeNull()
+		const located = { ...json({ key: { type: "string" } }), headers: { Location: { schema: { type: "string" } } } }
+		expect(reason(keyModel(located))).toBeNull()
+		const wrapped = json({ data: { properties: { id: { type: "string" } }, type: "object" } })
+		expect(reason(keyModel(wrapped, { recordPath: "$.data" }))).toBeNull()
+		expect(reason(keyModel(json({ id: { type: "string" } })), null)).toBeNull()
+	})
+})
+
+describe("untestableEntityReason and credentials", () => {
+	const row = entityOf(model, "row")
+
+	it("tests the reference's minted keys, whose mint answers each key's id, and keeps out one whose mint names none", () => {
+		const keys = authStepOperationIds({
+			security: {
+				apiKey: { mint: { from: "$.key", operationId: "apiKey.create", revoke: "apiKey.revoke", with: "jwt" } },
+			},
+		})
+		expect(untestableEntityReason(entityOf(model, "api-key"), model, keys)).toBeNull()
+		/* A mint makes credentials, not an account: the lanes may send it for records of their own. */
+		expect(createIsAuthProvisioned(model.byOperationId.get("apiKey.create") as OperationModel, keys)).toBe(false)
+		/* A mint that answers no id and no Location leaves nothing to protect the credential by. */
+		const blind = { ...row, create: "auth.revoke" }
+		expect(untestableEntityReason(blind, model, new Set(["auth.revoke", "row.delete"]))).toBe(
+			'"row" holds credentials a security recipe mints with auth.revoke, whose answer names no id to protect them by, so no check may',
+		)
 	})
 
 	it("names what a cohort is missing", () => {

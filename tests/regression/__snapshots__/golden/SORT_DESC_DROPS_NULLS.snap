@@ -647,24 +647,24 @@
           {
             "check": "sort.multi-key-tiebreak",
             "ran": 2,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "sort.nulls-first-last",
             "ran": 2,
-            "skipped": 4
+            "skipped": 5
           }
         ],
         "removed": [
           {
             "check": "sort.multi-key-tiebreak",
             "ran": 5,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "sort.nulls-first-last",
             "ran": 3,
-            "skipped": 4
+            "skipped": 5
           }
         ]
       }

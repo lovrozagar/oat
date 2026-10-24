@@ -616,14 +616,14 @@
           {
             "check": "pagination.cursor-agrees-with-page",
             "ran": 4,
-            "skipped": 2
+            "skipped": 3
           }
         ],
         "removed": [
           {
             "check": "pagination.cursor-agrees-with-page",
             "ran": 5,
-            "skipped": 2
+            "skipped": 3
           }
         ]
       }

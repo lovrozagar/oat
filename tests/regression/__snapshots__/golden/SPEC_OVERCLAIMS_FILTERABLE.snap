@@ -672,14 +672,14 @@
           {
             "check": "spec.declared-filterable-ops-accepted",
             "ran": 2,
-            "skipped": 4
+            "skipped": 5
           }
         ],
         "removed": [
           {
             "check": "spec.declared-filterable-ops-accepted",
             "ran": 3,
-            "skipped": 4
+            "skipped": 5
           }
         ]
       }

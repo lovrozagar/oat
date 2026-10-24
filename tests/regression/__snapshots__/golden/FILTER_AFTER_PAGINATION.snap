@@ -1260,284 +1260,284 @@
           {
             "check": "consistency.projections-agree",
             "ran": 2,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "count.matches-filtered-set",
             "ran": 2,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "filter.alias-matches-canonical",
             "ran": 2,
-            "skipped": 4
+            "skipped": 5
           },
           {
             "check": "filter.and-composes-as-intersection",
             "ran": 2,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "filter.contains-membership",
             "ran": 2,
-            "skipped": 4
+            "skipped": 5
           },
           {
             "check": "filter.empty-in",
             "ran": 2,
-            "skipped": 4
+            "skipped": 5
           },
           {
             "check": "filter.equality-selects-exactly-one",
             "ran": 2,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "filter.gte-is-gt-or-eq",
             "ran": 2,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.ilike-is-case-insensitive",
             "ran": 2,
-            "skipped": 4
+            "skipped": 5
           },
           {
             "check": "filter.in-is-union-of-eq",
             "ran": 2,
-            "skipped": 4
+            "skipped": 5
           },
           {
             "check": "filter.is-null-selects-nulls",
             "ran": 2,
-            "skipped": 4
+            "skipped": 5
           },
           {
             "check": "filter.like-metacharacters-escaped",
             "ran": 2,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "filter.lte-is-lt-or-eq",
             "ran": 2,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.negation-partitions-the-set",
             "ran": 2,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "filter.nested-and-or-distributes",
             "ran": 2,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "filter.nin-complements-in",
             "ran": 2,
-            "skipped": 4
+            "skipped": 5
           },
           {
             "check": "filter.numeric-comparison-is-numeric",
             "ran": 2,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.or-composes-as-union",
             "ran": 2,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "filter.ordered-triple-partitions",
             "ran": 2,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.zero-match-returns-none",
             "ran": 2,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.axes-compose",
             "ran": 2,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.filter-and-select-compose",
             "ran": 2,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.filter-search-select-compose",
             "ran": 2,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.filter-search-sort-compose",
             "ran": 2,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.filter-search-sort-select-compose",
             "ran": 2,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.filter-sort-select-compose",
             "ran": 2,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.search-and-filter-compose",
             "ran": 2,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "tenant.filter-does-not-bypass-scope",
             "ran": 2,
-            "skipped": 2
+            "skipped": 3
           }
         ],
         "removed": [
           {
             "check": "consistency.projections-agree",
             "ran": 5,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "count.matches-filtered-set",
             "ran": 5,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "filter.alias-matches-canonical",
             "ran": 3,
-            "skipped": 4
+            "skipped": 5
           },
           {
             "check": "filter.and-composes-as-intersection",
             "ran": 5,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "filter.contains-membership",
             "ran": 3,
-            "skipped": 4
+            "skipped": 5
           },
           {
             "check": "filter.empty-in",
             "ran": 3,
-            "skipped": 4
+            "skipped": 5
           },
           {
             "check": "filter.equality-selects-exactly-one",
             "ran": 5,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "filter.gte-is-gt-or-eq",
             "ran": 4,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.ilike-is-case-insensitive",
             "ran": 3,
-            "skipped": 4
+            "skipped": 5
           },
           {
             "check": "filter.in-is-union-of-eq",
             "ran": 3,
-            "skipped": 4
+            "skipped": 5
           },
           {
             "check": "filter.is-null-selects-nulls",
             "ran": 3,
-            "skipped": 4
+            "skipped": 5
           },
           {
             "check": "filter.like-metacharacters-escaped",
             "ran": 5,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "filter.lte-is-lt-or-eq",
             "ran": 4,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.negation-partitions-the-set",
             "ran": 5,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "filter.nested-and-or-distributes",
             "ran": 5,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "filter.nin-complements-in",
             "ran": 3,
-            "skipped": 4
+            "skipped": 5
           },
           {
             "check": "filter.numeric-comparison-is-numeric",
             "ran": 4,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.or-composes-as-union",
             "ran": 5,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "filter.ordered-triple-partitions",
             "ran": 4,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.zero-match-returns-none",
             "ran": 5,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.axes-compose",
             "ran": 5,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.filter-and-select-compose",
             "ran": 5,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.filter-search-select-compose",
             "ran": 5,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.filter-search-sort-compose",
             "ran": 5,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.filter-search-sort-select-compose",
             "ran": 5,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.filter-sort-select-compose",
             "ran": 5,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.search-and-filter-compose",
             "ran": 5,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "tenant.filter-does-not-bypass-scope",
             "ran": 5,
-            "skipped": 2
+            "skipped": 3
           }
         ]
       }

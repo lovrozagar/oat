@@ -16,6 +16,11 @@ export const CLIENT_ID_ONLY: ReadonlySet<DefectName> = /* @__PURE__ */ new Set<D
 	"CLIENT_ID_OVERWRITES",
 ])
 
+/* Only a listed, tenant-owned key can be revoked across tenants: the key-lifecycle shape runs these. */
+export const KEY_LIFECYCLE_ONLY: ReadonlySet<DefectName> = /* @__PURE__ */ new Set<DefectName>([
+	"KEY_DELETE_CROSS_TENANT",
+])
+
 /* Only a record with a write-only field can leak one: the write-only-field shape runs these. */
 export const WRITE_ONLY_FIELD_ONLY: ReadonlySet<DefectName> = /* @__PURE__ */ new Set<DefectName>(["WRITE_ONLY_LEAKED"])
 
@@ -216,7 +221,7 @@ export function defectsFor(backend: Backend, dialect: string, filter?: readonly 
 			 * no physical column names, so a DDL/read mismatch has nowhere to happen. */
 			.filter((name) => backend !== "memory" || !SQL_ONLY.has(name))
 			/* Shape-only defects run in the recall pass of the shape that names them. */
-			.filter((name) => !CLIENT_ID_ONLY.has(name) && !WRITE_ONLY_FIELD_ONLY.has(name))
+			.filter((name) => !CLIENT_ID_ONLY.has(name) && !WRITE_ONLY_FIELD_ONLY.has(name) && !KEY_LIFECYCLE_ONLY.has(name))
 			/* Likewise a dialect that has no cursor cannot drift one. */
 			.filter((name) => DIALECTS_WITH_CURSOR.has(dialect) || !CURSOR_ONLY.has(name))
 			/* Likewise a shape with no total cannot report a wrong one. */

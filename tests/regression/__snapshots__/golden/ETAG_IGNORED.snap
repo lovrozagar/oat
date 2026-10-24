@@ -653,14 +653,14 @@
           {
             "check": "schema.problem-json-shape",
             "ran": 2,
-            "skipped": 5
+            "skipped": 6
           }
         ],
         "removed": [
           {
             "check": "schema.problem-json-shape",
             "ran": 6,
-            "skipped": 1
+            "skipped": 2
           }
         ]
       }

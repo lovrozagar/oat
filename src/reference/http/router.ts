@@ -7,7 +7,7 @@ import { errorResponse, HttpError } from "./errors.ts"
 import { inbox, notify, startJob } from "./handlers/actions.ts"
 import { create } from "./handlers/create.ts"
 import type { ItemCall } from "./handlers/entity.ts"
-import { createKey, readKey, revokeKey } from "./handlers/api-keys.ts"
+import { createKey, listKeys, readKey, renameKey, revokeKey } from "./handlers/api-keys.ts"
 import {
 	deleteAccount,
 	deleteSelf,
@@ -38,7 +38,9 @@ const FIXED: readonly Route[] = [
 	refresh,
 	revokeToken,
 	createKey,
+	listKeys,
 	readKey,
+	renameKey,
 	revokeKey,
 	startJob,
 	notify,

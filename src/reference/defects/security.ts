@@ -24,6 +24,8 @@ export const SECURITY_DEFECTS = {
 	PRIVILEGED_FIELD_WRITABLE: "a non-admin's write sets a field only admin may set",
 	/** The register's `staff`, marked `x-privileged`, is granted to whoever signs up asking for it. */
 	PRIVILEGED_FIELD_ON_SIGNUP: "a sign-up grants the x-privileged staff flag its body sets",
+	/** Behind key-lifecycle, a key's revoke finds it by id across tenants: another tenant's revoke succeeds. */
+	KEY_DELETE_CROSS_TENANT: "another tenant can revoke an API key",
 	/** With `throttleLogins` on, failed logins never answer 429. */
 	LOGIN_NOT_THROTTLED: "login throttling is on but repeated failed logins never answer 429",
 } as const

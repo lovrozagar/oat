@@ -4,9 +4,10 @@ import { afterEach, describe, expect, it } from "vitest"
 import { run } from "../../src/runtime/run/index.ts"
 
 /*
- * A minted API key the run removes before teardown, as the contract floor removes one with the
- * key entity's DELETE, is not revoked again: the backend answers 400 to a DELETE of a key already
- * gone, and that answer is no leftover. A key a revoke left in place still is one.
+ * Keys are a tested entity: the run seeds key records and deletes them at teardown. A key the
+ * credential recipe mints is never one of them. No check removes it, teardown revokes it once,
+ * after the records, and it is never counted as a record left behind. A revoke the backend
+ * refuses leaves it a leftover credential.
  */
 
 const closers: Array<() => Promise<void>> = []
@@ -16,6 +17,13 @@ afterEach(async () => {
 })
 
 type Handler = (req: IncomingMessage, res: ServerResponse) => void
+
+async function readBody(req: IncomingMessage): Promise<unknown> {
+	const chunks: Buffer[] = []
+	for await (const chunk of req) chunks.push(chunk as Buffer)
+	const text = Buffer.concat(chunks).toString("utf8")
+	return text === "" ? {} : (JSON.parse(text) as unknown)
+}
 
 function send(res: ServerResponse, status: number, body?: unknown): void {
 	if (body === undefined) {
@@ -104,6 +112,8 @@ interface KeysApi {
 	handler: Handler
 	/** Each DELETE of a key, as `<id> <status>`. */
 	deletes: string[]
+	/** The ids the credential recipe minted: its create body names the key `oat`. */
+	minted: string[]
 }
 
 /*
@@ -113,6 +123,7 @@ interface KeysApi {
 function keysApi({ keeps = false }: { keeps?: boolean } = {}): KeysApi {
 	const held = new Set<string>()
 	const deletes: string[] = []
+	const recipeKeys: string[] = []
 	let sessions = 0
 	let minted = 0
 	/* One key's own routes: its read, and its DELETE. */
@@ -140,12 +151,16 @@ function keysApi({ keeps = false }: { keeps?: boolean } = {}): KeysApi {
 		if (url.pathname === "/keys" && req.method === "POST") {
 			const id = String(++minted)
 			held.add(id)
-			return send(res, 201, { id, secret: `key-${id}` })
+			void readBody(req).then((body) => {
+				if ((body as { name?: unknown }).name === "oat") recipeKeys.push(id)
+				send(res, 201, { id, secret: `key-${id}` })
+			})
+			return
 		}
 		const id = /^\/keys\/([^/]+)$/.exec(url.pathname)?.[1]
 		return id === undefined ? send(res, 404) : keyRoute(req, res, id)
 	}
-	return { deletes, handler }
+	return { deletes, handler, minted: recipeKeys }
 }
 
 /*
@@ -175,20 +190,40 @@ async function runOver(api: KeysApi) {
 	})
 }
 
-describe("a minted key the run already removed", () => {
-	it("is not revoked again at teardown, nor counted left behind", async () => {
+/* Each DELETE of `id`, and where in the run's DELETEs it fell. */
+function deletesOf(api: KeysApi, id: string): Array<{ at: number; status: string }> {
+	return api.deletes.flatMap((entry, at) =>
+		entry.split(" ")[0] === id ? [{ at, status: entry.split(" ")[1] ?? "" }] : [],
+	)
+}
+
+describe("a minted key beside the key records a run tests", () => {
+	it("is revoked once, after every record is deleted, and never counted as a record left behind", async () => {
 		const api = keysApi()
 		const result = await runOver(api)
-		/* The contract floor's delete, and no revoke after it. */
-		expect([api.deletes, result.teardown]).toEqual([["1 204"], null])
+		expect(api.minted.length).toBeGreaterThan(0)
+		const records = result.teardown?.records.map((record) => record.id) ?? []
+		const lastRecordDelete = Math.max(...records.flatMap((id) => deletesOf(api, id).map((one) => one.at)))
+		for (const id of api.minted) {
+			expect(deletesOf(api, id).map((one) => one.status)).toEqual(["204"])
+			expect(deletesOf(api, id)[0]?.at).toBeGreaterThan(lastRecordDelete)
+		}
+		expect(records.filter((id) => api.minted.includes(id))).toEqual([])
+		expect(result.teardown?.failed).toEqual([])
 	})
 
-	it("stays a leftover when its revoke is refused and a read shows it still there", async () => {
+	it("stays a leftover credential when its revoke is refused", async () => {
 		const api = keysApi({ keeps: true })
 		const result = await runOver(api)
-		expect(api.deletes).toEqual(["1 400", "1 400"])
-		expect(result.teardown?.failed).toEqual([
-			{ entity: "credential", id: "alpha/api_key", principal: "alpha", reason: "revoke deleteKey answered 400" },
-		])
+		for (const id of api.minted) expect(deletesOf(api, id).map((one) => one.status)).toEqual(["400"])
+		const credentials = result.teardown?.failed.filter((failure) => failure.entity === "credential") ?? []
+		expect(credentials).toEqual(
+			api.minted.map(() => ({
+				entity: "credential",
+				id: "alpha/api_key",
+				principal: "alpha",
+				reason: "revoke deleteKey answered 400",
+			})),
+		)
 	})
 })

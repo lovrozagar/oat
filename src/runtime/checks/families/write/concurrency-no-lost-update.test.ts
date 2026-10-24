@@ -193,3 +193,34 @@ describe("concurrency.no-lost-update fields and plan", () => {
 		expect(noLostUpdate.plan({ ...stage(widgetApi()).ctx, createOp: undefined }).ok).toBe(false)
 	})
 })
+
+/* The check's plan over an update body of these properties; `undefined`, a body that lists none. */
+const planned = (properties?: Record<string, unknown>) =>
+	noLostUpdate.plan(
+		stage(widgetApi(), { item: { ...(properties === undefined ? {} : { properties }), type: "object" } }).ctx,
+	)
+
+describe("concurrency.no-lost-update and an update body with too few writable strings", () => {
+	const readOnlyId = { id: { readOnly: true, type: "string" } }
+
+	it("stands down before any request, naming the one field the update takes, or none", () => {
+		const code = { enum: ["a", "b"], type: "string" }
+		expect(planned({ ...readOnlyId, code, count: { type: "integer" }, name: { type: "string" } })).toEqual({
+			needs: "two independently writable string fields; widget's update takes only name",
+			ok: false,
+		})
+		expect(planned(readOnlyId)).toEqual({
+			needs: "two independently writable string fields; widget's update takes none",
+			ok: false,
+		})
+	})
+
+	it("leaves a body that lists no properties to the record a run reads", () => {
+		expect(planned().ok).toBe(true)
+	})
+
+	it("counts a property that names no type, or a type list with string in it", () => {
+		expect(planned({ ...readOnlyId, label: {}, name: { type: "string" } }).ok).toBe(true)
+		expect(planned({ ...readOnlyId, name: { type: "string" }, nick: { type: ["string", "null"] } }).ok).toBe(true)
+	})
+})

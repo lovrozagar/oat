@@ -860,34 +860,34 @@
           {
             "check": "consistency.projections-agree",
             "ran": 2,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.filter-search-sort-select-compose",
             "ran": 2,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.sort-and-select-compose",
             "ran": 2,
-            "skipped": 2
+            "skipped": 3
           }
         ],
         "removed": [
           {
             "check": "consistency.projections-agree",
             "ran": 5,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.filter-search-sort-select-compose",
             "ran": 5,
-            "skipped": 2
+            "skipped": 3
           },
           {
             "check": "query.sort-and-select-compose",
             "ran": 5,
-            "skipped": 2
+            "skipped": 3
           }
         ]
       }

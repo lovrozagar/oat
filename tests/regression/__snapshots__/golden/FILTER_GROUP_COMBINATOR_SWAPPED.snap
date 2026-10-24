@@ -734,14 +734,14 @@
           {
             "check": "filter.nested-and-or-distributes",
             "ran": 2,
-            "skipped": 2
+            "skipped": 3
           }
         ],
         "removed": [
           {
             "check": "filter.nested-and-or-distributes",
             "ran": 5,
-            "skipped": 2
+            "skipped": 3
           }
         ]
       }

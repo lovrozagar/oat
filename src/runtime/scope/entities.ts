@@ -1,7 +1,11 @@
 /** Which entities a run can seed and check, and which operations their checks grade. */
 
+import { effective } from "../../spec/collection/effective.ts"
+import { successSchema } from "../../spec/collection/responses.ts"
+import { schemaAt } from "../checks/payloads/item-schema.ts"
 import type { PrincipalsConfig, Recipe, SecurityConfig } from "../../config/types/security.ts"
 import type { EntityModel, OperationModel, SpecModel } from "../../spec/graph/types.ts"
+import type { OperationObject } from "../../spec/types.ts"
 import { entityChecks } from "../checks/core/registry.ts"
 import { CHECKS } from "../checks/registry.ts"
 import { revokeOperationId } from "../../credentials/anchors.ts"
@@ -13,28 +17,37 @@ export function staticSubjects(entity: EntityModel, model: SpecModel): Set<strin
 	return ids
 }
 
+/** The operations security recipes send, and which of them mint a credential (not an account). */
+export type AuthOperations = ReadonlySet<string> & { readonly mints?: ReadonlySet<string> }
+
 /**
  * operationIds a security recipe names, the base recipes' and each principal's own: the steps a login
  * or refresh sends, a login's revoke, a mint's operation and its revoke. They are credential
- * operations: their creates already ran when the principals signed in, and no entity lane tests them.
+ * operations: their creates already ran when the principals signed in. `mints` names the mints, whose
+ * entity the lanes still test on records of their own, the minted ones guarded.
  */
 export function authStepOperationIds(config: {
 	security?: SecurityConfig
 	principals?: PrincipalsConfig
-}): Set<string> {
+}): Set<string> & { mints: Set<string> } {
 	const recipes: Array<Partial<Recipe>> = [
 		...Object.values(config.security ?? {}),
 		...Object.values(config.principals ?? {}).flatMap((principal) => Object.values(principal.security ?? {})),
 	]
-	const ids = new Set<string>()
+	const ids = Object.assign(new Set<string>(), { mints: new Set<string>() })
 	for (const recipe of recipes) {
-		for (const step of [...(recipe.login?.steps ?? []), ...(recipe.refresh?.steps ?? [])]) {
-			if ("operationId" in step) ids.add(step.operationId)
-		}
-		for (const id of [revokeOperationId(recipe.login?.revoke), recipe.mint?.operationId, recipe.mint?.revoke])
-			if (id !== undefined) ids.add(id)
+		if (recipe.mint !== undefined) ids.mints.add(recipe.mint.operationId)
+		for (const id of recipeOperations(recipe)) ids.add(id)
 	}
 	return ids
+}
+
+/* Every operation one recipe sends: its login and refresh steps', its revoke, and its mint and the mint's revoke. */
+function recipeOperations(recipe: Partial<Recipe>): string[] {
+	const steps = [...(recipe.login?.steps ?? []), ...(recipe.refresh?.steps ?? [])]
+	const sent = steps.flatMap((step) => ("operationId" in step ? [step.operationId] : []))
+	const others = [revokeOperationId(recipe.login?.revoke), recipe.mint?.operationId, recipe.mint?.revoke]
+	return [...sent, ...others.filter((id): id is string => id !== undefined)]
 }
 
 /**
@@ -48,8 +61,10 @@ export function credentialOperation(entity: EntityModel, authCreates: ReadonlySe
 	)
 }
 
-export function createIsAuthProvisioned(createOp: OperationModel, authCreates: ReadonlySet<string>): boolean {
-	return createOp.freshPrincipal || authCreates.has(createOp.operationId)
+/* A create a recipe sends signs an account up; a mint only makes a credential, and the lanes may send it too. */
+export function createIsAuthProvisioned(createOp: OperationModel, authCreates: AuthOperations): boolean {
+	const id = createOp.operationId
+	return createOp.freshPrincipal || (authCreates.has(id) && authCreates.mints?.has(id) !== true)
 }
 
 /** An entity testable without a list-and-create cohort, for what else it has. */
@@ -74,24 +89,44 @@ function testableOtherwise(entity: EntityModel, model: SpecModel): boolean {
 
 /**
  * Why the auth flow, not the lanes, owns `entity`, or `null` when it does not. A run, `doctor` and
- * `plan` all leave such an entity out: one holding an operation a recipe calls is a credential's, and
- * register-as-create with no item route is the auth flow, not a fixture.
+ * `plan` all leave such an entity out. An entity a recipe calls stays in: the guard keeps the records
+ * holding its credentials from every check (`credential-records.ts`), as long as the mint that makes
+ * them answers each one's id. Register-as-create with no item route is the auth flow, not a fixture.
  */
 export function authOwnedReason(
 	entity: EntityModel,
 	model: SpecModel,
 	authCreates: ReadonlySet<string>,
 ): string | null {
-	const credential = credentialOperation(entity, authCreates)
-	if (credential !== undefined) {
-		return `"${entity.name}" holds credentials: a security recipe calls ${credential}, so no check may`
-	}
 	const createOp = entity.create === undefined ? undefined : model.byOperationId.get(entity.create)
+	const minted = createOp !== undefined && authCreates.has(createOp.operationId)
+	if (minted && credentialOperation(entity, authCreates) !== undefined && !answersAnId(createOp, model, entity)) {
+		return (
+			`"${entity.name}" holds credentials a security recipe mints with ${createOp.operationId}, ` +
+			"whose answer names no id to protect them by, so no check may"
+		)
+	}
 	const authProvisioned = createOp !== undefined && createIsAuthProvisioned(createOp, authCreates)
 	if (authProvisioned && entity.read === undefined) {
 		return `"${entity.name}" is created by the auth flow and has no item route`
 	}
 	return null
+}
+
+/* The headers a documented response declares, by name. */
+function headersOf(answer: unknown): string[] {
+	return Object.keys((answer as { headers?: object }).headers ?? {})
+}
+
+/* Whether a create's documented answer names the record's id: a declared source, the identity in its record, or a Location. */
+function answersAnId(createOp: OperationModel, model: SpecModel, entity: EntityModel): boolean {
+	if (createOp.createdIdFrom !== null) return true
+	const raw = model.rawOperations.get(createOp.operationId) as OperationObject
+	const responses = Object.entries(raw.responses ?? {}).filter(([code]) => code.startsWith("2"))
+	if (responses.some(([, answer]) => headersOf(answer).some((name) => name.toLowerCase() === "location"))) return true
+	const answer = effective(successSchema(raw))
+	const record = createOp.recordPath === null ? answer : schemaAt(answer, createOp.recordPath)
+	return Object.hasOwn(record?.properties ?? {}, entity.identity ?? "id")
 }
 
 /**

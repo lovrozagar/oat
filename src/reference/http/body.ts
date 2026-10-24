@@ -30,11 +30,11 @@ function requireType(request: ReferenceRequest, defects: DefectSet, expected: st
 }
 
 /** The kind each field of a fixed body takes: a string, an array of strings, or a boolean the body may leave out. */
-export type FieldKinds = Readonly<Record<string, "string" | "strings" | "boolean?">>
+export type FieldKinds = Readonly<Record<string, "string" | "string?" | "strings" | "boolean?">>
 
 const ofKind = (value: unknown, kind: FieldKinds[string]): boolean => {
 	if (kind === "boolean?") return typeof value === "boolean"
-	return kind === "string"
+	return kind === "string" || kind === "string?"
 		? typeof value === "string"
 		: Array.isArray(value) && value.every((item) => typeof item === "string")
 }
@@ -54,7 +54,7 @@ export async function readFields(
 	const unknown = Object.keys(fields).find((name) => !Object.hasOwn(kinds, name))
 	if (unknown !== undefined) throw new HttpError(400, "invalid_input", `field "${unknown}" is not allowed`)
 	for (const [name, kind] of Object.entries(kinds)) {
-		if (kind === "boolean?" && !(name in fields)) continue
+		if (kind.endsWith("?") && !(name in fields)) continue
 		if (!(name in fields)) throw new HttpError(400, "invalid_input", `field "${name}" is required`)
 		if (!ofKind(fields[name], kind)) throw new HttpError(400, "invalid_input", `field "${name}" has the wrong type`)
 	}

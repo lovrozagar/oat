@@ -28,7 +28,7 @@ export function itemSchemaOf({ listOp, model, readOp }: ItemRoutes): JsonSchema 
  * The schema of the node `path` names, read as `readPath` reads a body: a dotted path or a JSON
  * pointer, an index, `[*]` or a filter naming an array's items.
  */
-function schemaAt(schema: JsonSchema | null, path: string): JsonSchema | null {
+export function schemaAt(schema: JsonSchema | null, path: string): JsonSchema | null {
 	const segments = path.startsWith("/")
 		? path
 				.slice(1)

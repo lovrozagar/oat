@@ -123,15 +123,17 @@ describe("plan as text, for an entity nothing reads", () => {
 })
 
 describe("plan and the operations a recipe names", () => {
-	it("leaves out an entity whose operations a security recipe calls, in text and JSON, as a run does", async () => {
+	it("keeps an entity whose operations a security recipe calls when its create answers an id, in text and JSON", async () => {
 		const { model } = await referenceModel()
-		const authCreates = new Set(["apiKey.create", "apiKey.revoke"])
+		const authCreates = Object.assign(new Set(["apiKey.create", "apiKey.revoke"]), {
+			mints: new Set(["apiKey.create"]),
+		})
 		expect(plan(model, false, { authCreates }).split("\n")[1]).toBe(
-			`  ${model.operations.length} operations · 7 entities`,
+			`  ${model.operations.length} operations · 8 entities`,
 		)
 		const json = JSON.parse(plan(model, true, { authCreates })) as { entities: Array<{ name: string }> }
-		expect(json.entities.map((entity) => entity.name)).not.toContain("api-key")
-		expect(json.entities).toHaveLength(7)
+		expect(json.entities.map((entity) => entity.name)).toContain("api-key")
+		expect(json.entities).toHaveLength(8)
 	})
 })
 

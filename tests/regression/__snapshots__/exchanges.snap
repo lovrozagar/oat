@@ -3,14 +3,24 @@
     "PUT /v1/me/account [Authorization,content-type] → 200"
   ],
   "apiKey.create": [
-    "POST /v1/api-keys [Authorization,content-type] → 201"
+    "POST /v1/api-keys [Authorization,content-type] → 201",
+    "POST /v1/api-keys [Authorization,content-type] → 400",
+    "POST /v1/api-keys [Authorization,content-type] → 415"
   ],
   "apiKey.get": [
     "GET /v1/api-keys/apikey_ID [Authorization] → 200",
-    "GET /v1/api-keys/apikey_ID [Authorization] → 404"
+    "GET /v1/api-keys/apikey_ID [Authorization] → 401",
+    "GET /v1/api-keys/apikey_ID [Authorization] → 404",
+    "GET /v1/api-keys/apikey_ID [] → 401",
+    "GET /v1/api-keys/oat-absent-NONCE [Authorization] → 404"
   ],
   "apiKey.revoke": [
-    "DELETE /v1/api-keys/apikey_ID [Authorization] → 200"
+    "DELETE /v1/api-keys/apikey_ID [Authorization] → 200",
+    "DELETE /v1/api-keys/apikey_ID [Authorization] → 401",
+    "DELETE /v1/api-keys/apikey_ID [Authorization] → 403",
+    "DELETE /v1/api-keys/apikey_ID [Authorization] → 404",
+    "DELETE /v1/api-keys/apikey_ID [] → 401",
+    "DELETE /v1/api-keys/oat-absent-NONCE [Authorization] → 404"
   ],
   "auth.login": [
     "POST /v1/auth/login [content-type] → 400",

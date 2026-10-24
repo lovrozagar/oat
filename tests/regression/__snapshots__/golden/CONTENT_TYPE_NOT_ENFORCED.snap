@@ -7,7 +7,7 @@
         "was": 0
       },
       "reason": {
-        "now": "4 root-cause findings",
+        "now": "5 root-cause findings",
         "was": "no defects found in what was graded"
       },
       "result": {
@@ -120,6 +120,28 @@
             "entity": "webhook",
             "findings": 1,
             "operationId": "webhook.create",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "validation.content-type-enforced"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "schema.success-response-matches-document",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "api-key",
+            "findings": 1,
+            "operationId": "apiKey.create",
             "reason": null,
             "status": "failed"
           }
@@ -241,6 +263,31 @@
             "sufficiency": "verified",
             "tier": "verified",
             "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "schema.success-response-matches-document",
+                "validation.content-type-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "api-key",
+            "findings": 0,
+            "operationId": "apiKey.create",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
           }
         ]
       }
@@ -248,12 +295,29 @@
     "teardown": {
       "records": {},
       "removed": {
-        "now": 118,
-        "was": 114
+        "now": 133,
+        "was": 128
       }
     },
     "findings": {
       "added": [
+        {
+          "check": "validation.content-type-enforced",
+          "detail": "the operation documents 415 and declares application/json, but the same body sent as text/plain was processed (201). Content negotiation is documented but not implemented.",
+          "entity": "api-key",
+          "operations": [
+            "apiKey.create"
+          ],
+          "evidence": [
+            {
+              "method": "POST",
+              "status": 201,
+              "url": "http://reference.test/v1/api-keys"
+            }
+          ],
+          "summary": "a request labelled with an undeclared content type was processed",
+          "verdict": "BACKEND_BUG"
+        },
         {
           "check": "validation.content-type-enforced",
           "detail": "the operation documents 415 and declares application/json, but the same body sent as text/plain was processed (201). Content negotiation is documented but not implemented.",
@@ -326,7 +390,7 @@
     },
     "summary": {
       "BACKEND_BUG": {
-        "now": 4,
+        "now": 5,
         "was": null
       }
     }

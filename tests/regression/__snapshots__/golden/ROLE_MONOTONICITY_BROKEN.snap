@@ -15,11 +15,6 @@
         "was": "clean"
       }
     },
-    "checksRun": {
-      "removed": [
-        "auth.rank-is-monotonic-on-writes"
-      ]
-    },
     "checksSuppressed": {
       "added": [
         {
@@ -1084,8 +1079,8 @@
         ]
       },
       "removed": {
-        "now": 81,
-        "was": 114
+        "now": 95,
+        "was": 128
       }
     },
     "findings": {
@@ -1180,13 +1175,6 @@
         }
       ]
     },
-    "costByCheck": {
-      "removed": [
-        {
-          "check": "auth.rank-is-monotonic-on-writes"
-        }
-      ]
-    },
     "summary": {
       "BACKEND_BUG": {
         "now": 4,
@@ -1198,14 +1186,14 @@
         "added": [
           {
             "check": "auth.rank-is-monotonic-on-writes",
-            "ran": 2,
+            "ran": 3,
             "skipped": 1
           }
         ],
         "removed": [
           {
             "check": "auth.rank-is-monotonic-on-writes",
-            "ran": 6,
+            "ran": 7,
             "skipped": 1
           }
         ]

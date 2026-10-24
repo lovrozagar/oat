@@ -43,7 +43,13 @@
               "gaps": [],
               "inconclusive": [],
               "passed": [
-                "delete.absent-record-returns-404"
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.wrong-scheme-refused",
+                "delete.absent-record-returns-404",
+                "response.status-is-documented"
               ],
               "suppressed": []
             },
@@ -82,8 +88,14 @@
               "gaps": [],
               "inconclusive": [],
               "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic-on-writes",
                 "auth.revoked-credential-refused",
-                "delete.absent-record-returns-404"
+                "auth.role-enforced",
+                "auth.wrong-scheme-refused",
+                "delete.absent-record-returns-404",
+                "response.status-is-documented"
               ],
               "suppressed": []
             },

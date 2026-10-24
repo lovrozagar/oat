@@ -87,15 +87,15 @@ describe("commandDoctor and the credentials config", () => {
 })
 
 describe("commandDoctor and the operations a recipe names", () => {
-	it("leaves out the entity whose operations mint and revoke the config's key, as a run does", async () => {
+	it("keeps the entity whose operations mint and revoke the config's key, its mint answering each key's id", async () => {
 		const writer = bufferWriter()
 		await commandDoctor(writer, { config: referenceConfig(), json: true })
 		const report = JSON.parse(writer.text()) as { blocking: number; entities: number; trackableEntities: number }
 		/* The reference config's principals supply the project_id root, so nothing blocks. */
-		expect([report.entities, report.trackableEntities, report.blocking]).toEqual([7, 7, 0])
+		expect([report.entities, report.trackableEntities, report.blocking]).toEqual([8, 8, 0])
 		const text = bufferWriter()
 		await commandDoctor(text, { config: referenceConfig() })
-		expect(text.text()).not.toContain("api-key")
+		expect(text.text()).not.toContain("holds credentials")
 	})
 })
 

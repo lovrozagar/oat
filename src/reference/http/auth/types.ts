@@ -25,6 +25,8 @@ export interface Account extends Principal {
 /** An API key: bound to its creator's tenant and rank, and to the scopes it was made with. */
 export interface ApiKey {
 	id: string
+	/** What its creator called it; `null` when unnamed. */
+	name: string | null
 	value: string
 	sub: string
 	projectId: string

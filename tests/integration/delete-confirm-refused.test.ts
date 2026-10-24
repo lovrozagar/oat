@@ -33,10 +33,11 @@ describe("delete.absent-record-returns-404 when the read-back is refused", () =>
 				["row", ["row.delete"]],
 				["job", ["job.delete"]],
 				["webhook", ["webhook.delete"]],
+				["api-key", ["apiKey.revoke"]],
 			])
 			for (const finding of blocked) {
 				expect(finding.detail).toMatch(
-					/^blocked by signed in again, and the new credential is refused where the old one was accepted \((job|profile|webhook)\.get\)\. (row|job|webhook)\.get was not sent to read \S+ back after (row|job|webhook)\.delete\.$/,
+					/^blocked by signed in again, and the new credential is refused where the old one was accepted \((job|profile|webhook|apiKey)\.get\)\. (row|job|webhook|apiKey)\.get was not sent to read \S+ back after ((row|job|webhook)\.delete|apiKey\.revoke)\.$/,
 				)
 			}
 		} finally {

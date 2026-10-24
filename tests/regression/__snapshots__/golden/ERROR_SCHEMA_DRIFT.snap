@@ -7,7 +7,7 @@
         "was": 0
       },
       "reason": {
-        "now": "6 root-cause findings",
+        "now": "7 root-cause findings",
         "was": "no defects found in what was graded"
       },
       "result": {
@@ -132,6 +132,29 @@
             "entity": "webhook",
             "findings": 1,
             "operationId": "webhook.get",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "schema.error-response-matches-document"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic",
+                "auth.wrong-scheme-refused",
+                "response.status-is-documented",
+                "schema.read-response-matches-document"
+              ],
+              "suppressed": []
+            },
+            "entity": "api-key",
+            "findings": 1,
+            "operationId": "apiKey.get",
             "reason": null,
             "status": "failed"
           },
@@ -336,6 +359,32 @@
               "gaps": [],
               "inconclusive": [],
               "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic",
+                "auth.wrong-scheme-refused",
+                "response.status-is-documented",
+                "schema.error-response-matches-document",
+                "schema.read-response-matches-document"
+              ],
+              "suppressed": []
+            },
+            "entity": "api-key",
+            "findings": 0,
+            "operationId": "apiKey.get",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
                 "auth.rank-is-monotonic",
                 "list.item-matches-listed-row",
                 "response.status-is-documented",
@@ -405,6 +454,23 @@
     },
     "findings": {
       "added": [
+        {
+          "check": "schema.error-response-matches-document",
+          "detail": "apiKey.get returned 404 with a body that fails the schema the document declares for it: (root) must have required property 'error_key'; (root) must have required property 'message'; (root) must have required property 'status'; (root) must have required property 'success'; (root) must NOT have additional properties. Clients that parse errors from the spec will not understand this response.",
+          "entity": "api-key",
+          "operations": [
+            "apiKey.get"
+          ],
+          "evidence": [
+            {
+              "method": "GET",
+              "status": 404,
+              "url": "http://reference.test/v1/api-keys/oat-absent-NONCE"
+            }
+          ],
+          "summary": "404 error body does not match its documented schema",
+          "verdict": "SPEC_BUG"
+        },
         {
           "check": "schema.error-response-matches-document",
           "detail": "job.get returned 404 with a body that fails the schema the document declares for it: (root) must have required property 'error_key'; (root) must have required property 'message'; (root) must have required property 'status'; (root) must have required property 'success'; (root) must NOT have additional properties. Clients that parse errors from the spec will not understand this response.",
@@ -511,7 +577,7 @@
     },
     "summary": {
       "SPEC_BUG": {
-        "now": 6,
+        "now": 7,
         "was": null
       }
     }

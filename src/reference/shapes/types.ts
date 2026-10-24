@@ -29,6 +29,8 @@ export interface ReferenceShape {
 	updateMethod?: "PATCH" | "PUT"
 	/** A `writeOnly` secret accepted on create and never returned. */
 	writeOnlyField?: boolean
+	/** API keys as a full lifecycle: listed, named, renamed, each its tenant's (`x-tenant` on its id). */
+	keyLifecycle?: boolean
 	/** Create accepts `application/x-www-form-urlencoded` only. */
 	formCreate?: boolean
 	/** Required date-time, a bounded number, a `const`, and one component schema used twice. */

@@ -3,6 +3,7 @@ import {
 	CLIENT_ID_ONLY,
 	DECLARED_SORT_ONLY,
 	defectsFor,
+	KEY_LIFECYCLE_ONLY,
 	SQL_ONLY,
 	WRITE_ONLY_FIELD_ONLY,
 } from "../../src/conformance/matrix/defects.ts"
@@ -29,6 +30,7 @@ const LEGS: ReadonlyArray<{ leg: string; target: GoldenTarget; defects: readonly
 	{ defects: [...SQL_ONLY], leg: "clean.sqlite", target: { backend: "sqlite" } },
 	{ defects: [...CLIENT_ID_ONLY], leg: "clean.client-ids", target: { shape: "client-ids" } },
 	{ defects: [...WRITE_ONLY_FIELD_ONLY], leg: "clean.write-only-field", target: { shape: "write-only-field" } },
+	{ defects: [...KEY_LIFECYCLE_ONLY], leg: "clean.key-lifecycle", target: { shape: "key-lifecycle" } },
 	{ defects: [...DECLARED_SORT_ONLY], leg: "clean.template", target: { dialect: "template" } },
 ]
 

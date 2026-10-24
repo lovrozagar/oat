@@ -17,6 +17,7 @@ type SecurityDefect = Extract<
 	| "PRIVILEGED_FIELD_WRITABLE"
 	| "PRIVILEGED_FIELD_ON_SIGNUP"
 	| "LOGIN_NOT_THROTTLED"
+	| "KEY_DELETE_CROSS_TENANT"
 >
 
 /** The defects whose primary check is in the security family, and the check each must trip. */
@@ -44,4 +45,6 @@ export const SECURITY_EXPECTED: Record<SecurityDefect, FindingId | FindingId[]> 
 	PRIVILEGED_FIELD_WRITABLE: "auth.privileged-field-ignored",
 	PRIVILEGED_FIELD_ON_SIGNUP: "auth.privileged-field-ignored",
 	LOGIN_NOT_THROTTLED: "auth.login-throttled",
+	/* Proved on a key made for the probe: the run's own minted keys are never the target. */
+	KEY_DELETE_CROSS_TENANT: "tenant.item-not-writable-cross-tenant",
 }

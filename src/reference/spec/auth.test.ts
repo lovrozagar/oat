@@ -72,7 +72,7 @@ describe("the API key operations", () => {
 			expect(op(path, method)).not.toHaveProperty("security")
 		}
 		expect(statuses("/v1/api-keys", "post")).toEqual(["201", "400", "401", "415"])
-		expect(statuses("/v1/api-keys/{id}", "delete")).toEqual(["200", "401", "404"])
+		expect(statuses("/v1/api-keys/{id}", "delete")).toEqual(["200", "401", "403", "404"])
 		expect(statuses("/v1/api-keys/{id}", "get")).toEqual(["200", "401", "404"])
 		expect(bodyOf("/v1/api-keys", "post")).toMatchObject({
 			properties: {
@@ -100,5 +100,38 @@ describe("the API key operations", () => {
 			["/v1/api-keys/{id}", "delete"],
 		] as const)
 			expect(op(path, method)["x-invalidate"]).toEqual(["GET /v1/api-keys/{id}"])
+	})
+})
+
+describe("the API key operations behind key-lifecycle", () => {
+	const lifecycle = authPaths({ entities: ENTITIES, shape: { keyLifecycle: true } }) as Paths
+	const at = (path: string, method: string) => lifecycle[path]?.[method] as Json & { responses: Json }
+
+	it("lists and renames keys, each named, as the api-key entity's own lifecycle", () => {
+		expect(at("/v1/api-keys", "get")).toMatchObject({ operationId: "apiKey.list" })
+		expect(at("/v1/api-keys/{id}", "patch")).toMatchObject({ operationId: "apiKey.update" })
+		const actions = [
+			["/v1/api-keys", "post", "create"],
+			["/v1/api-keys", "get", "list"],
+			["/v1/api-keys/{id}", "get", "read"],
+			["/v1/api-keys/{id}", "patch", "update"],
+			["/v1/api-keys/{id}", "delete", "delete"],
+		] as const
+		for (const [path, method, action] of actions) {
+			expect(at(path, method)["x-entity"]).toEqual({ action, identity: "id", name: "api-key" })
+		}
+		expect(JSON.stringify(at("/v1/api-keys", "post")["requestBody"])).toContain('"name"')
+		expect(JSON.stringify(at("/v1/api-keys/{id}", "get").responses)).toContain('"name"')
+	})
+
+	it("scopes each key to its tenant by its own id, as an owner-scoped selector", () => {
+		for (const method of ["get", "patch", "delete"]) expect(at("/v1/api-keys/{id}", method)["x-tenant"]).toBe("id")
+		expect(JSON.stringify(at("/v1/api-keys", "post")["x-invalidate"])).toContain("GET /v1/api-keys")
+	})
+
+	it("is the default document without the shape: no listing, no rename, no tags", () => {
+		expect(op("/v1/api-keys", "get")).toBeUndefined()
+		expect(op("/v1/api-keys/{id}", "patch")).toBeUndefined()
+		expect(op("/v1/api-keys/{id}", "get")).not.toHaveProperty("x-entity")
 	})
 })

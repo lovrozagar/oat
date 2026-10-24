@@ -7,7 +7,7 @@
         "was": 0
       },
       "reason": {
-        "now": "19 root-cause findings",
+        "now": "21 root-cause findings",
         "was": "no defects found in what was graded"
       },
       "result": {
@@ -343,6 +343,53 @@
             "entity": "table",
             "findings": 1,
             "operationId": "table.update",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "auth.invalid-credential-refused"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic",
+                "auth.wrong-scheme-refused",
+                "response.status-is-documented",
+                "schema.error-response-matches-document",
+                "schema.read-response-matches-document"
+              ],
+              "suppressed": []
+            },
+            "entity": "api-key",
+            "findings": 1,
+            "operationId": "apiKey.get",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "auth.invalid-credential-refused"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic-on-writes",
+                "auth.revoked-credential-refused",
+                "auth.role-enforced",
+                "auth.wrong-scheme-refused",
+                "delete.absent-record-returns-404",
+                "response.status-is-documented"
+              ],
+              "suppressed": []
+            },
+            "entity": "api-key",
+            "findings": 1,
+            "operationId": "apiKey.revoke",
             "reason": null,
             "status": "failed"
           },
@@ -1035,6 +1082,59 @@
               "passed": [
                 "auth.invalid-credential-refused",
                 "auth.missing-credential-refused",
+                "auth.rank-is-monotonic",
+                "auth.wrong-scheme-refused",
+                "response.status-is-documented",
+                "schema.error-response-matches-document",
+                "schema.read-response-matches-document"
+              ],
+              "suppressed": []
+            },
+            "entity": "api-key",
+            "findings": 0,
+            "operationId": "apiKey.get",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic-on-writes",
+                "auth.revoked-credential-refused",
+                "auth.role-enforced",
+                "auth.wrong-scheme-refused",
+                "delete.absent-record-returns-404",
+                "response.status-is-documented"
+              ],
+              "suppressed": []
+            },
+            "entity": "api-key",
+            "findings": 0,
+            "operationId": "apiKey.revoke",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
                 "auth.rank-is-monotonic-on-writes",
                 "auth.role-enforced",
                 "auth.scope-enforced",
@@ -1358,12 +1458,46 @@
     "teardown": {
       "records": {},
       "removed": {
-        "now": 118,
-        "was": 114
+        "now": 133,
+        "was": 128
       }
     },
     "findings": {
       "added": [
+        {
+          "check": "auth.invalid-credential-refused",
+          "detail": "apiKey.get answered 200 to alpha's jwt JWT with its signature altered. The document requires jwt.",
+          "entity": "apiKey.get",
+          "operations": [
+            "apiKey.get"
+          ],
+          "evidence": [
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/api-keys/apikey_ID"
+            }
+          ],
+          "summary": "a secured operation accepted a JWT whose signature was altered",
+          "verdict": "SECURITY"
+        },
+        {
+          "check": "auth.invalid-credential-refused",
+          "detail": "apiKey.revoke answered 200 to alpha's jwt JWT with its signature altered. The document requires jwt.",
+          "entity": "apiKey.revoke",
+          "operations": [
+            "apiKey.revoke"
+          ],
+          "evidence": [
+            {
+              "method": "DELETE",
+              "status": 200,
+              "url": "http://reference.test/v1/api-keys/apikey_ID"
+            }
+          ],
+          "summary": "a secured operation accepted a JWT whose signature was altered",
+          "verdict": "SECURITY"
+        },
         {
           "check": "auth.invalid-credential-refused",
           "detail": "job.delete answered 200 to alpha's jwt JWT with its signature altered. The document requires jwt, or apiKey with job:write.",
@@ -1691,7 +1825,7 @@
     },
     "summary": {
       "SECURITY": {
-        "now": 19,
+        "now": 21,
         "was": null
       }
     }

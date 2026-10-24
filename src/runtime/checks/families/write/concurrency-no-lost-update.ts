@@ -31,6 +31,13 @@ export const noLostUpdate: Check<{ updateOp: OperationModel; readOp: OperationMo
 		/* Two concurrent PUTs each replace the whole record, so one losing the other's field is
 		 * what PUT means. Only partial writes can be lost. */
 		if (updateOp.method.toUpperCase() !== "PATCH") return cannot("an update by PATCH, whose writes are partial")
+		/* An update body that lists fewer than two fields a string may go into can never be raced:
+		 * the precondition is visible in the document, so nothing is sent to find it out. */
+		const offered = offeredStringFields(ctx, updateOp)
+		if (offered !== null && offered.length < 2) {
+			const takes = offered.length === 0 ? "none" : `only ${offered.join(", ")}`
+			return cannot(`two independently writable string fields; ${ctx.entityName}'s update takes ${takes}`)
+		}
 		return ready({ readOp, updateOp })
 	},
 	dependsOn: [
@@ -159,15 +166,38 @@ async function raceAndJudge(race: Race, path: string, [first, second]: [string, 
  * write turns sound validation into a fabricated concurrency bug — which is exactly what happened
  * when a probe value was written into a `status` enum.
  */
-function writableStringFields(ctx: CheckContext, record: Record_): string[] {
-	/* The identity, what the update cannot change (immutable and generated fields), and what an
-	 * ordinary body leaves out (`withheldProperties`). */
-	const fixed = new Set([
+/* The identity, what the update cannot change (immutable and generated fields), and what an ordinary body leaves out. */
+function fixedFields(ctx: CheckContext, updateOp: OperationModel | undefined): Set<string> {
+	return new Set([
 		ctx.identity,
-		...(ctx.updateOp?.immutable ?? []),
-		...(ctx.updateOp?.generated ?? []),
-		...withheldProperties(ctx, ctx.updateOp),
+		...(updateOp?.immutable ?? []),
+		...(updateOp?.generated ?? []),
+		...withheldProperties(ctx, updateOp),
 	])
+}
+
+/**
+ * The fields `updateOp`'s body lists that an arbitrary string may be written into, or `null` when
+ * its body lists none and only a record can show them.
+ */
+function offeredStringFields(ctx: CheckContext, updateOp: OperationModel): string[] | null {
+	const properties = (requestSchemaOf(ctx, updateOp)?.properties ?? {}) as Record<string, JsonSchema>
+	if (Object.keys(properties).length === 0) return null
+	const fixed = fixedFields(ctx, updateOp)
+	return Object.entries(properties)
+		.filter(([key, schema]) => !fixed.has(key) && !/_at$|_id$/.test(key) && takesString(schema))
+		.filter(([, schema]) => !refusesArbitraryString(schema))
+		.map(([key]) => key)
+}
+
+/* Whether a property may hold a string: it says so, or it names no type at all. */
+function takesString(schema: JsonSchema): boolean {
+	const type = schema.type
+	return type === undefined || type === "string" || (Array.isArray(type) && type.includes("string"))
+}
+
+function writableStringFields(ctx: CheckContext, record: Record_): string[] {
+	const fixed = fixedFields(ctx, ctx.updateOp)
 	const schema = ctx.updateOp === undefined ? null : requestSchemaOf(ctx, ctx.updateOp)
 	const properties = (schema?.properties ?? {}) as Record<string, JsonSchema>
 

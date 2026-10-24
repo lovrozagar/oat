@@ -1,4 +1,7 @@
 {
+  "apiKey.get": [
+    "GET /v1/api-keys/apikey_ID schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>] → 401"
+  ],
   "job.get": [
     "GET /v1/projects/proj_alpha/jobs/job_ID schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>] → 200",
     "GET /v1/projects/proj_alpha/jobs/job_ID schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>] → 401",

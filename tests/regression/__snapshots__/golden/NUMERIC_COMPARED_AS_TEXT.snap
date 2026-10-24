@@ -516,34 +516,34 @@
           {
             "check": "filter.gte-is-gt-or-eq",
             "ran": 2,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.lte-is-lt-or-eq",
             "ran": 2,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.ordered-triple-partitions",
             "ran": 2,
-            "skipped": 3
+            "skipped": 4
           }
         ],
         "removed": [
           {
             "check": "filter.gte-is-gt-or-eq",
             "ran": 4,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.lte-is-lt-or-eq",
             "ran": 4,
-            "skipped": 3
+            "skipped": 4
           },
           {
             "check": "filter.ordered-triple-partitions",
             "ran": 4,
-            "skipped": 3
+            "skipped": 4
           }
         ]
       }

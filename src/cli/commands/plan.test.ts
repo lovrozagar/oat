@@ -29,15 +29,14 @@ describe("commandPlan", () => {
 		expect(byOps.text()).toContain("notes.get")
 	})
 
-	it("leaves out the entity whose operations mint and revoke the config's key, as a run does", async () => {
+	it("keeps the entity whose operations mint and revoke the config's key, its mint answering each key's id", async () => {
 		const writer = bufferWriter()
 		expect(await commandPlan(writer, { config: referenceConfig() })).toBe(0)
-		expect(writer.text()).toMatch(/ operations · 7 entities\n/)
-		expect(writer.text()).not.toContain("api-key")
+		expect(writer.text()).toMatch(/ operations · 8 entities\n/)
 		const machine = bufferWriter()
 		await commandPlan(machine, { config: referenceConfig(), json: true })
 		const plan = JSON.parse(machine.text()) as { entities: Array<{ name: string }> }
-		expect(plan.entities.map((entity) => entity.name)).not.toContain("api-key")
+		expect(plan.entities.map((entity) => entity.name)).toContain("api-key")
 	})
 
 	it("leaves out the account a login signs up, as a run does", async () => {

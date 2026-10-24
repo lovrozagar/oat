@@ -156,6 +156,12 @@ export const SHAPES: readonly NamedShape[] = [
 		why: "update is PUT, replacing the record; there is no PATCH",
 	},
 	{
+		exhibits: ["KEY_DELETE_CROSS_TENANT"],
+		name: "key-lifecycle",
+		shape: { keyLifecycle: true },
+		why: "the API keys a recipe mints are listed, named and renamed, each its own tenant's",
+	},
+	{
 		exhibits: ["WRITE_ONLY_LEAKED"],
 		name: "write-only-field",
 		shape: { writeOnlyField: true },

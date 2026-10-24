@@ -340,7 +340,13 @@
                 "auth.revoked-credential-refused"
               ],
               "passed": [
-                "response.contract-call"
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.wrong-scheme-refused",
+                "delete.absent-record-returns-404",
+                "response.status-is-documented"
               ],
               "suppressed": []
             },
@@ -350,9 +356,9 @@
             "reason": null,
             "status": "passed",
             "evidence": {},
-            "sufficiency": "unproven",
-            "tier": "contract",
-            "why": "met its contract, but no later read observed what it changed"
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
           }
         ],
         "removed": [
@@ -664,8 +670,14 @@
               "gaps": [],
               "inconclusive": [],
               "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic-on-writes",
                 "auth.revoked-credential-refused",
-                "delete.absent-record-returns-404"
+                "auth.role-enforced",
+                "auth.wrong-scheme-refused",
+                "delete.absent-record-returns-404",
+                "response.status-is-documented"
               ],
               "suppressed": []
             },

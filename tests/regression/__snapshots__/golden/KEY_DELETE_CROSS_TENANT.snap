@@ -1,0 +1,168 @@
+{
+  "exitCode": 1,
+  "report": {
+    "outcome": {
+      "exitCode": {
+        "now": 1,
+        "was": 0
+      },
+      "reason": {
+        "now": "1 root-cause finding",
+        "was": "no defects found in what was graded"
+      },
+      "result": {
+        "now": "defects",
+        "was": "clean"
+      }
+    },
+    "scope": {
+      "operations": {
+        "added": [
+          {
+            "checks": {
+              "failed": [
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic-on-writes",
+                "auth.revoked-credential-refused",
+                "auth.role-enforced",
+                "auth.wrong-scheme-refused",
+                "delete.absent-record-returns-404",
+                "response.status-is-documented"
+              ],
+              "suppressed": []
+            },
+            "entity": "api-key",
+            "findings": 1,
+            "operationId": "apiKey.revoke",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.wrong-scheme-refused",
+                "patch.minimality",
+                "payload.string-survives",
+                "request.invalid-body-refused",
+                "response.status-is-documented"
+              ],
+              "suppressed": []
+            },
+            "entity": "api-key",
+            "findings": 1,
+            "operationId": "apiKey.update",
+            "reason": null,
+            "status": "failed"
+          }
+        ],
+        "removed": [
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic-on-writes",
+                "auth.revoked-credential-refused",
+                "auth.role-enforced",
+                "auth.wrong-scheme-refused",
+                "delete.absent-record-returns-404",
+                "response.status-is-documented",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "api-key",
+            "findings": 0,
+            "operationId": "apiKey.revoke",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.wrong-scheme-refused",
+                "patch.minimality",
+                "payload.string-survives",
+                "request.invalid-body-refused",
+                "response.status-is-documented",
+                "tenant.item-not-writable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "api-key",
+            "findings": 0,
+            "operationId": "apiKey.update",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          }
+        ]
+      }
+    },
+    "findings": {
+      "added": [
+        {
+          "check": "tenant.item-not-writable-cross-tenant",
+          "detail": "api-key apikey_ID belongs to one tenant; a principal in another tenant deleted it (200) and the owner can no longer read it (404). The operation declares x-tenant: \"id\".",
+          "entity": "api-key",
+          "operations": [
+            "apiKey.revoke",
+            "apiKey.update"
+          ],
+          "evidence": [
+            {
+              "method": "DELETE",
+              "status": 200,
+              "url": "http://reference.test/v1/api-keys/apikey_ID"
+            },
+            {
+              "method": "GET",
+              "status": 404,
+              "url": "http://reference.test/v1/api-keys/apikey_ID"
+            }
+          ],
+          "summary": "a record can be deleted by a principal in another tenant",
+          "verdict": "SECURITY"
+        }
+      ]
+    },
+    "summary": {
+      "SECURITY": {
+        "now": 1,
+        "was": null
+      }
+    }
+  }
+}

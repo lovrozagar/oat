@@ -18,6 +18,44 @@ export function payModel(): SpecModel {
 	} as unknown as OpenApiDocument)
 }
 
+/**
+ * A `key` entity whose create, `key.create`, answers `created` (a 201 response), or documents no
+ * response when it is `undefined`, and is tagged with `tag`.
+ */
+export function keyModel(created?: unknown, tag: Record<string, unknown> = {}): SpecModel {
+	const item = { in: "path", name: "id", required: true, schema: { type: "string" } }
+	const record = {
+		content: { "application/json": { schema: { properties: { id: { type: "string" } }, type: "object" } } },
+	}
+	return buildModel({
+		info: { title: "keys", version: "1" },
+		openapi: "3.1.0",
+		paths: {
+			"/v1/keys": {
+				post: {
+					operationId: "key.create",
+					...(created === undefined ? {} : { responses: { "201": created } }),
+					"x-entity": { action: "create", name: "key", ...tag },
+				},
+			},
+			"/v1/keys/{id}": {
+				delete: {
+					operationId: "key.delete",
+					parameters: [item],
+					responses: { "204": { description: "gone" } },
+					"x-entity": { action: "delete", identity: "id", name: "key" },
+				},
+				get: {
+					operationId: "key.get",
+					parameters: [item],
+					responses: { "200": { ...record, description: "the key" } },
+					"x-entity": { action: "read", identity: "id", name: "key" },
+				},
+			},
+		},
+	} as unknown as OpenApiDocument)
+}
+
 /** An entity of `model`, which must have it. */
 export function entityOf(model: SpecModel, name: string): EntityModel {
 	const entity = model.entities.get(name)

@@ -4,11 +4,14 @@ import { documentOf, listOp, modelOf, readOp, referenceModel } from "./__fixture
 import { doctorFacts } from "./doctor-facts.ts"
 
 describe("doctorFacts and the operations a recipe names", () => {
-	it("leaves out an entity whose operations a security recipe calls, as a run does", async () => {
+	it("keeps an entity whose operations a security recipe calls when its create answers an id", async () => {
 		const { model } = await referenceModel()
-		const facts = doctorFacts(model, { authCreates: new Set(["apiKey.create", "apiKey.revoke"]) })
-		expect(facts.entities.map((entity) => entity.name)).not.toContain("api-key")
-		expect([facts.entities.length, facts.testable.length, facts.blocking]).toEqual([7, 7, 1])
+		const authCreates = Object.assign(new Set(["apiKey.create", "apiKey.revoke"]), {
+			mints: new Set(["apiKey.create"]),
+		})
+		const facts = doctorFacts(model, { authCreates })
+		expect(facts.entities.map((entity) => entity.name)).toContain("api-key")
+		expect([facts.entities.length, facts.testable.length, facts.blocking]).toEqual([8, 8, 1])
 	})
 })
 
