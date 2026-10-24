@@ -3,7 +3,7 @@
 [← back to the overview](../README.md)
 
 A release is a git tag. Pushing `vX.Y.Z` runs [`.github/workflows/release.yml`](../.github/workflows/release.yml),
-which tests the tagged commit, publishes `@lovrozagar/oat` to npm with provenance and to GitHub
+which runs CI's gates and the changelog check on the tagged commit, publishes `@lovrozagar/oat` to npm with provenance and to GitHub
 Packages, and then creates the GitHub Release. npm is the registry people install from; GitHub
 Releases follow npm versions.
 
@@ -23,15 +23,18 @@ the tag as input. A version npm or GitHub Packages already has is skipped, not r
 
 A tag matches `v*`. Its jobs, in order:
 
-| job               | what it does                                                                                      |
-| ----------------- | ------------------------------------------------------------------------------------------------- |
-| `unit`            | `fmt:check`, `lint`, `check`, then the build and `test:unit`                                      |
-| `conformance`     | the self-test, with a Postgres service                                                            |
-| `npmjs.com`       | checks the tag equals `package.json`'s `version`, then `npm publish --access public --provenance` |
-| `GitHub Packages` | publishes the same build to `npm.pkg.github.com`                                                  |
-| `GitHub Release`  | `gh release create vX.Y.Z --generate-notes`                                                       |
+| job               | what it does                                                                                                                                       |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gates`           | `ci.yml` itself, called as a reusable workflow: lint, unit, the node floor, integration, e2e, the sharded conformance with Postgres, and precision |
+| `changelog`       | `bun scripts/changelog-has.ts vX.Y.Z`: fails unless `CHANGELOG.md` has a `## X.Y.Z` heading                                                        |
+| `npmjs.com`       | after both, checks the tag equals `package.json`'s `version`, then `npm publish --access public --provenance`                                      |
+| `GitHub Packages` | after both, publishes the same build to `npm.pkg.github.com`                                                                                       |
+| `GitHub Release`  | `gh release create vX.Y.Z --generate-notes`                                                                                                        |
 
-The npm job fails on a tag that does not equal `package.json`'s `version`, so a mistyped tag
+A release therefore passes exactly the gates `main` does, and nothing is published until every one
+of them and the changelog check pass.
+
+The npm job also fails on a tag that does not equal `package.json`'s `version`, so a mistyped tag
 publishes nothing.
 
 ## Trusted publishing

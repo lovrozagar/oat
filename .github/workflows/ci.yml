@@ -5,6 +5,8 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  # release.yml runs these same gates on a tag before anything is published.
+  workflow_call:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -118,6 +120,42 @@ jobs:
           node-version: "22"
       - run: bun install --frozen-lockfile
       - run: bun run build && bun run test:integration
+
+  # The packed package, installed into a fresh consumer from its tarball and driven through its bin,
+  # with the Postgres pass its test adds when PGHOST is set.
+  e2e:
+    name: e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: mirror.gcr.io/library/postgres:17 # the official image; Docker Hub and ECR Public run out of anonymous quota
+        env:
+          POSTGRES_USER: runner
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U runner"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: runner
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: bun install --frozen-lockfile
+      - run: bun run test:e2e
 
   # The self-test as shards (src/conformance/shards.ts), each its own job with a timeout of about twice
   # its time, so no single job runs for an hour. Each writes the checks its defects proved; the

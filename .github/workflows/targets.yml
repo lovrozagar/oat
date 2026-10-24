@@ -1,0 +1,43 @@
+name: targets
+
+# oat against five real APIs (crAPI, Immich, Keycloak, Typesense, VAmPI), each its own compose stack
+# from pinned images: minutes per target and Docker plus the network, so it runs nightly and on
+# demand rather than on every push. A target must report exactly its expected.json.
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      targets:
+        description: "Comma-separated target names; empty runs every target."
+        required: false
+        default: ""
+
+concurrency:
+  group: targets
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  BUN_VERSION: "1.3.11"
+
+jobs:
+  targets:
+    name: targets
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: bun install --frozen-lockfile
+      - name: Targets
+        env:
+          OAT_TARGETS: ${{ inputs.targets }}
+        run: bun run test:targets
