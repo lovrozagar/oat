@@ -74,6 +74,11 @@ See [docs/migrating-0.25.md](docs/migrating-0.25.md) for each change and what to
 
 ### Fixed
 
+- A document that sets a guard pattern on every written string (no NUL, no lone surrogate), as
+  comb 0.13 does, keeps its full check set. Every pattern in an `allOf` now counts. Values stay
+  realistic text whenever every pattern admits them. The self probe, `concurrency.no-lost-update`
+  and `payload.string-survives` write only values the field's patterns and lengths admit, so a
+  guarded phone field no longer yields a false `auth.self-is-the-caller` finding.
 - `x-wait` and `x-async` conclude a missed delivery only after three polls, so a slow host never reports a
   false finding on a working API; a wait that ran past its budget says so in a run note.
 - `payload.string-survives` no longer picks a field a schema marks `writeOnly` (a value no read
