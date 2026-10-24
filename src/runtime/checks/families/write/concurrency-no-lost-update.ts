@@ -13,6 +13,10 @@ import { standDownForFeatureGate, standDownForRateLimit } from "../../planning/s
 import { itemParamFor, subjectsOf } from "../../planning/subjects.ts"
 import { NO_RECORD } from "./records.ts"
 import type { JsonSchema } from "../../../../spec/types.ts"
+import { admits, stringConstraints } from "../../../generate/string-constraints.ts"
+
+/* What the two concurrent patches write, one into each field. */
+const RACE_VALUES = ["oat-concurrent-a", "oat-concurrent-b"] as const
 
 /**
  * Concurrent writes to different fields must both survive.
@@ -124,11 +128,11 @@ async function raceAndJudge(race: Race, path: string, [first, second]: [string, 
 	const { check, ctx } = race
 	const [firstWrite, secondWrite] = await Promise.all([
 		ctx.client.request("PATCH", path, {
-			body: { [first]: "oat-concurrent-a" },
+			body: { [first]: RACE_VALUES[0] },
 			as: { principal: ctx.actor.id },
 		}),
 		ctx.client.request("PATCH", path, {
-			body: { [second]: "oat-concurrent-b" },
+			body: { [second]: RACE_VALUES[1] },
 			as: { principal: ctx.actor.id },
 		}),
 	])
@@ -139,8 +143,8 @@ async function raceAndJudge(race: Race, path: string, [first, second]: [string, 
 	if ("outcome" in after) return after.outcome
 	const current = after.record
 	const lost: string[] = []
-	if (current[first] !== "oat-concurrent-a") lost.push(first)
-	if (current[second] !== "oat-concurrent-b") lost.push(second)
+	if (current[first] !== RACE_VALUES[0]) lost.push(first)
+	if (current[second] !== RACE_VALUES[1]) lost.push(second)
 	if (lost.length === 0) {
 		return ASSERTED
 	}
@@ -226,12 +230,10 @@ function isFreeStringValue(key: string, value: unknown, fixed: ReadonlySet<strin
 	return typeof value === "string"
 }
 
-/** Whether the schema has grounds to refuse an arbitrary short string: an enum, a pattern, a format, a tight cap. */
+/** Whether the schema has grounds to refuse a race value: an enum, a format, or a length or pattern either value fails. */
 function refusesArbitraryString(propertySchema: JsonSchema): boolean {
-	if (Array.isArray(propertySchema.enum)) return true
-	if (typeof propertySchema.pattern === "string") return true
-	if (typeof propertySchema.format === "string") return true
-	/* The probe values are short, but a cap tight enough to reject them would make the
-	 * write fail for a reason that has nothing to do with concurrency. */
-	return typeof propertySchema.maxLength === "number" && propertySchema.maxLength < 32
+	const constraints = stringConstraints(propertySchema)
+	if (constraints.enum !== undefined || constraints.format !== undefined) return true
+	/* A pattern both values meet, such as a guard on every string, is no ground to refuse them. */
+	return !RACE_VALUES.every((value) => admits(constraints, value))
 }

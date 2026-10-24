@@ -224,3 +224,21 @@ describe("concurrency.no-lost-update and an update body with too few writable st
 		expect(planned({ ...readOnlyId, name: { type: "string" }, nick: { type: ["string", "null"] } }).ok).toBe(true)
 	})
 })
+
+describe("concurrency.no-lost-update under a guard pattern on every string", () => {
+	const guard = "^[^\\u0000\\uD800-\\uDFFF]*$"
+	const readOnlyId = { id: { readOnly: true, type: "string" } }
+
+	it("races strings whose patterns admit the race's values", () => {
+		const guarded = { pattern: guard, type: "string" }
+		expect(planned({ ...readOnlyId, name: guarded, title: guarded }).ok).toBe(true)
+	})
+
+	it("leaves out a string whose own pattern in an allOf refuses the race's values", () => {
+		const country = { allOf: [{ pattern: "^[A-Z]{2}$" }, { pattern: guard }], type: "string" }
+		expect(planned({ ...readOnlyId, country, name: { pattern: guard, type: "string" } })).toEqual({
+			needs: "two independently writable string fields; widget's update takes only name",
+			ok: false,
+		})
+	})
+})
