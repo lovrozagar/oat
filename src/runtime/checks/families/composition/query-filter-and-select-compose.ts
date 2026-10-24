@@ -37,7 +37,7 @@ export const filterAndSelectCompose: Check<Subset & { extra: string; projection:
 			/* If select is accepted and ignored, both sides still carry every column and the
 			 * membership comparison remains well-defined — but a backend that has stopped honouring
 			 * select at all may also have stopped taking the code path this check is probing. */
-			"select.projection-honoured",
+			"select.projection-honored",
 			"pagination.page-walk-covers-set",
 		],
 		id: "query.filter-and-select-compose",
@@ -67,7 +67,7 @@ export const filterAndSelectCompose: Check<Subset & { extra: string; projection:
 			const alone = new Set(ids(filtered.items, ctx.identity))
 			const combined = new Set(ids(both.items, ctx.identity))
 			/* A projection that omitted the identity makes membership unobservable — that is a
-			 * missing column, not a changed set, and select.projection-honoured already owns it. */
+			 * missing column, not a changed set, and select.projection-honored already owns it. */
 			if (both.items.some((item) => item[ctx.identity] === undefined)) {
 				return ctx.findings.unresolved(
 					this.id,

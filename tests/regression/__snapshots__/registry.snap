@@ -412,7 +412,7 @@
     "needs": "declared searchModes and a search-mode parameter"
   },
   {
-    "id": "select.projection-honoured",
+    "id": "select.projection-honored",
     "dependsOn": [],
     "mutates": false,
     "judgesTranscript": false,
@@ -421,7 +421,7 @@
   {
     "id": "select.requested-fields-present",
     "dependsOn": [
-      "select.projection-honoured"
+      "select.projection-honored"
     ],
     "mutates": false,
     "judgesTranscript": false,
@@ -430,7 +430,7 @@
   {
     "id": "select.unknown-field-rejected",
     "dependsOn": [
-      "select.projection-honoured",
+      "select.projection-honored",
       "error.malformed-filter-not-5xx"
     ],
     "mutates": false,
@@ -448,9 +448,9 @@
     "needs": "a listing and at least one record"
   },
   {
-    "id": "select.nested-honoured",
+    "id": "select.nested-honored",
     "dependsOn": [
-      "select.projection-honoured"
+      "select.projection-honored"
     ],
     "mutates": false,
     "judgesTranscript": false,
@@ -601,7 +601,7 @@
       "list.read-after-write",
       "create.persists-submitted-fields",
       "filter.equality-selects-exactly-one",
-      "select.projection-honoured",
+      "select.projection-honored",
       "select.requested-fields-present",
       "sort.order-is-applied"
     ],
@@ -616,7 +616,7 @@
       "list.read-after-write",
       "filter.equality-selects-exactly-one",
       "sort.order-is-applied",
-      "select.projection-honoured",
+      "select.projection-honored",
       "pagination.page-walk-covers-set"
     ],
     "mutates": false,
@@ -630,7 +630,7 @@
       "list.read-after-write",
       "create.persists-submitted-fields",
       "filter.equality-selects-exactly-one",
-      "select.projection-honoured",
+      "select.projection-honored",
       "pagination.page-walk-covers-set"
     ],
     "mutates": false,
@@ -658,7 +658,7 @@
       "create.persists-submitted-fields",
       "filter.equality-selects-exactly-one",
       "sort.order-is-applied",
-      "select.projection-honoured",
+      "select.projection-honored",
       "pagination.page-walk-covers-set",
       "query.axes-compose",
       "query.filter-and-select-compose",
@@ -692,7 +692,7 @@
       "create.persists-submitted-fields",
       "filter.equality-selects-exactly-one",
       "search.q-narrows-result",
-      "select.projection-honoured",
+      "select.projection-honored",
       "pagination.page-walk-covers-set",
       "query.search-and-filter-compose",
       "query.filter-and-select-compose",
@@ -706,7 +706,7 @@
     "id": "query.sort-and-select-compose",
     "dependsOn": [
       "sort.order-is-applied",
-      "select.projection-honoured",
+      "select.projection-honored",
       "select.requested-fields-present"
     ],
     "mutates": false,
@@ -718,7 +718,7 @@
     "dependsOn": [
       "pagination.page-walk-covers-set",
       "search.q-narrows-result",
-      "select.projection-honoured"
+      "select.projection-honored"
     ],
     "mutates": false,
     "judgesTranscript": false,
@@ -799,7 +799,7 @@
     "dependsOn": [
       "list.read-after-write",
       "error.malformed-filter-not-5xx",
-      "select.projection-honoured"
+      "select.projection-honored"
     ],
     "mutates": false,
     "judgesTranscript": false,
@@ -1224,7 +1224,7 @@
     "judgesTranscript": true
   },
   {
-    "id": "spec.declared-rate-limit-is-honoured",
+    "id": "spec.declared-rate-limit-is-honored",
     "dependsOn": [],
     "mutates": false,
     "judgesTranscript": true,

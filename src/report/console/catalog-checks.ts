@@ -67,7 +67,7 @@ function searchSelectChecks(caps: Caps, conventions: QueryConventions): string[]
 	if (conventions.select !== undefined && caps.selectable.length > 0) {
 		ids.push("select.requested-fields-present")
 		if (caps.select?.unknown !== undefined) ids.push("select.unknown-field-rejected")
-		if (caps.select?.nested === true && (caps.select.relations?.length ?? 0) > 0) ids.push("select.nested-honoured")
+		if (caps.select?.nested === true && (caps.select.relations?.length ?? 0) > 0) ids.push("select.nested-honored")
 	}
 	return ids
 }

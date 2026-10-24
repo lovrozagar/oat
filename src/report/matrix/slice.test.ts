@@ -19,7 +19,7 @@ const input = report({
 			"sort.order-is-applied": "failed",
 		},
 	},
-	checksRun: catalog.ids.filter((id) => id !== "select.projection-honoured"),
+	checksRun: catalog.ids.filter((id) => id !== "select.projection-honored"),
 	entities: ["table"],
 	findings: [
 		{ check: "filter.or-composes-as-union", entity: "table", summary: "gap", verdict: "COVERAGE_GAP" },
@@ -42,7 +42,7 @@ describe("entitySlice", () => {
 		expect(status("query.axes-compose")).toBe("blocked")
 		expect(status("search.q-narrows-result")).toBe("skipped")
 		expect(status("patch.minimality")).toBe("out-of-scope")
-		expect(status("select.projection-honoured")).toBe("skipped")
+		expect(status("select.projection-honored")).toBe("skipped")
 		expect(status("list.read-after-write")).toBe("passed")
 		expect(slice.counts).toEqual({
 			blocked: 1,

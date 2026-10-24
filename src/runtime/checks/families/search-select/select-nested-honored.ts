@@ -8,7 +8,7 @@ import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, q, resolvedCaps } from "../../query/capabilities.ts"
 import { list } from "../../sets/list.ts"
 
-export const selectNestedHonoured: Check<{
+export const selectNestedHonored: Check<{
 	relation: { name: string; fields: string[] }
 	first: string
 	projection: Record<string, string>
@@ -25,8 +25,8 @@ export const selectNestedHonoured: Check<{
 		const projection = selectTerm(conv(ctx), [ctx.identity, `${relation.name}(${first})`], ctx.entityName)
 		return projection === null ? cannot() : ready({ first, projection, relation })
 	},
-	dependsOn: ["select.projection-honoured"],
-	id: "select.nested-honoured",
+	dependsOn: ["select.projection-honored"],
+	id: "select.nested-honored",
 	lists: true,
 	needs: "select.nested and a named relation",
 	subjects: subjectsOf.list,

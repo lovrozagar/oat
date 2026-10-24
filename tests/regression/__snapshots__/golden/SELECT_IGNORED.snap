@@ -26,7 +26,7 @@
         "query.filter-sort-select-compose",
         "query.search-and-select-compose",
         "query.sort-and-select-compose",
-        "select.nested-honoured",
+        "select.nested-honored",
         "select.requested-fields-present",
         "select.unknown-field-rejected",
         "spec.declared-selectable-is-selectable"
@@ -35,177 +35,177 @@
     "checksSuppressed": {
       "added": [
         {
-          "because": "select.projection-honoured",
+          "because": "select.projection-honored",
           "check": "consistency.projections-agree",
           "entity": "job"
         },
         {
-          "because": "select.projection-honoured",
+          "because": "select.projection-honored",
           "check": "consistency.projections-agree",
           "entity": "row"
         },
         {
-          "because": "select.projection-honoured",
+          "because": "select.projection-honored",
           "check": "consistency.projections-agree",
           "entity": "table"
         },
         {
-          "because": "select.projection-honoured",
+          "because": "select.projection-honored",
           "check": "query.axes-compose",
           "entity": "job"
         },
         {
-          "because": "select.projection-honoured",
+          "because": "select.projection-honored",
           "check": "query.axes-compose",
           "entity": "row"
         },
         {
-          "because": "select.projection-honoured",
+          "because": "select.projection-honored",
           "check": "query.axes-compose",
           "entity": "table"
         },
         {
-          "because": "select.projection-honoured",
+          "because": "select.projection-honored",
           "check": "query.filter-and-select-compose",
           "entity": "job"
         },
         {
-          "because": "select.projection-honoured",
+          "because": "select.projection-honored",
           "check": "query.filter-and-select-compose",
           "entity": "row"
         },
         {
-          "because": "select.projection-honoured",
+          "because": "select.projection-honored",
           "check": "query.filter-and-select-compose",
           "entity": "table"
         },
         {
-          "because": "select.projection-honoured",
+          "because": "select.projection-honored",
           "check": "query.filter-search-select-compose",
           "entity": "job"
         },
         {
-          "because": "select.projection-honoured",
+          "because": "select.projection-honored",
           "check": "query.filter-search-select-compose",
           "entity": "row"
         },
         {
-          "because": "select.projection-honoured",
+          "because": "select.projection-honored",
           "check": "query.filter-search-select-compose",
           "entity": "table"
         },
         {
-          "because": "select.projection-honoured",
+          "because": "select.projection-honored",
           "check": "query.filter-search-sort-compose",
           "entity": "job"
         },
         {
-          "because": "select.projection-honoured",
+          "because": "select.projection-honored",
           "check": "query.filter-search-sort-compose",
           "entity": "row"
         },
         {
-          "because": "select.projection-honoured",
+          "because": "select.projection-honored",
           "check": "query.filter-search-sort-compose",
           "entity": "table"
         },
         {
-          "because": "select.projection-honoured",
+          "because": "select.projection-honored",
           "check": "query.filter-search-sort-select-compose",
           "entity": "job"
         },
         {
-          "because": "select.projection-honoured",
+          "because": "select.projection-honored",
           "check": "query.filter-search-sort-select-compose",
           "entity": "row"
         },
         {
-          "because": "select.projection-honoured",
+          "because": "select.projection-honored",
           "check": "query.filter-search-sort-select-compose",
           "entity": "table"
         },
         {
-          "because": "select.projection-honoured",
+          "because": "select.projection-honored",
           "check": "query.filter-sort-select-compose",
           "entity": "job"
         },
         {
-          "because": "select.projection-honoured",
+          "because": "select.projection-honored",
           "check": "query.filter-sort-select-compose",
           "entity": "row"
         },
         {
-          "because": "select.projection-honoured",
+          "because": "select.projection-honored",
           "check": "query.filter-sort-select-compose",
           "entity": "table"
         },
         {
-          "because": "select.projection-honoured",
+          "because": "select.projection-honored",
           "check": "query.search-and-select-compose",
           "entity": "job"
         },
         {
-          "because": "select.projection-honoured",
+          "because": "select.projection-honored",
           "check": "query.search-and-select-compose",
           "entity": "row"
         },
         {
-          "because": "select.projection-honoured",
+          "because": "select.projection-honored",
           "check": "query.search-and-select-compose",
           "entity": "table"
         },
         {
-          "because": "select.projection-honoured",
+          "because": "select.projection-honored",
           "check": "query.sort-and-select-compose",
           "entity": "job"
         },
         {
-          "because": "select.projection-honoured",
+          "because": "select.projection-honored",
           "check": "query.sort-and-select-compose",
           "entity": "row"
         },
         {
-          "because": "select.projection-honoured",
+          "because": "select.projection-honored",
           "check": "query.sort-and-select-compose",
           "entity": "table"
         },
         {
-          "because": "select.projection-honoured",
-          "check": "select.nested-honoured",
+          "because": "select.projection-honored",
+          "check": "select.nested-honored",
           "entity": "row"
         },
         {
-          "because": "select.projection-honoured",
+          "because": "select.projection-honored",
           "check": "select.requested-fields-present",
           "entity": "job"
         },
         {
-          "because": "select.projection-honoured",
+          "because": "select.projection-honored",
           "check": "select.requested-fields-present",
           "entity": "row"
         },
         {
-          "because": "select.projection-honoured",
+          "because": "select.projection-honored",
           "check": "select.requested-fields-present",
           "entity": "table"
         },
         {
-          "because": "select.projection-honoured",
+          "because": "select.projection-honored",
           "check": "select.unknown-field-rejected",
           "entity": "table"
         },
         {
-          "because": "select.projection-honoured",
+          "because": "select.projection-honored",
           "check": "spec.declared-selectable-is-selectable",
           "entity": "job"
         },
         {
-          "because": "select.projection-honoured",
+          "because": "select.projection-honored",
           "check": "spec.declared-selectable-is-selectable",
           "entity": "row"
         },
         {
-          "because": "select.projection-honoured",
+          "because": "select.projection-honored",
           "check": "spec.declared-selectable-is-selectable",
           "entity": "table"
         }
@@ -217,7 +217,7 @@
           {
             "checks": {
               "failed": [
-                "select.projection-honoured"
+                "select.projection-honored"
               ],
               "gaps": [],
               "inconclusive": [],
@@ -282,7 +282,7 @@
                 "sort.unknown-field-rejected",
                 "spec.declared-filterable-is-filterable",
                 "spec.declared-filterable-ops-accepted",
-                "spec.declared-rate-limit-is-honoured",
+                "spec.declared-rate-limit-is-honored",
                 "spec.declared-sortable-is-sortable",
                 "spec.declared-sortable-nulls-accepted",
                 "tenant.filter-does-not-bypass-scope"
@@ -311,7 +311,7 @@
           {
             "checks": {
               "failed": [
-                "select.projection-honoured"
+                "select.projection-honored"
               ],
               "gaps": [],
               "inconclusive": [],
@@ -359,7 +359,7 @@
                 "sort.stable-tiebreak",
                 "sort.unknown-field-rejected",
                 "spec.declared-filterable-is-filterable",
-                "spec.declared-rate-limit-is-honoured",
+                "spec.declared-rate-limit-is-honored",
                 "spec.declared-sortable-is-sortable",
                 "tenant.filter-does-not-bypass-scope"
               ],
@@ -386,7 +386,7 @@
           {
             "checks": {
               "failed": [
-                "select.projection-honoured"
+                "select.projection-honored"
               ],
               "gaps": [],
               "inconclusive": [],
@@ -436,7 +436,7 @@
                 "sort.stable-tiebreak",
                 "sort.unknown-field-rejected",
                 "spec.declared-filterable-is-filterable",
-                "spec.declared-rate-limit-is-honoured",
+                "spec.declared-rate-limit-is-honored",
                 "spec.declared-sortable-is-sortable",
                 "tenant.filter-does-not-bypass-scope",
                 "tenant.parent-not-reachable-from-another-root"
@@ -451,7 +451,7 @@
                 "query.filter-sort-select-compose",
                 "query.search-and-select-compose",
                 "query.sort-and-select-compose",
-                "select.nested-honoured",
+                "select.nested-honored",
                 "select.requested-fields-present",
                 "spec.declared-selectable-is-selectable"
               ]
@@ -629,7 +629,7 @@
                 "search.mode-accepted",
                 "search.q-narrows-result",
                 "search.tokens-and",
-                "select.projection-honoured",
+                "select.projection-honored",
                 "select.requested-fields-present",
                 "select.unknown-field-rejected",
                 "softdelete.absent-from-default-list",
@@ -643,7 +643,7 @@
                 "sort.unknown-field-rejected",
                 "spec.declared-filterable-is-filterable",
                 "spec.declared-filterable-ops-accepted",
-                "spec.declared-rate-limit-is-honoured",
+                "spec.declared-rate-limit-is-honored",
                 "spec.declared-selectable-is-selectable",
                 "spec.declared-sortable-is-sortable",
                 "spec.declared-sortable-nulls-accepted",
@@ -712,7 +712,7 @@
                 "search.mode-accepted",
                 "search.q-narrows-result",
                 "search.tokens-and",
-                "select.projection-honoured",
+                "select.projection-honored",
                 "select.requested-fields-present",
                 "sort.default-order-applied",
                 "sort.multi-key-tiebreak",
@@ -721,7 +721,7 @@
                 "sort.stable-tiebreak",
                 "sort.unknown-field-rejected",
                 "spec.declared-filterable-is-filterable",
-                "spec.declared-rate-limit-is-honoured",
+                "spec.declared-rate-limit-is-honored",
                 "spec.declared-selectable-is-selectable",
                 "spec.declared-sortable-is-sortable",
                 "tenant.filter-does-not-bypass-scope"
@@ -888,8 +888,8 @@
                 "search.mode-accepted",
                 "search.q-narrows-result",
                 "search.tokens-and",
-                "select.nested-honoured",
-                "select.projection-honoured",
+                "select.nested-honored",
+                "select.projection-honored",
                 "select.requested-fields-present",
                 "sort.default-order-applied",
                 "sort.multi-key-tiebreak",
@@ -899,7 +899,7 @@
                 "sort.stable-tiebreak",
                 "sort.unknown-field-rejected",
                 "spec.declared-filterable-is-filterable",
-                "spec.declared-rate-limit-is-honoured",
+                "spec.declared-rate-limit-is-honored",
                 "spec.declared-selectable-is-selectable",
                 "spec.declared-sortable-is-sortable",
                 "tenant.filter-does-not-bypass-scope",
@@ -923,7 +923,7 @@
     "findings": {
       "added": [
         {
-          "check": "select.projection-honoured",
+          "check": "select.projection-honored",
           "detail": "select=id,project_id returned 12 fields, including name, slug, status, position, description. Accepting a projection and ignoring it silently inflates every response and leaks fields a caller deliberately excluded.",
           "entity": "table",
           "operations": [
@@ -940,7 +940,7 @@
           "verdict": "BACKEND_BUG"
         },
         {
-          "check": "select.projection-honoured",
+          "check": "select.projection-honored",
           "detail": "select=id,project_id returned 9 fields, including name, note, kind, created_at, updated_at. Accepting a projection and ignoring it silently inflates every response and leaks fields a caller deliberately excluded.",
           "entity": "job",
           "operations": [
@@ -957,7 +957,7 @@
           "verdict": "BACKEND_BUG"
         },
         {
-          "check": "select.projection-honoured",
+          "check": "select.projection-honored",
           "detail": "select=id,table_id returned 9 fields, including label, amount, note, active, tags. Accepting a projection and ignoring it silently inflates every response and leaks fields a caller deliberately excluded.",
           "entity": "row",
           "operations": [
@@ -1005,7 +1005,7 @@
           "check": "query.sort-and-select-compose"
         },
         {
-          "check": "select.nested-honoured"
+          "check": "select.nested-honored"
         },
         {
           "check": "select.requested-fields-present"
@@ -1073,7 +1073,7 @@
             "skipped": 3
           },
           {
-            "check": "select.nested-honoured",
+            "check": "select.nested-honored",
             "ran": 2,
             "skipped": 5
           },
@@ -1140,7 +1140,7 @@
             "skipped": 3
           },
           {
-            "check": "select.nested-honoured",
+            "check": "select.nested-honored",
             "ran": 3,
             "skipped": 5
           },

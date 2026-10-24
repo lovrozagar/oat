@@ -32,7 +32,7 @@ export const declaredSelectableWorks: Check = defineCheck({
 		 * before the fuzzer had to: `project()` returns the row untouched under SELECT_IGNORED
 		 * *before* the excluded-field check runs, so a backend that has stopped honouring `select`
 		 * at all also stops rejecting an overclaimed field — the request just returns every column. */
-		"select.projection-honoured",
+		"select.projection-honored",
 	],
 	id: "spec.declared-selectable-is-selectable",
 	lists: true,

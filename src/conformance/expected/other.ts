@@ -29,7 +29,7 @@ export const OTHER_EXPECTED: Record<OtherDefect, FindingId | FindingId[]> = {
 	SPEC_OVERCLAIMS_FILTERABLE: "spec.declared-filterable-is-filterable",
 	SPEC_OVERCLAIMS_SORTABLE: ["spec.declared-sortable-is-sortable", "spec.declared-sortable-nulls-accepted"],
 	SPEC_OVERCLAIMS_SELECTABLE: "spec.declared-selectable-is-selectable",
-	SELECT_IGNORED: "select.projection-honoured",
+	SELECT_IGNORED: "select.projection-honored",
 	SEARCH_IGNORED: "search.q-narrows-result",
 	EFFECT_NOT_APPLIED: ["effects.declared-effect-occurs", "async.reaches-terminal-state"],
 	SELECT_FIELD_MISSING: "select.requested-fields-present",
@@ -45,7 +45,7 @@ export const OTHER_EXPECTED: Record<OtherDefect, FindingId | FindingId[]> = {
 	SELECT_UNKNOWN_IGNORED: "select.unknown-field-rejected",
 	SPEC_OVERCLAIMS_FILTER_OP: "spec.declared-filterable-ops-accepted",
 	SEARCH_MODE_REJECTED: "search.mode-accepted",
-	NESTED_SELECT_IGNORED: "select.nested-honoured",
+	NESTED_SELECT_IGNORED: "select.nested-honored",
 	SIDE_EFFECT_NEVER_ARRIVES: "effects.side-effect-arrives",
-	RATE_LIMIT_STRICTER_THAN_DECLARED: "spec.declared-rate-limit-is-honoured",
+	RATE_LIMIT_STRICTER_THAN_DECLARED: "spec.declared-rate-limit-is-honored",
 }

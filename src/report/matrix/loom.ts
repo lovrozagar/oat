@@ -17,7 +17,7 @@ const WARP: ReadonlyArray<Point & { id: string }> = [
 	{ id: "consistency.projections-agree", x: 130, y: 390 },
 	{ id: "filter.equality-selects-exactly-one", x: 390, y: 90 },
 	{ id: "sort.order-is-applied", x: 390, y: 180 },
-	{ id: "select.projection-honoured", x: 390, y: 270 },
+	{ id: "select.projection-honored", x: 390, y: 270 },
 	{ id: "search.q-narrows-result", x: 390, y: 360 },
 	{ id: "pagination.page-walk-covers-set", x: 390, y: 450 },
 ]
@@ -26,7 +26,7 @@ const WARP: ReadonlyArray<Point & { id: string }> = [
 const WEFT: ReadonlyArray<Point & { id: string; from: readonly string[] }> = [
 	{ from: ["filter.equality-selects-exactly-one", "sort.order-is-applied"], id: "query.axes-compose", x: 700, y: 110 },
 	{
-		from: ["filter.equality-selects-exactly-one", "select.projection-honoured"],
+		from: ["filter.equality-selects-exactly-one", "select.projection-honored"],
 		id: "query.filter-and-select-compose",
 		x: 700,
 		y: 220,

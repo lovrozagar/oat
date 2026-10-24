@@ -35,7 +35,7 @@ export const queryAxesCompose: Check<Subset & { sortField: string }> = defineChe
 		/* Each axis has to work alone before "they disagree when combined" means anything. */
 		"filter.equality-selects-exactly-one",
 		"sort.order-is-applied",
-		"select.projection-honoured",
+		"select.projection-honored",
 		/* Both sides are gathered by walking pages, so a walk that skips or repeats records
 		 * changes the membership being compared for reasons unrelated to composition. */
 		"pagination.page-walk-covers-set",

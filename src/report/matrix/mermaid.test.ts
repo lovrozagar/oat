@@ -40,7 +40,7 @@ describe("mermaidFromGraph", () => {
 		expect(lines).not.toContain("  row_v2 --> row_v2__query_axes_compose")
 		expect(lines).toContain("  class row_v2__sort_order_is_applied failed")
 		expect(lines).toContain("  row_v2__filter_equality_selects_exactly_one -.-> row_v2__query_axes_compose")
-		expect(lines).toContain("  row_v2__select_projection_honoured -.-> row_v2__query_filter_and_select_compose")
+		expect(lines).toContain("  row_v2__select_projection_honored -.-> row_v2__query_filter_and_select_compose")
 		expect(lines).toContain("  row_v2__search_q_narrows_result -.-> row_v2__query_search_and_filter_compose")
 		expect(lines).toContain("  row_v2__pagination_page_walk_covers_set --> row_v2__query_filter_selects_from_whole_set")
 		expect(lines.filter((line) => line.includes("-->") || line.includes("-.->"))).toHaveLength(1 + 7 + USES.length)

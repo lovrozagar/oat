@@ -7,7 +7,9 @@
  * an entry that matched nothing is reported as fixed, never as a failure.
  */
 
+import { didYouMean } from "../errors/suggest.ts"
 import { UsageError } from "../errors/usage-error.ts"
+import { CHECK_IDS, RUN_FINDING_IDS } from "./check-ids.ts"
 import { type Finding, isRootCause } from "./finding.ts"
 import type { RawOf } from "../config/types/raw.ts"
 
@@ -32,6 +34,9 @@ const ENTRY_KEYS: ReadonlySet<string> = /* @__PURE__ */ new Set(["check", "entit
 const isRaw = <T>(value: unknown): value is RawOf<T> =>
 	typeof value === "object" && value !== null && !Array.isArray(value)
 
+/* Every id a finding can name: a registered check's, or the run's own. */
+const FINDING_IDS: ReadonlySet<string> = /* @__PURE__ */ new Set([...CHECK_IDS, ...RUN_FINDING_IDS])
+
 /** A baseline file, validated; `where` names it in the error. */
 export function parseBaseline(raw: unknown, where: string): BaselineFile {
 	if (!isRaw<BaselineFile>(raw)) throw new UsageError(`${where}: a baseline is { "version": 1, "entries": [...] }`)
@@ -51,6 +56,10 @@ export function parseBaseline(raw: unknown, where: string): BaselineFile {
 			if (entry[key] !== undefined && typeof entry[key] !== "string") {
 				throw new UsageError(`${at}.${key} must be a string`)
 			}
+		}
+		/* An id no run raises would match nothing and read as fixed: a renamed check, or a typo. */
+		if (!FINDING_IDS.has(entry.check)) {
+			throw new UsageError(`${at}.check "${entry.check}" is no check oat runs.${didYouMean(entry.check, FINDING_IDS)}`)
 		}
 		return {
 			check: entry.check,

@@ -17,7 +17,7 @@ export const CONSISTENCY_EXPECTED: Record<ConsistencyDefect, FindingId | Finding
 		 * see but cannot search or filter for. */
 		"search.q-narrows-result",
 		"filter.equality-selects-exactly-one",
-		"select.projection-honoured",
+		"select.projection-honored",
 		"sort.order-is-applied",
 		/* The listing's suffix carries a name at its maxLength past it: a value its schema forbids. */
 		"schema.read-response-matches-document",

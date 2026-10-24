@@ -25,7 +25,7 @@ export const selectUnknownFieldRejected: Check<{
 		const projection = selectTerm(conv(ctx), requested, ctx.entityName)
 		return projection === null ? cannot() : ready({ policy, projection, requested })
 	},
-	dependsOn: ["select.projection-honoured", "error.malformed-filter-not-5xx"],
+	dependsOn: ["select.projection-honored", "error.malformed-filter-not-5xx"],
 	id: "select.unknown-field-rejected",
 	lists: true,
 	needs: "`select.unknown` declared",

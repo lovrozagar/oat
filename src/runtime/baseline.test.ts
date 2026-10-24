@@ -7,22 +7,34 @@ function finding(overrides: Partial<Finding>): Finding {
 	return { check: "c", detail: "d", entity: "row", evidence: [], summary: "s", verdict: "BACKEND_BUG", ...overrides }
 }
 
+/* A baseline of one entry for `check`. */
+const oneEntry = (check: string) => ({ entries: [{ check, reason: "r" }], version: 1 })
+
 describe("parseBaseline", () => {
 	it("keeps the keys an entry sets", () => {
 		const raw = {
 			entries: [
-				{ check: "c", reason: "r" },
-				{ check: "c", entity: "row", operationId: "op", reason: "r" },
+				{ check: "auth.role-enforced", reason: "r" },
+				{ check: "world.seed", entity: "row", operationId: "op", reason: "r" },
 			],
 			version: 1,
 		}
 		expect(parseBaseline(raw, "b.json")).toEqual({
 			entries: [
-				{ check: "c", reason: "r" },
-				{ check: "c", entity: "row", operationId: "op", reason: "r" },
+				{ check: "auth.role-enforced", reason: "r" },
+				{ check: "world.seed", entity: "row", operationId: "op", reason: "r" },
 			],
 			version: 1,
 		})
+	})
+
+	it("refuses a check no run raises, naming the nearest, so a renamed id never reads as fixed", () => {
+		expect(() => parseBaseline(oneEntry("select.projection-honoured"), "b.json")).toThrow(
+			'b.json: entries[0].check "select.projection-honoured" is no check oat runs. Did you mean: select.projection-honored?',
+		)
+		expect(() => parseBaseline(oneEntry("nothing.at-all-like-it"), "b.json")).toThrow(
+			'b.json: entries[0].check "nothing.at-all-like-it" is no check oat runs',
+		)
 	})
 
 	it.each([

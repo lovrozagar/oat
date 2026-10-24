@@ -326,10 +326,10 @@ describe("a declared rate limit, on the CLI", () => {
 		const { code, runs, text } = await runDeclared(["RATE_LIMIT_STRICTER_THAN_DECLARED"])
 		expect(code).toBe(EXIT.defects)
 		expect(text).toContain('the declared "table.list" rate limit is not honoured')
-		expect(text).toMatch(/✗ table\.list\s+failed .*spec\.declared-rate-limit-is-honoured/)
+		expect(text).toMatch(/✗ table\.list\s+failed .*spec\.declared-rate-limit-is-honored/)
 		const report = await latestReport(runs)
 		expect(report.findings).toContainEqual(
-			expect.objectContaining({ check: "spec.declared-rate-limit-is-honoured", verdict: "SPEC_BUG" }),
+			expect.objectContaining({ check: "spec.declared-rate-limit-is-honored", verdict: "SPEC_BUG" }),
 		)
 		/* The throttled listing was sent again and answered: the 429 blocked nothing. */
 		const lists = (await latestJournal(runs)).filter((line) => line.operationId === "table.list")

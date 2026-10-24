@@ -28,7 +28,7 @@ export const querySortAndSelectCompose: Check<{
 		const projection = selectTerm(conv(ctx), requested, ctx.entityName)
 		return projection === null ? cannot() : ready({ field, projection, requested })
 	},
-	dependsOn: ["sort.order-is-applied", "select.projection-honoured", "select.requested-fields-present"],
+	dependsOn: ["sort.order-is-applied", "select.projection-honored", "select.requested-fields-present"],
 	id: "query.sort-and-select-compose",
 	lists: true,
 	needs: "sortable and selectable fields",

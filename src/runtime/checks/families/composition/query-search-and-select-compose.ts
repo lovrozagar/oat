@@ -31,7 +31,7 @@ export const querySearchAndSelectCompose: Check<{
 		const projection = selectTerm(conv(ctx), requested, ctx.entityName)
 		return projection === null ? cannot() : ready({ field, projection, requested, token })
 	},
-	dependsOn: ["pagination.page-walk-covers-set", "search.q-narrows-result", "select.projection-honoured"],
+	dependsOn: ["pagination.page-walk-covers-set", "search.q-narrows-result", "select.projection-honored"],
 	id: "query.search-and-select-compose",
 	lists: true,
 	needs: "searchable and selectable fields",

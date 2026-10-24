@@ -24,7 +24,7 @@ export const selectProjection: Check<{
 		/* No projection to write without a select parameter, and none to observe without records. */
 		return projection === null || ctx.records.length === 0 ? cannot() : ready({ projection, requested })
 	},
-	id: "select.projection-honoured",
+	id: "select.projection-honored",
 	lists: true,
 	needs: "a `select` sparse-fieldset parameter",
 	subjects: subjectsOf.list,

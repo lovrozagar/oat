@@ -1017,11 +1017,11 @@
                 "response.status-is-documented",
                 "schema.read-response-matches-document",
                 "search.mode-accepted",
-                "select.projection-honoured",
+                "select.projection-honored",
                 "select.requested-fields-present",
                 "select.unknown-field-rejected",
                 "sort.unknown-field-rejected",
-                "spec.declared-rate-limit-is-honoured"
+                "spec.declared-rate-limit-is-honored"
               ],
               "suppressed": [
                 "consistency.projections-agree",
@@ -1111,10 +1111,10 @@
                 "response.status-is-documented",
                 "schema.read-response-matches-document",
                 "search.mode-accepted",
-                "select.projection-honoured",
+                "select.projection-honored",
                 "select.requested-fields-present",
                 "sort.unknown-field-rejected",
-                "spec.declared-rate-limit-is-honoured"
+                "spec.declared-rate-limit-is-honored"
               ],
               "suppressed": [
                 "consistency.projections-agree",
@@ -1264,11 +1264,11 @@
                 "response.status-is-documented",
                 "schema.read-response-matches-document",
                 "search.mode-accepted",
-                "select.nested-honoured",
-                "select.projection-honoured",
+                "select.nested-honored",
+                "select.projection-honored",
                 "select.requested-fields-present",
                 "sort.unknown-field-rejected",
-                "spec.declared-rate-limit-is-honoured"
+                "spec.declared-rate-limit-is-honored"
               ],
               "suppressed": [
                 "consistency.projections-agree",
@@ -1829,7 +1829,7 @@
                 "search.mode-accepted",
                 "search.q-narrows-result",
                 "search.tokens-and",
-                "select.projection-honoured",
+                "select.projection-honored",
                 "select.requested-fields-present",
                 "select.unknown-field-rejected",
                 "softdelete.absent-from-default-list",
@@ -1843,7 +1843,7 @@
                 "sort.unknown-field-rejected",
                 "spec.declared-filterable-is-filterable",
                 "spec.declared-filterable-ops-accepted",
-                "spec.declared-rate-limit-is-honoured",
+                "spec.declared-rate-limit-is-honored",
                 "spec.declared-selectable-is-selectable",
                 "spec.declared-sortable-is-sortable",
                 "spec.declared-sortable-nulls-accepted",
@@ -1912,7 +1912,7 @@
                 "search.mode-accepted",
                 "search.q-narrows-result",
                 "search.tokens-and",
-                "select.projection-honoured",
+                "select.projection-honored",
                 "select.requested-fields-present",
                 "sort.default-order-applied",
                 "sort.multi-key-tiebreak",
@@ -1921,7 +1921,7 @@
                 "sort.stable-tiebreak",
                 "sort.unknown-field-rejected",
                 "spec.declared-filterable-is-filterable",
-                "spec.declared-rate-limit-is-honoured",
+                "spec.declared-rate-limit-is-honored",
                 "spec.declared-selectable-is-selectable",
                 "spec.declared-sortable-is-sortable",
                 "tenant.filter-does-not-bypass-scope"
@@ -2452,8 +2452,8 @@
                 "search.mode-accepted",
                 "search.q-narrows-result",
                 "search.tokens-and",
-                "select.nested-honoured",
-                "select.projection-honoured",
+                "select.nested-honored",
+                "select.projection-honored",
                 "select.requested-fields-present",
                 "sort.default-order-applied",
                 "sort.multi-key-tiebreak",
@@ -2463,7 +2463,7 @@
                 "sort.stable-tiebreak",
                 "sort.unknown-field-rejected",
                 "spec.declared-filterable-is-filterable",
-                "spec.declared-rate-limit-is-honoured",
+                "spec.declared-rate-limit-is-honored",
                 "spec.declared-selectable-is-selectable",
                 "spec.declared-sortable-is-sortable",
                 "tenant.filter-does-not-bypass-scope",

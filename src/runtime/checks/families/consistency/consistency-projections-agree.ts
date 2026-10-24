@@ -80,7 +80,7 @@ export const projectionsAgree: Check<{
 		/* Each projection is exercised elsewhere. When one is already known broken, its
 		 * disagreement here is that same defect seen a second time. */
 		"filter.equality-selects-exactly-one",
-		"select.projection-honoured",
+		"select.projection-honored",
 		"select.requested-fields-present",
 		"sort.order-is-applied",
 	],

@@ -17,14 +17,14 @@ import { ownOps } from "../../planning/subjects.ts"
  * Grouped by category rather than reported per request: the point is "the declared rate for X is
  * wrong", once, not one finding for every request that category serves.
  */
-export const declaredRateLimitHonoured: Check = defineCheck({
+export const declaredRateLimitHonored: Check = defineCheck({
 	plan: (ctx) =>
 		when(
 			ctx.model.operations.some(
 				(op) => op.entity === ctx.entityName && op.rateLimit !== null && op.rateLimit.rps !== null,
 			),
 		),
-	id: "spec.declared-rate-limit-is-honoured",
+	id: "spec.declared-rate-limit-is-honored",
 	judgesTranscript: true,
 	needs: "an operation on this entity with a rate declared by x-rate-limit",
 	subjects: (entity, model) => ownOps(entity, model, (op) => op.rateLimit !== null && op.rateLimit.rps !== null),

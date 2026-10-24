@@ -7,7 +7,7 @@ import { resolveTargetScope } from "./target.ts"
 
 const graded = (): GradeLedger => {
 	const ledger = new GradeLedger()
-	ledger.graded(["pay.start"], "spec.declared-rate-limit-is-honoured")
+	ledger.graded(["pay.start"], "spec.declared-rate-limit-is-honored")
 	return ledger
 }
 

@@ -25,7 +25,7 @@ export const selectRequestedFieldsPresent: Check<{
 			? cannot()
 			: ready({ projection, requested })
 	},
-	dependsOn: ["select.projection-honoured"],
+	dependsOn: ["select.projection-honored"],
 	id: "select.requested-fields-present",
 	lists: true,
 	needs: "a select parameter and at least one selectable field",

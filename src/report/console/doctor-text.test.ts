@@ -85,7 +85,7 @@ describe("tagLines", () => {
 		expect(lines).toEqual([
 			"  2 check(s) cannot run against this document",
 			"    x-destructive    would enable auth.destructive-spares-the-caller",
-			"    x-rate-limit     would enable spec.declared-rate-limit-is-honoured",
+			"    x-rate-limit     would enable spec.declared-rate-limit-is-honored",
 			"",
 		])
 		const empty = modelOf(documentOf({})).model

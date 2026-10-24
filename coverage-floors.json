@@ -862,13 +862,13 @@
 		"functions": 100,
 		"lines": 100
 	},
-	"src/runtime/checks/families/search-select/select-nested-honoured.ts": {
+	"src/runtime/checks/families/search-select/select-nested-honored.ts": {
 		"statements": 100,
 		"branches": 100,
 		"functions": 100,
 		"lines": 100
 	},
-	"src/runtime/checks/families/search-select/select-projection-honoured.ts": {
+	"src/runtime/checks/families/search-select/select-projection-honored.ts": {
 		"statements": 100,
 		"branches": 100,
 		"functions": 100,
@@ -1048,7 +1048,7 @@
 		"functions": 100,
 		"lines": 100
 	},
-	"src/runtime/checks/families/spec-declarations/spec-declared-rate-limit-is-honoured.ts": {
+	"src/runtime/checks/families/spec-declarations/spec-declared-rate-limit-is-honored.ts": {
 		"statements": 100,
 		"branches": 100,
 		"functions": 100,

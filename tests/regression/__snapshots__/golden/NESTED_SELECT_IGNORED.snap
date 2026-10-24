@@ -21,7 +21,7 @@
           {
             "checks": {
               "failed": [
-                "select.nested-honoured"
+                "select.nested-honored"
               ],
               "gaps": [],
               "inconclusive": [],
@@ -72,7 +72,7 @@
                 "search.mode-accepted",
                 "search.q-narrows-result",
                 "search.tokens-and",
-                "select.projection-honoured",
+                "select.projection-honored",
                 "select.requested-fields-present",
                 "sort.default-order-applied",
                 "sort.multi-key-tiebreak",
@@ -82,7 +82,7 @@
                 "sort.stable-tiebreak",
                 "sort.unknown-field-rejected",
                 "spec.declared-filterable-is-filterable",
-                "spec.declared-rate-limit-is-honoured",
+                "spec.declared-rate-limit-is-honored",
                 "spec.declared-selectable-is-selectable",
                 "spec.declared-sortable-is-sortable",
                 "tenant.filter-does-not-bypass-scope",
@@ -150,8 +150,8 @@
                 "search.mode-accepted",
                 "search.q-narrows-result",
                 "search.tokens-and",
-                "select.nested-honoured",
-                "select.projection-honoured",
+                "select.nested-honored",
+                "select.projection-honored",
                 "select.requested-fields-present",
                 "sort.default-order-applied",
                 "sort.multi-key-tiebreak",
@@ -161,7 +161,7 @@
                 "sort.stable-tiebreak",
                 "sort.unknown-field-rejected",
                 "spec.declared-filterable-is-filterable",
-                "spec.declared-rate-limit-is-honoured",
+                "spec.declared-rate-limit-is-honored",
                 "spec.declared-selectable-is-selectable",
                 "spec.declared-sortable-is-sortable",
                 "tenant.filter-does-not-bypass-scope",
@@ -185,7 +185,7 @@
     "findings": {
       "added": [
         {
-          "check": "select.nested-honoured",
+          "check": "select.nested-honored",
           "detail": "select=table(name) returned name, slug, status, position, description, id, project_id, created_at, updated_at, deleted_at, verified, row_count.",
           "entity": "row",
           "operations": [

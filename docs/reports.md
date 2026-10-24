@@ -136,7 +136,7 @@ With `targetVersion`, the markdown header shows `**Target version**: 1.0.88` (or
 	"summary": { "BACKEND_BUG": 1 },
 	"coverage": {
 		"neverApplied": ["async.reaches-terminal-state"],
-		"partial": [{ "check": "select.projection-honoured", "ran": 1, "skipped": 1 }]
+		"partial": [{ "check": "select.projection-honored", "ran": 1, "skipped": 1 }]
 	},
 	"latency": {
 		"p50": 12,

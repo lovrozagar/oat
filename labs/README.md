@@ -66,7 +66,7 @@ Provision writes `CLOUDFLARE_D1_<WORLD>=<uuid>` into `.env` and `labs/.d1.json`
 | `bug-hasmore`            | `hasMore` is always false                  | `pagination.has-more-is-accurate`          |
 | `bug-maxlimit`           | documented `maxLimit` is not capped        | `pagination.limit-respects-documented-max` |
 | `bug-search`             | `q` is accepted and ignored                | `search.q-narrows-result`                  |
-| `bug-select`             | sparse fieldset is ignored                 | `select.projection-honoured`               |
+| `bug-select`             | sparse fieldset is ignored                 | `select.projection-honored`                |
 | `bug-sort`               | `order` is accepted and ignored            | `sort.order-is-applied`                    |
 | `bug-idem`               | `Idempotency-Key` is ignored               | `idempotency.replay-does-not-duplicate`    |
 | `bug-immutable`          | `x-immutable` fields accept writes         | `patch.immutable-field-rejected`           |

@@ -42,7 +42,7 @@ export const filterSortSelectCompose: Check<
 		"create.persists-submitted-fields",
 		"filter.equality-selects-exactly-one",
 		"sort.order-is-applied",
-		"select.projection-honoured",
+		"select.projection-honored",
 		"pagination.page-walk-covers-set",
 		/* Each pair has to hold before "the triple disagrees" means anything. A pair defect
 		 * would also break this request, and reporting it again would name the wrong cause. */

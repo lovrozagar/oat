@@ -40,7 +40,7 @@ describe("the check registry", () => {
 			"schema.read-response-matches-document",
 			"response.write-only-not-returned",
 			"schema.problem-json-shape",
-			"spec.declared-rate-limit-is-honoured",
+			"spec.declared-rate-limit-is-honored",
 		])
 		for (const check of entityChecks(CHECKS).slice(-6)) expect(check.judgesTranscript).toBe(true)
 		/* The precondition check writes the 412 the status and problem judges read. */
@@ -79,7 +79,7 @@ describe("registering the precondition checks", () => {
 		expect(moved.map((check) => check.id)).toEqual([
 			"response.status-is-documented",
 			"schema.error-response-matches-document",
-			"spec.declared-rate-limit-is-honoured",
+			"spec.declared-rate-limit-is-honored",
 		])
 		const model = modelOf(judgedDocument())
 		const { ctx } = contextFor(model, "listWidgets", {

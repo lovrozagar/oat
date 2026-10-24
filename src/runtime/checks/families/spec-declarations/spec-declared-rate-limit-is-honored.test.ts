@@ -4,7 +4,7 @@ import type { Exchange } from "../../../exchange.ts"
 import { exchangeOf } from "../../__fixtures__/harness.ts"
 import { runCheck } from "../../core/run.ts"
 import { refusing, stage, widgetsModel } from "./__fixtures__/widgets.ts"
-import { declaredRateLimitHonoured } from "./spec-declared-rate-limit-is-honoured.ts"
+import { declaredRateLimitHonored } from "./spec-declared-rate-limit-is-honored.ts"
 
 type Pacing = Pick<Exchange, "rateLimitCategory" | "rateLimitHadRoom" | "rateLimitSource">
 
@@ -33,27 +33,27 @@ async function judge(transcript: Exchange[], withJudged = true) {
 		client,
 		...(withJudged ? { judged: (ids: readonly string[]) => judged.push([...ids]) } : {}),
 	})
-	return { findings, judged, outcome: await runCheck(declaredRateLimitHonoured, ctx) }
+	return { findings, judged, outcome: await runCheck(declaredRateLimitHonored, ctx) }
 }
 
-describe("spec.declared-rate-limit-is-honoured plan", () => {
+describe("spec.declared-rate-limit-is-honored plan", () => {
 	it("applies to an entity with an operation whose rate the document declares", () => {
-		expect(declaredRateLimitHonoured.plan(stage(refusing(400)).ctx).ok).toBe(true)
+		expect(declaredRateLimitHonored.plan(stage(refusing(400)).ctx).ok).toBe(true)
 	})
 
 	it("stands down for an entity none of whose operations declares a rate", () => {
-		expect(declaredRateLimitHonoured.plan(stage(refusing(400), { entityName: "gadget" }).ctx).ok).toBe(false)
+		expect(declaredRateLimitHonored.plan(stage(refusing(400), { entityName: "gadget" }).ctx).ok).toBe(false)
 	})
 
 	it("names as subjects only the entity's operations with a declared rate", () => {
 		const model = widgetsModel()
 		const entity = model.entities.get("widget")
 		if (entity === undefined) throw new Error("the widgets document has no widget entity")
-		expect(declaredRateLimitHonoured.subjects?.(entity, model)).toEqual(["listWidgets"])
+		expect(declaredRateLimitHonored.subjects?.(entity, model)).toEqual(["listWidgets"])
 	})
 })
 
-describe("spec.declared-rate-limit-is-honoured run", () => {
+describe("spec.declared-rate-limit-is-honored run", () => {
 	it("passes a transcript without a 429, judging only the operations with a declared rate", async () => {
 		const { findings, judged, outcome } = await judge([
 			sentTo("listWidgets", 200, declaredRoom),
@@ -76,8 +76,8 @@ describe("spec.declared-rate-limit-is-honoured run", () => {
 		])
 		expect(outcome).toEqual({ kind: "asserted" })
 		expect(findings.findings.map((f) => [f.check, f.verdict, f.summary])).toEqual([
-			["spec.declared-rate-limit-is-honoured", "SPEC_BUG", 'the declared "reads" rate limit is not honoured'],
-			["spec.declared-rate-limit-is-honoured", "SPEC_BUG", 'the declared "writes" rate limit is not honoured'],
+			["spec.declared-rate-limit-is-honored", "SPEC_BUG", 'the declared "reads" rate limit is not honoured'],
+			["spec.declared-rate-limit-is-honored", "SPEC_BUG", 'the declared "writes" rate limit is not honoured'],
 		])
 		expect(findings.findings[0]?.detail).toContain('4 request(s) to the "reads" category returned 429')
 		expect(findings.findings[0]?.evidence).toHaveLength(3)

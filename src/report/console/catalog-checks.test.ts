@@ -58,7 +58,7 @@ const EVERY_CHECK = [
 	"search.mode-accepted",
 	"select.requested-fields-present",
 	"select.unknown-field-rejected",
-	"select.nested-honoured",
+	"select.nested-honored",
 	"query.sort-and-select-compose",
 	"query.search-and-select-compose",
 	"query.search-and-sort-compose",
@@ -179,6 +179,6 @@ describe("catalogCheckPreview on sort keys and nested selects", () => {
 			"sort.multi-key-tiebreak",
 		)
 		const nested = caps({ select: { nested: true, relations: [] }, selectable: ["a"] })
-		expect(catalogCheckPreview(nested, { conventions }, "config")).not.toContain("select.nested-honoured")
+		expect(catalogCheckPreview(nested, { conventions }, "config")).not.toContain("select.nested-honored")
 	})
 })

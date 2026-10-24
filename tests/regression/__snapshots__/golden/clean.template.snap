@@ -96,8 +96,8 @@
       "search.empty-q",
       "search.q-narrows-result",
       "search.tokens-and",
-      "select.nested-honoured",
-      "select.projection-honoured",
+      "select.nested-honored",
+      "select.projection-honored",
       "select.requested-fields-present",
       "select.unknown-field-rejected",
       "softdelete.absent-from-default-list",
@@ -111,7 +111,7 @@
       "sort.unknown-field-rejected",
       "spec.declared-filterable-is-filterable",
       "spec.declared-filterable-ops-accepted",
-      "spec.declared-rate-limit-is-honoured",
+      "spec.declared-rate-limit-is-honored",
       "spec.declared-selectable-is-selectable",
       "spec.declared-sortable-is-sortable",
       "tenant.denial-does-not-reveal-existence",
@@ -4117,42 +4117,42 @@
         "needs": "a list operation"
       },
       {
-        "check": "select.nested-honoured",
+        "check": "select.nested-honored",
         "entity": "api-key",
         "needs": "a list operation"
       },
       {
-        "check": "select.nested-honoured",
+        "check": "select.nested-honored",
         "entity": "job",
         "needs": "select.nested and a named relation"
       },
       {
-        "check": "select.nested-honoured",
+        "check": "select.nested-honored",
         "entity": "notice",
         "needs": "select.nested and a named relation"
       },
       {
-        "check": "select.nested-honoured",
+        "check": "select.nested-honored",
         "entity": "table",
         "needs": "select.nested and a named relation"
       },
       {
-        "check": "select.nested-honoured",
+        "check": "select.nested-honored",
         "entity": "webhook",
         "needs": "a list operation"
       },
       {
-        "check": "select.projection-honoured",
+        "check": "select.projection-honored",
         "entity": "api-key",
         "needs": "a list operation"
       },
       {
-        "check": "select.projection-honoured",
+        "check": "select.projection-honored",
         "entity": "notice",
         "needs": "a `select` sparse-fieldset parameter"
       },
       {
-        "check": "select.projection-honoured",
+        "check": "select.projection-honored",
         "entity": "webhook",
         "needs": "a list operation"
       },
@@ -4417,17 +4417,17 @@
         "needs": "a list operation"
       },
       {
-        "check": "spec.declared-rate-limit-is-honoured",
+        "check": "spec.declared-rate-limit-is-honored",
         "entity": "api-key",
         "needs": "an operation on this entity with a rate declared by x-rate-limit"
       },
       {
-        "check": "spec.declared-rate-limit-is-honoured",
+        "check": "spec.declared-rate-limit-is-honored",
         "entity": "notice",
         "needs": "an operation on this entity with a rate declared by x-rate-limit"
       },
       {
-        "check": "spec.declared-rate-limit-is-honoured",
+        "check": "spec.declared-rate-limit-is-honored",
         "entity": "webhook",
         "needs": "an operation on this entity with a rate declared by x-rate-limit"
       },
@@ -4710,7 +4710,7 @@
               "search.empty-q",
               "search.q-narrows-result",
               "search.tokens-and",
-              "select.projection-honoured",
+              "select.projection-honored",
               "select.requested-fields-present",
               "select.unknown-field-rejected",
               "softdelete.absent-from-default-list",
@@ -4724,7 +4724,7 @@
               "sort.unknown-field-rejected",
               "spec.declared-filterable-is-filterable",
               "spec.declared-filterable-ops-accepted",
-              "spec.declared-rate-limit-is-honoured",
+              "spec.declared-rate-limit-is-honored",
               "spec.declared-selectable-is-selectable",
               "spec.declared-sortable-is-sortable",
               "tenant.filter-does-not-bypass-scope"
@@ -4789,7 +4789,7 @@
               "search.empty-q",
               "search.q-narrows-result",
               "search.tokens-and",
-              "select.projection-honoured",
+              "select.projection-honored",
               "select.requested-fields-present",
               "sort.default-order-applied",
               "sort.invalid-direction-rejected",
@@ -4799,7 +4799,7 @@
               "sort.stable-tiebreak",
               "sort.unknown-field-rejected",
               "spec.declared-filterable-is-filterable",
-              "spec.declared-rate-limit-is-honoured",
+              "spec.declared-rate-limit-is-honored",
               "spec.declared-selectable-is-selectable",
               "spec.declared-sortable-is-sortable",
               "tenant.filter-does-not-bypass-scope"
@@ -5809,8 +5809,8 @@
               "search.empty-q",
               "search.q-narrows-result",
               "search.tokens-and",
-              "select.nested-honoured",
-              "select.projection-honoured",
+              "select.nested-honored",
+              "select.projection-honored",
               "select.requested-fields-present",
               "sort.default-order-applied",
               "sort.invalid-direction-rejected",
@@ -5821,7 +5821,7 @@
               "sort.stable-tiebreak",
               "sort.unknown-field-rejected",
               "spec.declared-filterable-is-filterable",
-              "spec.declared-rate-limit-is-honoured",
+              "spec.declared-rate-limit-is-honored",
               "spec.declared-selectable-is-selectable",
               "spec.declared-sortable-is-sortable",
               "tenant.filter-does-not-bypass-scope",
@@ -6983,10 +6983,10 @@
         "check": "search.tokens-and"
       },
       {
-        "check": "select.nested-honoured"
+        "check": "select.nested-honored"
       },
       {
-        "check": "select.projection-honoured"
+        "check": "select.projection-honored"
       },
       {
         "check": "select.requested-fields-present"
@@ -7028,7 +7028,7 @@
         "check": "spec.declared-filterable-ops-accepted"
       },
       {
-        "check": "spec.declared-rate-limit-is-honoured"
+        "check": "spec.declared-rate-limit-is-honored"
       },
       {
         "check": "spec.declared-selectable-is-selectable"
@@ -7586,12 +7586,12 @@
           "skipped": 3
         },
         {
-          "check": "select.nested-honoured",
+          "check": "select.nested-honored",
           "ran": 3,
           "skipped": 5
         },
         {
-          "check": "select.projection-honoured",
+          "check": "select.projection-honored",
           "ran": 5,
           "skipped": 3
         },
@@ -7666,7 +7666,7 @@
           "skipped": 5
         },
         {
-          "check": "spec.declared-rate-limit-is-honoured",
+          "check": "spec.declared-rate-limit-is-honored",
           "ran": 5,
           "skipped": 3
         },

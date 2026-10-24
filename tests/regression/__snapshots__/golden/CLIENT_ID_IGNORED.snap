@@ -28,7 +28,7 @@
         "filter.numeric-comparison-is-numeric",
         "invalidation.declared-route-changes",
         "pagination.limit-respects-documented-max",
-        "select.nested-honoured",
+        "select.nested-honored",
         "sort.nulls-first-last",
         "sort.numeric-order-is-numeric",
         "tenant.parent-not-reachable-from-another-root",
@@ -423,7 +423,7 @@
           "needs": "searchable fields and two tokens that split the cohort"
         },
         {
-          "check": "select.projection-honoured",
+          "check": "select.projection-honored",
           "entity": "table",
           "needs": "a `select` sparse-fieldset parameter"
         },
@@ -853,7 +853,7 @@
                 "select.unknown-field-rejected",
                 "sort.unknown-field-rejected",
                 "spec.declared-filterable-ops-accepted",
-                "spec.declared-rate-limit-is-honoured",
+                "spec.declared-rate-limit-is-honored",
                 "spec.declared-sortable-nulls-accepted"
               ],
               "suppressed": []
@@ -1054,7 +1054,7 @@
                 "search.mode-accepted",
                 "search.q-narrows-result",
                 "search.tokens-and",
-                "select.projection-honoured",
+                "select.projection-honored",
                 "select.requested-fields-present",
                 "select.unknown-field-rejected",
                 "softdelete.absent-from-default-list",
@@ -1068,7 +1068,7 @@
                 "sort.unknown-field-rejected",
                 "spec.declared-filterable-is-filterable",
                 "spec.declared-filterable-ops-accepted",
-                "spec.declared-rate-limit-is-honoured",
+                "spec.declared-rate-limit-is-honored",
                 "spec.declared-selectable-is-selectable",
                 "spec.declared-sortable-is-sortable",
                 "spec.declared-sortable-nulls-accepted",
@@ -1457,8 +1457,8 @@
                 "search.mode-accepted",
                 "search.q-narrows-result",
                 "search.tokens-and",
-                "select.nested-honoured",
-                "select.projection-honoured",
+                "select.nested-honored",
+                "select.projection-honored",
                 "select.requested-fields-present",
                 "sort.default-order-applied",
                 "sort.multi-key-tiebreak",
@@ -1468,7 +1468,7 @@
                 "sort.stable-tiebreak",
                 "sort.unknown-field-rejected",
                 "spec.declared-filterable-is-filterable",
-                "spec.declared-rate-limit-is-honoured",
+                "spec.declared-rate-limit-is-honored",
                 "spec.declared-selectable-is-selectable",
                 "spec.declared-sortable-is-sortable",
                 "tenant.filter-does-not-bypass-scope",
@@ -2068,7 +2068,7 @@
           "check": "pagination.limit-respects-documented-max"
         },
         {
-          "check": "select.nested-honoured"
+          "check": "select.nested-honored"
         },
         {
           "check": "sort.nulls-first-last"
@@ -2581,12 +2581,12 @@
             "skipped": 4
           },
           {
-            "check": "select.nested-honoured",
+            "check": "select.nested-honored",
             "ran": 2,
             "skipped": 5
           },
           {
-            "check": "select.projection-honoured",
+            "check": "select.projection-honored",
             "ran": 3,
             "skipped": 4
           },
@@ -2661,7 +2661,7 @@
             "skipped": 4
           },
           {
-            "check": "spec.declared-rate-limit-is-honoured",
+            "check": "spec.declared-rate-limit-is-honored",
             "ran": 4,
             "skipped": 3
           },
@@ -3173,12 +3173,12 @@
             "skipped": 3
           },
           {
-            "check": "select.nested-honoured",
+            "check": "select.nested-honored",
             "ran": 3,
             "skipped": 5
           },
           {
-            "check": "select.projection-honoured",
+            "check": "select.projection-honored",
             "ran": 5,
             "skipped": 3
           },
@@ -3253,7 +3253,7 @@
             "skipped": 5
           },
           {
-            "check": "spec.declared-rate-limit-is-honoured",
+            "check": "spec.declared-rate-limit-is-honored",
             "ran": 5,
             "skipped": 3
           },

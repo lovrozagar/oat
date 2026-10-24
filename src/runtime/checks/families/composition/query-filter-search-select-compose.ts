@@ -34,7 +34,7 @@ export const filterSearchSelectCompose: Check<
 		"create.persists-submitted-fields",
 		"filter.equality-selects-exactly-one",
 		"search.q-narrows-result",
-		"select.projection-honoured",
+		"select.projection-honored",
 		"pagination.page-walk-covers-set",
 		"query.search-and-filter-compose",
 		"query.filter-and-select-compose",

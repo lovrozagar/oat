@@ -26,7 +26,7 @@ export const NODE_ORDER: readonly CellSpec[] = [
 	{ hint: "item GET agrees", id: "consistency.projections-agree", label: "item" },
 	{ hint: "id.eq selects one", id: "filter.equality-selects-exactly-one", label: "filter" },
 	{ hint: "order rearranges", id: "sort.order-is-applied", label: "sort" },
-	{ hint: "sparse fieldset", id: "select.projection-honoured", label: "select" },
+	{ hint: "sparse fieldset", id: "select.projection-honored", label: "select" },
 	{ hint: "q narrows", id: "search.q-narrows-result", label: "search" },
 	{ hint: "walk covers set", id: "pagination.page-walk-covers-set", label: "page" },
 	{ hint: "other tenant 404", id: "tenant.item-not-readable-cross-tenant", label: "tenant" },
@@ -43,7 +43,7 @@ export const USES: ReadonlyArray<{ from: string; to: string }> = [
 	{ from: "filter.equality-selects-exactly-one", to: "query.axes-compose" },
 	{ from: "sort.order-is-applied", to: "query.axes-compose" },
 	{ from: "filter.equality-selects-exactly-one", to: "query.filter-and-select-compose" },
-	{ from: "select.projection-honoured", to: "query.filter-and-select-compose" },
+	{ from: "select.projection-honored", to: "query.filter-and-select-compose" },
 	{ from: "filter.equality-selects-exactly-one", to: "query.search-and-filter-compose" },
 	{ from: "search.q-narrows-result", to: "query.search-and-filter-compose" },
 	{ from: "filter.equality-selects-exactly-one", to: "query.filter-selects-from-whole-set" },
@@ -73,7 +73,7 @@ export const STRIPS: readonly Strip[] = [
 		title: "filter",
 	},
 	{ ids: ["sort.order-is-applied", "sort.reverse-symmetry"], layer: "axis", title: "sort" },
-	{ ids: ["select.projection-honoured"], layer: "axis", title: "select" },
+	{ ids: ["select.projection-honored"], layer: "axis", title: "select" },
 	{ ids: ["search.q-narrows-result"], layer: "axis", title: "search" },
 	{
 		ids: [

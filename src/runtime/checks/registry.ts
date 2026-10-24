@@ -89,8 +89,8 @@ import { searchEmptyQ } from "./families/search-select/search-empty-q.ts"
 import { searchModeAccepted } from "./families/search-select/search-mode-accepted.ts"
 import { searchNarrowsResult } from "./families/search-select/search-q-narrows-result.ts"
 import { searchTokensAnd } from "./families/search-select/search-tokens-and.ts"
-import { selectNestedHonoured } from "./families/search-select/select-nested-honoured.ts"
-import { selectProjection } from "./families/search-select/select-projection-honoured.ts"
+import { selectNestedHonored } from "./families/search-select/select-nested-honored.ts"
+import { selectProjection } from "./families/search-select/select-projection-honored.ts"
 import { selectRequestedFieldsPresent } from "./families/search-select/select-requested-fields-present.ts"
 import { selectUnknownFieldRejected } from "./families/search-select/select-unknown-field-rejected.ts"
 import { sortDefaultOrderApplied } from "./families/sort/sort-default-order-applied.ts"
@@ -104,7 +104,7 @@ import { sortStableTiebreak } from "./families/sort/sort-stable-tiebreak.ts"
 import { sortUnknownFieldRejected } from "./families/sort/sort-unknown-field-rejected.ts"
 import { declaredFilterableWorks } from "./families/spec-declarations/spec-declared-filterable-is-filterable.ts"
 import { declaredFilterableOpsAccepted } from "./families/spec-declarations/spec-declared-filterable-ops-accepted.ts"
-import { declaredRateLimitHonoured } from "./families/spec-declarations/spec-declared-rate-limit-is-honoured.ts"
+import { declaredRateLimitHonored } from "./families/spec-declarations/spec-declared-rate-limit-is-honored.ts"
 import { declaredSelectableWorks } from "./families/spec-declarations/spec-declared-selectable-is-selectable.ts"
 import { declaredSortableWorks } from "./families/spec-declarations/spec-declared-sortable-is-sortable.ts"
 import { declaredSortableNullsAccepted } from "./families/spec-declarations/spec-declared-sortable-nulls-accepted.ts"
@@ -184,7 +184,7 @@ export const CHECKS: readonly RegisteredCheck[] = [
 	selectRequestedFieldsPresent,
 	selectUnknownFieldRejected,
 	unknownParameterConsistent,
-	selectNestedHonoured,
+	selectNestedHonored,
 	countIsConsistentWithPage,
 	countMatchesWalk,
 	numericComparisonIsNumeric,
@@ -282,5 +282,5 @@ export const CHECKS: readonly RegisteredCheck[] = [
 	readSchemaHonoured,
 	writeOnlyNotReturned,
 	problemJsonShape,
-	declaredRateLimitHonoured,
+	declaredRateLimitHonored,
 ]

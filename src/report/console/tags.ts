@@ -45,7 +45,7 @@ export const TAG_UNLOCKS: Record<string, readonly string[]> = {
 		"search.empty-q",
 		"search.mode-accepted",
 		"select.unknown-field-rejected",
-		"select.nested-honoured",
+		"select.nested-honored",
 		"sort.default-order-applied",
 		/* An out-of-range page size is judged only where x-query declares it refused. */
 		"pagination.limit-bounds-enforced",
@@ -53,7 +53,7 @@ export const TAG_UNLOCKS: Record<string, readonly string[]> = {
 		"filter.contains-membership",
 	],
 	/* A declared rate is a claim the backend can break; an undeclared one is only oat's guess. */
-	"x-rate-limit": ["spec.declared-rate-limit-is-honoured"],
+	"x-rate-limit": ["spec.declared-rate-limit-is-honored"],
 	"x-soft-delete": ["softdelete.absent-from-default-list"],
 	"x-wait": ["effects.side-effect-arrives"],
 	"x-invite": ["auth.invite-grants-then-revokes"],
