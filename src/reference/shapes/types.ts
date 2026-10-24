@@ -40,6 +40,8 @@ export interface ReferenceShape {
 	 * pattern in an `allOf` where it has one, and the server enforces each: what some generators emit.
 	 */
 	stringGuard?: boolean
+	/** The caller enrolls TOTP: `POST /v1/me/2fa` answers its secret, the otpauth URI and a QR image of it. */
+	totpSetup?: boolean
 	/** Each record carries a large generated field, so one page exceeds 256 KiB. */
 	largeRecords?: boolean
 	/** Responses documented as `2XX` and `default` rather than exact codes. */

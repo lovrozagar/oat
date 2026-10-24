@@ -26,6 +26,7 @@ export async function createReferenceServer(
 		},
 		createdIds: () => createdIds(state),
 		defects: state.defects,
+		issuedTotpSecrets: () => [...state.totpSecrets],
 		principals: PRINCIPALS,
 		server: listening.server,
 		snapshot: () => snapshot(state),

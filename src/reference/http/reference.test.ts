@@ -40,6 +40,19 @@ describe("createReference", () => {
 		await expect(reference.close()).resolves.toBeUndefined()
 	})
 
+	it("names every TOTP secret it issued under the totp-setup shape", async () => {
+		const reference = await createReference({ shape: "totp-setup" }, memoryStore)
+		expect(reference.issuedTotpSecrets()).toEqual([])
+		const send = reference.fetch
+		const answer = await send(`${reference.url}/v1/me/2fa`, {
+			headers: await signedIn(send, reference.url),
+			method: "POST",
+		})
+		const { secret } = (await answer.json()) as { secret: string }
+		expect(reference.issuedTotpSecrets()).toEqual([secret])
+		await reference.close()
+	})
+
 	it("refuses an unknown dialect, shape or defect", async () => {
 		await expect(createReference({ dialect: "nope" }, memoryStore)).rejects.toThrow(
 			'unknown dialect "nope" — expected one of jsonapi, plain, classic, linked, postgrest, template',

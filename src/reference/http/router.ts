@@ -20,6 +20,7 @@ import {
 	token,
 } from "./handlers/auth.ts"
 import { account, document, health, me, notices, overview, type Route } from "./handlers/fixed.ts"
+import { totp } from "./handlers/totp.ts"
 import { accept, invite, revoke } from "./handlers/grants.ts"
 import { read, remove, update } from "./handlers/item.ts"
 import { list } from "./handlers/list.ts"
@@ -58,6 +59,7 @@ const FIXED: readonly Route[] = [
 	overview,
 	me,
 	account,
+	totp,
 	styles,
 	search,
 ]

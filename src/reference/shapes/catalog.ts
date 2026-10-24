@@ -174,6 +174,11 @@ export const SHAPES: readonly NamedShape[] = [
 		why: "every written string carries a guard pattern, beside its own pattern in an allOf where it has one",
 	},
 	{
+		name: "totp-setup",
+		shape: { totpSetup: true },
+		why: "the caller enrolls TOTP and is answered its secret, the otpauth URI and a QR image of it",
+	},
+	{
 		name: "rich-schema",
 		shape: { richSchema: true },
 		why: "required date-time, a bounded number, a const, and one schema used twice in a body",

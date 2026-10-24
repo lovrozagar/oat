@@ -111,3 +111,14 @@ describe("callerProfilePaths under the string guard", () => {
 		})
 	})
 })
+
+describe("callerProfilePaths under the totp-setup shape", () => {
+	it("documents the TOTP setup, outside any entity, so the contract floor calls it", () => {
+		const paths = callerProfilePaths({ entities: ENTITIES, shape: { totpSetup: true } }) as Paths
+		const setup = paths["/v1/me/2fa"]?.["post"] as Json & { responses: Json }
+		expect(setup).toMatchObject({ operationId: "auth.setup2fa" })
+		expect(setup["x-entity"]).toBeUndefined()
+		expect(Object.keys(setup.responses)).toEqual(["200", "401"])
+		expect(callerProfilePaths(CTX)).not.toHaveProperty("/v1/me/2fa")
+	})
+})

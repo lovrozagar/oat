@@ -45,6 +45,8 @@ export interface Reference {
 	snapshot: () => Promise<Record<string, Row[]>>
 	/** Every id the server issued or stored since it started serving, per entity, deleted since or not. */
 	createdIds: () => Record<string, string[]>
+	/** Every TOTP secret the server issued, so a test can look for it in what a run saved. */
+	issuedTotpSecrets: () => readonly string[]
 	/** Closes the store. Teardown must not turn a completed run into a failed one: a failure is swallowed. */
 	close: () => Promise<void>
 }
@@ -60,6 +62,7 @@ export async function createReference(options: ReferenceOptions, createStore: St
 	return {
 		close: () => closeStore(state),
 		createdIds: () => createdIds(state),
+		issuedTotpSecrets: () => [...state.totpSecrets],
 		defects: state.defects,
 		/* The same handler a listening server runs, without the socket. */
 		fetch: asFetch((request) => handle(state, request)),
@@ -99,6 +102,7 @@ export async function referenceState(options: ReferenceOptions, createStore: Sto
 		jobStartedAt: new Map(),
 		listingStore: defects.has("HIDDEN_FROM_CREATOR") ? withoutHidden(defects, store) : store,
 		profiles: new Map(),
+		totpSecrets: [],
 		shape,
 		slugOf: new Map(),
 		staleSnapshot: new Map(),

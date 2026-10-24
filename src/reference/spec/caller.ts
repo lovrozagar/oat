@@ -71,6 +71,29 @@ export function callerProfilePaths(ctx: SpecContext): Json {
 				"x-invalidate": ["GET /v1/me"],
 			},
 		},
+		...(ctx.shape.totpSetup === true ? { "/v1/me/2fa": { post: totpSetupOperation(ctx) } } : {}),
+	}
+}
+
+/*
+ * Under the totp-setup shape: the caller enrolls TOTP. Outside any entity, as such a route is, so the
+ * contract floor is what calls it, and its answer carries the secret three ways.
+ */
+function totpSetupOperation(ctx: SpecContext): Json {
+	const text = { type: "string" }
+	return {
+		operationId: "auth.setup2fa",
+		responses: {
+			[ok(ctx, 200)]: jsonResponse("The caller's new TOTP secret, its otpauth URI and a QR image of it", {
+				additionalProperties: false,
+				properties: { otpauth_uri: text, qr_code: text, secret: text },
+				required: ["secret", "otpauth_uri", "qr_code"],
+				type: "object",
+			}),
+			...errorResponses(ctx, [401]),
+		},
+		summary: "Enroll the caller in TOTP",
+		tags: ["Profile"],
 	}
 }
 

@@ -219,6 +219,7 @@
 	"src/reference/http/handlers/list.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/reference/http/handlers/query-route.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/reference/http/handlers/styles.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/reference/http/handlers/totp.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/reference/http/ids.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/reference/http/listing-query.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/reference/http/node.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },

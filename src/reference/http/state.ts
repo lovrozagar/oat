@@ -110,6 +110,8 @@ export interface ReferenceState {
 	grants: Map<string, Grant>
 	/** The caller's own profile, per principal key. */
 	profiles: Map<string, Profile>
+	/** Every TOTP secret `auth.setup2fa` issued, under the totp-setup shape. */
+	totpSecrets: string[]
 	/** Accounts, issued and revoked tokens, API keys and failed logins. */
 	auth: AuthState
 	/** Under `tableKey: "slug"`, each table's slug by its internal id: the identity a client knows. */
