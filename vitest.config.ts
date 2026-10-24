@@ -19,7 +19,14 @@ export default defineConfig({
 			{ extends: true, test: { name: "unit", include: ["src/**/*.test.ts", "lint/**/*.test.ts"] } },
 			{
 				extends: true,
-				test: { name: "integration", include: ["tests/{integration,regression,structure}/**/*.test.ts"] },
+				test: {
+					name: "integration",
+					include: ["tests/{integration,regression,structure}/**/*.test.ts"],
+					/* A hook here starts a server or runs oat whole (a golden run takes seconds); under a
+					 * loaded host the 10s default timed one out with nothing wrong. 120s is over ten times
+					 * the slowest such hook, so only a hang reaches it. */
+					hookTimeout: 120_000,
+				},
 			},
 		],
 		coverage: {
