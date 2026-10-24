@@ -25,6 +25,7 @@
 	"files": [
 		"bin/oat.js",
 		"dist",
+		"!dist/**/*.map",
 		"README.md",
 		"docs",
 		"LICENSE",

@@ -106,5 +106,7 @@ describe("the package", () => {
 			.map((path) => path.replace(/^dist\//, "src/").replace(/\.js$/, ".ts"))
 			.filter((source) => !existsSync(join(ROOT, source)))
 		expect(orphans).toEqual([])
+		/* A source map points at src/, which the package does not ship: it would only add size. */
+		expect(shipped.filter((path) => path.endsWith(".map"))).toEqual([])
 	})
 })
