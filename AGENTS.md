@@ -36,6 +36,28 @@ Ask first, and wait: anything that can lose work — `reset --hard`, `checkout` 
 `commit --amend`, deleting tags, anything reflog-driven. If you can't tell,
 assume it can.
 
+## Architecture rules
+
+The linter and `tests/structure/` enforce each of these; a broken one fails a gate.
+
+- **Limits.** At most 300 lines a file (500 for tests and fixtures), 60 lines a function,
+  complexity 15, nesting depth 4, and 3 parameters (pass an object beyond that).
+- **Layout.** Every module has a sibling `*.test.ts`, except an index, a types-only file and an
+  entry point. Colocated tests open no socket; tests that need one live under `tests/`. There is
+  no `test/` directory, and the package ships no test or fixture.
+- **Arrows.** Imports point down, never up or across: errors, config/types → security → spec →
+  client, credentials, reference → runtime (checks included) → runtime/run → config, report,
+  conformance → cli, index. The reference backend is its own program: it never imports the client
+  or the runtime. No import cycles, type-only imports included.
+- **Naming.** A module is named for what it does. No `utils`, `helpers` or `misc` file or
+  directory, and no barrel: `export *` appears nowhere, and `src/index.ts` names each export.
+- **Red first.** Red is a step, not a commit. Write the test, run it and see it fail, then write
+  the fix; the failing test and the fix land together in one `fix:` or `feat:` commit, because
+  every commit is verified before it is pushed.
+- **anyrow acceptance.** A release candidate passes the procedure in `tests/targets/anyrow.md`
+  by hand before it is tagged, and `bun run test:targets` matches every target's expected
+  findings exactly.
+
 ## Before you call it done
 
 From the repo root; CI runs the same set, with `fmt:check` in place of `fmt`.
