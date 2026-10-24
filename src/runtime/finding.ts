@@ -47,7 +47,7 @@ export function isFailingRootCause(finding: { verdict: Verdict | string; known?:
  */
 export type Outcome =
 	| { kind: "asserted"; note?: string }
-	| { kind: "finding"; verdict: Verdict }
+	| { kind: "finding"; verdict: Verdict; note?: string }
 	| { kind: "unresolved"; reason: string }
 	| { kind: "stood-down"; reason: string }
 

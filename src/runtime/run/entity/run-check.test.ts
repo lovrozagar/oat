@@ -60,6 +60,18 @@ describe("runCheck outcomes", () => {
 		expect(ctx.grades.ran.has("notes.get")).toBe(true)
 	})
 
+	it("keeps the note of a check that reported along the way and fell through with one", async () => {
+		const { ctx, outcome } = await ran({
+			id: "c.noted",
+			run: async (view) => {
+				view.findings.backend("c.noted", "note", { summary: "s", detail: "d", evidence: [] })
+				return { kind: "asserted", note: "one answer was not judged" }
+			},
+		})
+		expect(outcome).toEqual({ kind: "finding", note: "one answer was not judged", verdict: "BACKEND_BUG" })
+		expect(ctx.state.checkNotes).toEqual([{ check: "c.noted", entity: "note", note: "one answer was not judged" }])
+	})
+
 	it("takes what a check reported for its outcome, though it fell through to asserted", async () => {
 		const { ctx, outcome } = await ran({
 			id: "c.reported",

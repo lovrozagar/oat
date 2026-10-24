@@ -80,6 +80,7 @@ export const TYPICAL_REQUESTS: Partial<Record<CheckId, number>> = {
 	"response.public-get-returns-success": 1,
 	"response.status-is-documented": 1,
 	"schema.error-response-matches-document": 1,
+	"schema.read-response-matches-document": 1,
 	"schema.success-response-matches-document": 1,
 	"search.case-insensitive": 1,
 	"search.empty-q": 4,

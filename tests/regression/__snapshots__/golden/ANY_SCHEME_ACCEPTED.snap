@@ -61,7 +61,8 @@
                 "auth.invalid-credential-refused",
                 "auth.missing-credential-refused",
                 "query.unknown-parameter-consistent",
-                "response.status-is-documented"
+                "response.status-is-documented",
+                "schema.read-response-matches-document"
               ],
               "suppressed": []
             },
@@ -219,7 +220,8 @@
                 "auth.missing-credential-refused",
                 "auth.wrong-scheme-refused",
                 "query.unknown-parameter-consistent",
-                "response.status-is-documented"
+                "response.status-is-documented",
+                "schema.read-response-matches-document"
               ],
               "suppressed": []
             },

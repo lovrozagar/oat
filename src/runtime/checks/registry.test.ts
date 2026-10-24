@@ -33,21 +33,29 @@ describe("the check registry", () => {
 	})
 
 	it("judges the transcript last, after every check that writes to it", () => {
-		const last = CHECKS.slice(-4).map((check) => check.id)
+		const last = CHECKS.slice(-5).map((check) => check.id)
 		expect(last).toEqual([
 			"response.status-is-documented",
 			"schema.error-response-matches-document",
+			"schema.read-response-matches-document",
 			"schema.problem-json-shape",
 			"spec.declared-rate-limit-is-honoured",
 		])
-		for (const check of entityChecks(CHECKS).slice(-4)) expect(check.judgesTranscript).toBe(true)
+		for (const check of entityChecks(CHECKS).slice(-5)) expect(check.judgesTranscript).toBe(true)
 		/* The precondition check writes the 412 the status and problem judges read. */
 		expect(at("concurrency.if-match-enforced")).toBe(at("response.status-is-documented") - 1)
 	})
 })
 
-/* The checks the precondition checks brought in, and the widget document with a rate each judge reads. */
-const PRECONDITION_CHECKS: ReadonlySet<string> = new Set(["concurrency.if-match-enforced", "schema.problem-json-shape"])
+/*
+ * The checks registered after the rest: the precondition checks, and the read-schema judge. Then the
+ * widget document with a rate each judge reads.
+ */
+const ADDED_CHECKS: ReadonlySet<string> = new Set([
+	"concurrency.if-match-enforced",
+	"schema.problem-json-shape",
+	"schema.read-response-matches-document",
+])
 
 function judgedDocument(): OpenApiDocument {
 	const doc = widgetDoc() as unknown as { paths: Record<string, Record<string, Record<string, unknown>>> }
@@ -64,7 +72,7 @@ describe("registering the precondition checks", () => {
 	 */
 	it("moves no salt: every check whose place moved is a transcript judge that draws none", async () => {
 		const now = entityChecks(CHECKS)
-		const before = now.filter((check) => !PRECONDITION_CHECKS.has(check.id))
+		const before = now.filter((check) => !ADDED_CHECKS.has(check.id))
 		const moved = before.filter((check, index) => now.indexOf(check) !== index)
 		expect(moved.map((check) => check.id)).toEqual([
 			"response.status-is-documented",
@@ -83,7 +91,8 @@ describe("registering the precondition checks", () => {
 			await ctx.client.request("GET", path, { as: { principal: "alpha" }, operationId })
 		}
 		const drawn: string[] = []
-		const judges = [...moved, ...now.filter((judge) => judge.id === "schema.problem-json-shape")]
+		const added = ["schema.read-response-matches-document", "schema.problem-json-shape"]
+		const judges = [...moved, ...added.flatMap((id) => now.filter((judge) => judge.id === id))]
 		const outcomes: string[] = []
 		for (const judge of judges) {
 			const outcome = await runCheck(judge, {
@@ -98,6 +107,7 @@ describe("registering the precondition checks", () => {
 		/* No answer here is a problem detail, so that judge has nothing to judge and stands down. */
 		expect(outcomes).toEqual([
 			...moved.map((judge) => `${judge.id}: asserted`),
+			"schema.read-response-matches-document: asserted",
 			"schema.problem-json-shape: stood-down",
 		])
 		expect(drawn).toEqual([])

@@ -97,6 +97,7 @@
       "response.status-is-documented",
       "schema.error-response-matches-document",
       "schema.problem-json-shape",
+      "schema.read-response-matches-document",
       "schema.success-response-matches-document",
       "search.case-insensitive",
       "search.empty-q",
@@ -4149,6 +4150,7 @@
               "query.sort-and-select-compose",
               "query.unknown-parameter-consistent",
               "response.status-is-documented",
+              "schema.read-response-matches-document",
               "search.case-insensitive",
               "search.empty-q",
               "search.mode-accepted",
@@ -4231,6 +4233,7 @@
               "query.sort-and-select-compose",
               "query.unknown-parameter-consistent",
               "response.status-is-documented",
+              "schema.read-response-matches-document",
               "search.case-insensitive",
               "search.empty-q",
               "search.mode-accepted",
@@ -4279,6 +4282,7 @@
               "payload.string-survives",
               "response.status-is-documented",
               "schema.error-response-matches-document",
+              "schema.read-response-matches-document",
               "tenant.denial-does-not-reveal-existence",
               "tenant.item-not-readable-cross-tenant"
             ],
@@ -4310,6 +4314,7 @@
               "payload.string-survives",
               "response.status-is-documented",
               "schema.error-response-matches-document",
+              "schema.read-response-matches-document",
               "tenant.denial-does-not-reveal-existence",
               "tenant.item-not-readable-cross-tenant",
               "tenant.parent-not-reachable-from-another-root"
@@ -4342,6 +4347,7 @@
               "payload.string-survives",
               "response.status-is-documented",
               "schema.error-response-matches-document",
+              "schema.read-response-matches-document",
               "tenant.denial-does-not-reveal-existence",
               "tenant.item-not-readable-cross-tenant"
             ],
@@ -4372,6 +4378,7 @@
               "payload.string-survives",
               "response.status-is-documented",
               "schema.error-response-matches-document",
+              "schema.read-response-matches-document",
               "tenant.denial-does-not-reveal-existence",
               "tenant.item-not-readable-cross-tenant"
             ],
@@ -4838,7 +4845,8 @@
               "auth.missing-credential-refused",
               "auth.wrong-scheme-refused",
               "query.unknown-parameter-consistent",
-              "response.status-is-documented"
+              "response.status-is-documented",
+              "schema.read-response-matches-document"
             ],
             "suppressed": []
           },
@@ -4972,7 +4980,8 @@
               "auth.rank-is-monotonic",
               "list.item-matches-listed-row",
               "response.status-is-documented",
-              "schema.error-response-matches-document"
+              "schema.error-response-matches-document",
+              "schema.read-response-matches-document"
             ],
             "suppressed": []
           },
@@ -5190,6 +5199,7 @@
               "query.sort-and-select-compose",
               "query.unknown-parameter-consistent",
               "response.status-is-documented",
+              "schema.read-response-matches-document",
               "search.case-insensitive",
               "search.empty-q",
               "search.mode-accepted",
@@ -6324,6 +6334,9 @@
       },
       {
         "check": "schema.problem-json-shape"
+      },
+      {
+        "check": "schema.read-response-matches-document"
       },
       {
         "check": "schema.success-response-matches-document"

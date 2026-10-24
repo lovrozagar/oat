@@ -32,6 +32,14 @@ describe("reading a record", () => {
 		expect((await call("GET", `${JOBS}/${String(job["id"])}`)).body).toMatchObject({ note: "n" })
 	})
 
+	it("answers a table's item read with an undeclared member under READ_BODY_DIVERGES, its listing as documented", async () => {
+		const { call, item } = await withTable({ defects: ["READ_BODY_DIVERGES"] })
+		expect((await call("GET", item)).body).toMatchObject({ cache_status: "hit" })
+		expect(JSON.stringify((await call("GET", TABLES)).body)).not.toContain("cache_status")
+		const job = (await call("POST", JOBS, { body: { name: "j", note: "n" } })).body
+		expect((await call("GET", `${JOBS}/${String(job["id"])}`)).body).not.toHaveProperty("cache_status")
+	})
+
 	it("wraps the record beside its fields under recordEnvelope", async () => {
 		const { call } = await api({ shape: "wrapped-records" })
 		const { body } = await call("GET", `${TABLES}/1`)

@@ -39,6 +39,8 @@ export const RECORD_DEFECTS = {
 	CREATE_DROPS_FIELD: "create accepts a field and does not persist it",
 	/** The item read leaves out a field the record holds: the list and the store still have it. */
 	READ_DROPS_FIELD: "the item read omits a field the record holds",
+	/** A table's item read answers a member its documented schema does not declare; its listing does not. */
+	READ_BODY_DIVERGES: "the item read answers a member its documented schema does not declare",
 	/**
 	 * PATCH of the signed-up caller returns 200 and leaves the record unchanged.
 	 *

@@ -97,6 +97,7 @@ const PREFIXED_CHECK_IDS = [
 	"response.status-is-documented",
 	"schema.error-response-matches-document",
 	"schema.problem-json-shape",
+	"schema.read-response-matches-document",
 	"schema.success-response-matches-document",
 	"search.case-insensitive",
 	"search.empty-q",

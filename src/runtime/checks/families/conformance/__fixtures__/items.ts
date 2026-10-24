@@ -43,6 +43,10 @@ export interface ItemsOptions {
 	conflict?: unknown
 	/** The gated update's responses, in place of a 200 and a documented 403. */
 	update?: Record<string, unknown>
+	/** The read's 200 body schema. */
+	read?: unknown
+	/** A `select` sparse-fieldset parameter on the list. */
+	select?: true
 }
 
 export function itemsDocument(options: ItemsOptions = {}): OpenApiDocument {
@@ -54,6 +58,9 @@ export function itemsDocument(options: ItemsOptions = {}): OpenApiDocument {
 			"/items": {
 				get: {
 					operationId: "item.list",
+					...(options.select === true
+						? { parameters: [{ in: "query", name: "select", schema: { type: "string" } }] }
+						: {}),
 					responses: { "200": json({ items: ITEM, type: "array" }) },
 					...entity("list"),
 				},
@@ -78,7 +85,7 @@ export function itemsDocument(options: ItemsOptions = {}): OpenApiDocument {
 				get: {
 					operationId: "item.read",
 					parameters: [id],
-					responses: { "200": json(ITEM), "404": json(options.missing ?? ERROR) },
+					responses: { "200": json(options.read ?? ITEM), "404": json(options.missing ?? ERROR) },
 					...entity("read"),
 				},
 				patch: {

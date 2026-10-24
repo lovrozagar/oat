@@ -36,6 +36,7 @@
                 "invalidation.declared-route-changes",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
+                "schema.read-response-matches-document",
                 "tenant.denial-does-not-reveal-existence",
                 "tenant.item-not-readable-cross-tenant"
               ],
@@ -64,6 +65,7 @@
                 "consistency.projections-agree",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
+                "schema.read-response-matches-document",
                 "tenant.denial-does-not-reveal-existence",
                 "tenant.item-not-readable-cross-tenant",
                 "tenant.parent-not-reachable-from-another-root"
@@ -93,6 +95,7 @@
                 "consistency.projections-agree",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
+                "schema.read-response-matches-document",
                 "tenant.denial-does-not-reveal-existence",
                 "tenant.item-not-readable-cross-tenant"
               ],
@@ -120,6 +123,7 @@
                 "concurrency.if-match-enforced",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
+                "schema.read-response-matches-document",
                 "tenant.denial-does-not-reveal-existence",
                 "tenant.item-not-readable-cross-tenant"
               ],
@@ -272,6 +276,7 @@
                 "payload.string-survives",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
+                "schema.read-response-matches-document",
                 "tenant.denial-does-not-reveal-existence",
                 "tenant.item-not-readable-cross-tenant"
               ],
@@ -303,6 +308,7 @@
                 "payload.string-survives",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
+                "schema.read-response-matches-document",
                 "tenant.denial-does-not-reveal-existence",
                 "tenant.item-not-readable-cross-tenant",
                 "tenant.parent-not-reachable-from-another-root"
@@ -335,6 +341,7 @@
                 "payload.string-survives",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
+                "schema.read-response-matches-document",
                 "tenant.denial-does-not-reveal-existence",
                 "tenant.item-not-readable-cross-tenant"
               ],
@@ -365,6 +372,7 @@
                 "payload.string-survives",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
+                "schema.read-response-matches-document",
                 "tenant.denial-does-not-reveal-existence",
                 "tenant.item-not-readable-cross-tenant"
               ],

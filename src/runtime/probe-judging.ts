@@ -15,6 +15,7 @@ export const DOCUMENTATION_JUDGES: readonly CheckId[] = [
 	"response.contract-call",
 	"response.status-is-documented",
 	"schema.error-response-matches-document",
+	"schema.read-response-matches-document",
 	"schema.success-response-matches-document",
 ]
 

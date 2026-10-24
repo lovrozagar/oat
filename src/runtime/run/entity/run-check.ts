@@ -177,7 +177,8 @@ function reported(run: EntityRun, { check, start }: Running, outcome: Outcome): 
 	const found = run.ctx.findings.findings
 		.slice(start)
 		.find((finding) => finding.check === check.id && finding.entity === run.entity.name && isRootCause(finding))
-	return found === undefined ? outcome : { kind: "finding", verdict: found.verdict }
+	if (found === undefined) return outcome
+	return { kind: "finding", verdict: found.verdict, ...(outcome.note === undefined ? {} : { note: outcome.note }) }
 }
 
 /**
@@ -188,7 +189,7 @@ function judge(run: EntityRun, check: Check, subjects: Ended): void {
 	const { outcome } = subjects
 	const { state, grades } = run.ctx
 	const entity = run.entity.name
-	if (outcome.kind === "asserted" && outcome.note !== undefined) {
+	if ((outcome.kind === "asserted" || outcome.kind === "finding") && outcome.note !== undefined) {
 		state.checkNotes.push({ check: check.id, entity, note: outcome.note })
 	}
 	if (outcome.kind !== "stood-down") {

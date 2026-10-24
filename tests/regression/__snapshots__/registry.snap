@@ -1204,6 +1204,13 @@
     "needs": "a documented error schema on the item route"
   },
   {
+    "id": "schema.read-response-matches-document",
+    "dependsOn": [],
+    "mutates": false,
+    "judgesTranscript": true,
+    "needs": "an item read or a listing with a documented success schema"
+  },
+  {
     "id": "schema.problem-json-shape",
     "dependsOn": [],
     "mutates": false,

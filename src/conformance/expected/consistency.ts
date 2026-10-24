@@ -19,6 +19,8 @@ export const CONSISTENCY_EXPECTED: Record<ConsistencyDefect, FindingId | Finding
 		"filter.equality-selects-exactly-one",
 		"select.projection-honoured",
 		"sort.order-is-applied",
+		/* The listing's suffix carries a name at its maxLength past it: a value its schema forbids. */
+		"schema.read-response-matches-document",
 	],
 	STALE_LIST: "list.read-after-write",
 	LISTED_GET_DIFFERS: "list.item-matches-listed-row",

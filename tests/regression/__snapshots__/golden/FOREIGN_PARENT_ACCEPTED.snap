@@ -36,6 +36,7 @@
                 "payload.string-survives",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
+                "schema.read-response-matches-document",
                 "tenant.denial-does-not-reveal-existence",
                 "tenant.item-not-readable-cross-tenant"
               ],
@@ -122,6 +123,7 @@
                 "query.sort-and-select-compose",
                 "query.unknown-parameter-consistent",
                 "response.status-is-documented",
+                "schema.read-response-matches-document",
                 "search.case-insensitive",
                 "search.empty-q",
                 "search.mode-accepted",
@@ -169,6 +171,7 @@
                 "payload.string-survives",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
+                "schema.read-response-matches-document",
                 "tenant.denial-does-not-reveal-existence",
                 "tenant.item-not-readable-cross-tenant",
                 "tenant.parent-not-reachable-from-another-root"
@@ -261,6 +264,7 @@
                 "query.sort-and-select-compose",
                 "query.unknown-parameter-consistent",
                 "response.status-is-documented",
+                "schema.read-response-matches-document",
                 "search.case-insensitive",
                 "search.empty-q",
                 "search.mode-accepted",

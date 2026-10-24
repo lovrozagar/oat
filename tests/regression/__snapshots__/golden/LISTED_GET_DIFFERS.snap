@@ -28,7 +28,8 @@
               "passed": [
                 "auth.rank-is-monotonic",
                 "response.status-is-documented",
-                "schema.error-response-matches-document"
+                "schema.error-response-matches-document",
+                "schema.read-response-matches-document"
               ],
               "suppressed": []
             },
@@ -49,7 +50,8 @@
                 "auth.rank-is-monotonic",
                 "list.item-matches-listed-row",
                 "response.status-is-documented",
-                "schema.error-response-matches-document"
+                "schema.error-response-matches-document",
+                "schema.read-response-matches-document"
               ],
               "suppressed": []
             },

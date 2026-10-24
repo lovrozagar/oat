@@ -11,6 +11,7 @@ type ConformanceDefect = Extract<
 	| "ERROR_SCHEMA_DRIFT"
 	| "PROBLEM_JSON_MALFORMED"
 	| "RESPONSE_SCHEMA_DRIFT"
+	| "READ_BODY_DIVERGES"
 	| "ACTION_CRASHES"
 >
 
@@ -22,7 +23,9 @@ export const CONFORMANCE_EXPECTED: Record<ConformanceDefect, FindingId | Finding
 	RESPONSE_STATUS_UNDECLARED: "response.status-is-documented",
 	ERROR_SCHEMA_DRIFT: "schema.error-response-matches-document",
 	PROBLEM_JSON_MALFORMED: "schema.problem-json-shape",
-	RESPONSE_SCHEMA_DRIFT: "schema.success-response-matches-document",
+	/* Every record answer carries the undeclared fields: the create's, and the reads' too. */
+	RESPONSE_SCHEMA_DRIFT: ["schema.success-response-matches-document", "schema.read-response-matches-document"],
+	READ_BODY_DIVERGES: "schema.read-response-matches-document",
 	/* The 500 is a crash, and one the reference document never lists, which is a spec finding too. */
 	ACTION_CRASHES: ["response.no-server-error", "response.status-is-documented"],
 }

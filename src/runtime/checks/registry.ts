@@ -20,6 +20,7 @@ import { unknownParameterConsistent } from "./families/composition/query-unknown
 import { documentedStatusHonoured } from "./families/conformance/response-status-is-documented.ts"
 import { errorSchemaHonoured } from "./families/conformance/schema-error-response-matches-document.ts"
 import { problemJsonShape } from "./families/conformance/schema-problem-json-shape.ts"
+import { readSchemaHonoured } from "./families/conformance/schema-read-response-matches-document.ts"
 import { successSchemaHonoured } from "./families/conformance/schema-success-response-matches-document.ts"
 import { projectionsAgree } from "./families/consistency/consistency-projections-agree.ts"
 import { declaredInvalidationHappens } from "./families/consistency/invalidation-declared-route-changes.ts"
@@ -277,6 +278,7 @@ export const CHECKS: readonly RegisteredCheck[] = [
 	 * create.status-matches-document. */
 	documentedStatusHonoured,
 	errorSchemaHonoured,
+	readSchemaHonoured,
 	problemJsonShape,
 	declaredRateLimitHonoured,
 ]

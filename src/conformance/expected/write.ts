@@ -32,7 +32,11 @@ export const WRITE_EXPECTED: Record<WriteDefect, FindingId | FindingId[]> = {
 	UNIQUE_NOT_ENFORCED: ["create.unique-conflict-rejected", "update.unique-conflict-rejected"],
 	DELETE_MISSING_OK: "delete.absent-record-returns-404",
 	IMMUTABLE_WRITABLE: "patch.immutable-field-rejected",
-	PATCH_REPLACES: ["patch.minimality", "consistency.projections-agree"],
+	/*
+	 * The replacing patch resets every unsent field to a blank default; behind rich-schema those blanks
+	 * break the record's own constraints (a date-time, a minimum, a const), and the reads serve them.
+	 */
+	PATCH_REPLACES: ["patch.minimality", "consistency.projections-agree", "schema.read-response-matches-document"],
 	SOFT_DELETE_LEAK: "softdelete.absent-from-default-list",
 	CREATE_DROPS_FIELD: "create.persists-submitted-fields",
 	READ_DROPS_FIELD: ["payload.string-survives", "consistency.projections-agree"],

@@ -23,6 +23,7 @@ export async function read(state: ReferenceState, call: ItemCall): Promise<Refer
 	const row = await findItem(state, call)
 	const shown = present(state, call.entity, row)
 	if (state.defects.has("READ_DROPS_FIELD") && call.entity.name === state.table.name) delete shown["description"]
+	if (state.defects.has("READ_BODY_DIVERGES") && call.entity.name === state.table.name) shown["cache_status"] = "hit"
 	return respond(200, answerRead(state, call.entity, shown), { etag: etagOf(row) })
 }
 
