@@ -69,6 +69,38 @@ describe("merge", () => {
 	})
 })
 
+describe("merge, patterns", () => {
+	it("adds a third pattern beside the residual ones, once", () => {
+		const two = merge({ pattern: "^a" }, { pattern: "b$" })
+		expect(merge(two, { pattern: "c" })).toEqual({ allOf: [{ pattern: "b$" }, { pattern: "c" }], pattern: "^a" })
+		expect(merge(two, { pattern: "b$" })).toEqual(two)
+	})
+
+	it("joins two allOf lists rather than keeping only the second", () => {
+		expect(merge({ allOf: [{ pattern: "a" }] }, { allOf: [{ pattern: "b" }] })).toEqual({
+			allOf: [{ pattern: "a" }, { pattern: "b" }],
+		})
+	})
+
+	it("keeps both of two patterns: the first at the top, the second a residual allOf", () => {
+		expect(merge({ pattern: "^[a-z]+$" }, { pattern: "^[^\\u0000]*$" })).toEqual({
+			allOf: [{ pattern: "^[^\\u0000]*$" }],
+			pattern: "^[a-z]+$",
+		})
+		expect(merge({ pattern: "^a" }, { pattern: "^a" })).toEqual({ pattern: "^a" })
+	})
+
+	it("keeps every pattern an allOf's branches set", () => {
+		const own = "^\\+[1-9]\\d{7,14}$"
+		const guard = "^[^\\u0000\\uD800-\\uDFFF]*$"
+		expect(mergeAll({ allOf: [{ pattern: own }, { pattern: guard }], type: "string" }, "/p")).toEqual({
+			allOf: [{ pattern: guard }],
+			pattern: own,
+			type: "string",
+		})
+	})
+})
+
 describe("merge, keyword by keyword", () => {
 	it("keeps the enum values both allow", () => {
 		expect(merge({ enum: ["a", { b: 1 }, "c"] }, { enum: [{ b: 1 }, "c"] })).toEqual({ enum: [{ b: 1 }, "c"] })

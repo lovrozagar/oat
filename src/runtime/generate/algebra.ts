@@ -31,7 +31,7 @@ export function isVacuous(schema: unknown): boolean {
 }
 
 /**
- * Folds `base`'s `allOf` branches into one schema: properties merged, bounds intersected. `pointer` is the
+ * Folds `base`'s `allOf` branches into one schema: properties merged, bounds intersected, every pattern kept. `pointer` is the
  * value being generated, `path` the `allOf` within its schema; one that is not a list of schemas
  * admits nothing anyone could construct.
  */
@@ -79,6 +79,13 @@ const COMBINE: Readonly<Record<string, Combine>> = {
 	type: bothTypes,
 }
 
+/* Two patterns both hold, and one schema object holds one `pattern`: a second one is carried as an `allOf` branch. */
+function withPattern(out: JsonSchema, pattern: unknown): void {
+	const residual = Array.isArray(out.allOf) ? (out.allOf as unknown[]) : []
+	if (out.pattern === pattern || residual.some((branch) => isObject(branch) && branch.pattern === pattern)) return
+	out.allOf = [...residual, { pattern }]
+}
+
 export function merge(a: JsonSchema, b: JsonSchema): JsonSchema {
 	const out: JsonSchema = { ...a }
 	for (const [key, value] of Object.entries(b)) {
@@ -87,7 +94,9 @@ export function merge(a: JsonSchema, b: JsonSchema): JsonSchema {
 			out[key] = value
 			continue
 		}
-		if (Object.hasOwn(COMBINE, key)) out[key] = (COMBINE[key] as Combine)(existing, value)
+		if (key === "pattern") withPattern(out, value)
+		else if (key === "allOf" && Array.isArray(existing) && Array.isArray(value)) out.allOf = [...existing, ...value]
+		else if (Object.hasOwn(COMBINE, key)) out[key] = (COMBINE[key] as Combine)(existing, value)
 		else out[key] = isObject(existing) && isObject(value) ? merge(existing, value) : value
 	}
 	return out
