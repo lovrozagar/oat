@@ -2,6 +2,26 @@
 
 [← back to the overview](../README.md)
 
+## How a run works
+
+1. **Load** the OpenAPI document (URL or path). Internal `$ref`s are inlined, and a file's relative `$ref`s to files in its own folder are read in. URL `$ref`s are reported, never fetched.
+2. **Model** entities by inverting `x-invalidate` (or path heuristics) into a read surface per entity.
+3. **Authenticate** every configured principal with the recipe for each scheme the document declares. Credentials refresh on a countdown from `exp` (default 30s buffer) before every dispatch and each async poll.
+4. **Seed** a cohort of records per entity, in parent-before-child order, using each entity's create operation.
+5. **Test** the matrix entity by entity: foundations first, then composition, writes, isolation, declared effects. Entities that can see each other's writes (a parent and its children, a route one invalidates, an effect one lands on another) run in series; entities that share nothing run side by side. Checks inside an entity stay ordered.
+6. **Destructive** operations (`x-destructive`) run as a second user signed up for the purpose, never the suite caller.
+7. **Scenarios** run the flows the config declares for operations the matrix cannot reach on its own (a payment, a consent, an invite accepted by a second user).
+8. **Floor**: every operation nothing above graded is called once with a request built from its schema. A delete that only answered 2xx is read back once.
+9. **Teardown** everything the run created, unless `--keep-fixtures` / `keepFixtures: true`.
+
+Every pass names its tier. `verified`: a later exchange shows a value from the call, such as the read holding the created id, the list without the deleted one, or the session refused after the logout. `contract`: the call got a documented success and its body matched the schema, and nothing later showed more. An operation oat could not call at all stays `untested` with the reason (`unresolved param team_id`, `contract call returned 409 …`); declare a scenario for it.
+
+The first principal is the writer. Isolation needs a second principal with a different `tenant`. A rank lattice needs two or more principals that share a `tenant` and differ in `rank`. Invite checks need `x-invite` plus a peer with `inviteAs`.
+
+oat never needs ground truth about your data. A filter and its negation must partition the set; a page walk must cover the collection; a record read four ways must read the same.
+
+Each operation is sent the credentials its OpenAPI `security` requires, placed where its scheme says, from the config's recipe for that scheme (see [Security recipes](configuration.md#security-recipes)). The primary origin is `baseUrl`; extra hosts go in `origins[]`, each with its own spec. A request step whose `path` is an absolute `http(s)` URL is a recorded hop on that URL (a mailed consume page), not an `origins[]` entry. Request bodies follow the document: JSON, `multipart/form-data` (scalars plus dummy, pool, `each` or `resolveUpload` files), or `application/x-www-form-urlencoded`. `hooks.resolveInput` can replace a generated JSON field (a Stripe test `pm_…`); `hooks.resolveHeaders` can attach a one-shot header (Turnstile) per request.
+
 ## How the model is derived
 
 `oat plan` is this model. Checks never see raw paths; they see entities, actions, and query **roles**.
