@@ -108,7 +108,7 @@ The report is written to `.oat/runs/latest/oat-report.json`; read it to sort fin
 ## Limits
 
 - Bodies are generated from the document; oat checks HTTP statuses and JSON, never file contents.
-- A 5xx is never retried; a 429 is, up to 5 times, honouring `Retry-After`.
+- A 5xx is never retried; a 429 is, up to 5 times, honoring `Retry-After`.
 - Leftover rows on a shared database poison the numeric and filter checks: wipe them between runs.
 - Webhooks, callbacks and links are not followed, and URL `$ref`s are not fetched.
 

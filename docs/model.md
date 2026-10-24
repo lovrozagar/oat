@@ -34,7 +34,7 @@ Each operation is sent the credentials its OpenAPI `security` requires, placed w
 
 1. Split the path on `/`. Ignore `{param}` segments.
 2. The last non-parameter segment is the noun. `v1` / `v2` / `vN` is never a noun.
-3. Singularise that noun (`stores` → `store`, `batches` → `batch`). Irregulars include `people→person`, `categories→category`, `campuses→campus`, `statuses→status`, `children→child`, `companies→company`, `addresses→address`, `indices→index`, `queries→query`, `properties→property`, `entities→entity`, `inboxes→inbox`. Endings `us|ss|is|os|as|ics|ews|ess|ous|sis` are left alone (`status` stays `status`).
+3. Singularize that noun (`stores` → `store`, `batches` → `batch`). Irregulars include `people→person`, `categories→category`, `campuses→campus`, `statuses→status`, `children→child`, `companies→company`, `addresses→address`, `indices→index`, `queries→query`, `properties→property`, `entities→entity`, `inboxes→inbox`. Endings `us|ss|is|os|as|ics|ews|ess|ous|sis` are left alone (`status` stays `status`).
 4. If a non-parameter segment follows the noun (`/rows/aggregate`, `/tables/{id}/restore`), action is `action`.
 5. Otherwise: `GET` collection → `list`, `GET` item → `read`, `POST` collection → `create`, `POST` item → `action`, `PUT`/`PATCH` → `update`, `DELETE` → `delete`.
 
@@ -99,11 +99,11 @@ Default cohort is **7** records, one of each variant, sliced by `cohortSize`:
 | `metacharacter` | `"100% _off_ *everything*"` — LIKE / escape probes |
 | `boundary`      | empty / maxLength / numeric `maximum`              |
 
-Numbers use the ladder `1, 2, 5, 10, 20, 50, 100` so **lexical order ≠ numeric order** (otherwise a TEXT compare looks correct). Enums walk `index % enum.length`. `readOnly` / `x-generated` fields are omitted. Required fields that cannot be generated get a type fallback (`0`, `false`, `[]`, `{}`, `"value"`). Arrays honour `minItems` (never send `[]` when `minItems ≥ 1`). Nested objects stop at depth 4.
+Numbers use the ladder `1, 2, 5, 10, 20, 50, 100` so **lexical order ≠ numeric order** (otherwise a TEXT compare looks correct). Enums walk `index % enum.length`. `readOnly` / `x-generated` fields are omitted. Required fields that cannot be generated get a type fallback (`0`, `false`, `[]`, `{}`, `"value"`). Arrays honor `minItems` (never send `[]` when `minItems ≥ 1`). Nested objects stop at depth 4.
 
 Empty schemas (`{}`, `true`, `additionalProperties: {}`) and cyclic `$ref`s after inlining stop the walk — they become a scalar or `{}`, never another object descent. A `RangeError` during generation is a `COVERAGE_GAP` on that entity naming the operationId and JSON pointer (`fixture generation overflow on table.create (/)`), not `blocked by unknown`.
 
-String fields honour `format`, `pattern`, and `minLength` together: `email` → `oat-{variant}-{index}@example.test`, `uri` / `url` → `https://example.test/...`, `uuid` → a fixed-shape UUID, `pattern` → a string that matches (or the field is omitted / the entity is a gap). A generated string is padded to `minLength` (repeat the last character) without breaking `pattern`. `"Quarterly Report N"` is only used when the document does not constrain the string. `minLength` greater than `maxLength` omits an optional field and records `missingRequired` on a required one.
+String fields honor `format`, `pattern`, and `minLength` together: `email` → `oat-{variant}-{index}@example.test`, `uri` / `url` → `https://example.test/...`, `uuid` → a fixed-shape UUID, `pattern` → a string that matches (or the field is omitted / the entity is a gap). A generated string is padded to `minLength` (repeat the last character) without breaking `pattern`. `"Quarterly Report N"` is only used when the document does not constrain the string. `minLength` greater than `maxLength` omits an optional field and records `missingRequired` on a required one.
 
 An operation with `x-invite` is not `entity.create`. oat does not POST a generated invitee. The invite check sends `granteeField` = the peer's `inviteAs`. Missing `inviteAs` is a coverage gap naming the tag.
 
@@ -135,7 +135,7 @@ Teardown DELETEs created rows (or the `x-cleanup` route) newest-first, and only 
 
 Checks do not look for a parameter _named_ `filter`. They resolve **roles** from aliases, then write values in the grammar the document demonstrates.
 
-| role              | aliases (normalised: case, `_` / `-`, `perPage` → `per_page`)                       |
+| role              | aliases (normalized: case, `_` / `-`, `perPage` → `per_page`)                       |
 | ----------------- | ----------------------------------------------------------------------------------- |
 | filter            | `filter`, `where`, `query`, `conditions`                                            |
 | order             | `order`, `order_by`, `sort`, `sort_by`, `ordering`                                  |

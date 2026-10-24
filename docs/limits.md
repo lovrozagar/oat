@@ -18,7 +18,7 @@ What to do instead:
 These are by design. Do not look for a flag that turns them off.
 
 - **Default request timeout is 180s.** `network.requestTimeoutMs` (per attempt) aborts a stuck `fetch`, including a hung stream; `0` disables it. Watch `status=in_flight` and `idle_ms` in the progress log as that budget is consumed.
-- **No retry on 5xx.** A 429 is retried up to 5 times, honouring `Retry-After`. One 401 forces a credential refresh and a single retry; a second 401 is evidence.
+- **No retry on 5xx.** A 429 is retried up to 5 times, honoring `Retry-After`. One 401 forces a credential refresh and a single retry; a second 401 is evidence.
 - **Network throws are not HTTP.** Offline, DNS, reset or timeout: 4 retries, then one wait (default 60s) for the link. If it does not come back, `net.unreachable` is recorded, the remaining work stands down, the report is still written, and the run exits `3`. Failed attempts are journaled as `status: 0` with `{ error: "network", kind }`.
 - **No `servers[]` at run time.** `oat init` reads the first absolute server URL into `baseUrl`; a run always uses `baseUrl`. Extra hosts are `origins[]`, each with its own `spec`. An app origin that answers HTML and `Set-Cookie` is a request step with an absolute URL, not a dummy spec in `origins[]`.
 - **No OCR.** Multipart file parts are sent as dummy, pool, `each` or `resolveUpload` bytes. oat checks HTTP statuses and JSON answers, not whether a PDF is a real invoice.

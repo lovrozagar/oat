@@ -284,4 +284,4 @@ Lines are also written when the phase/entity/check/message changes, or every 2 s
 
 If `idle_ms` climbs through a long poll (`x-async`) that is expected. If it climbs on a simple GET while `status` is not `in_flight`, the process or the network is stuck. Live `run` aborts a single `fetch` after `network.requestTimeoutMs` (default **180s**). A hung `text/event-stream` becomes `net.unreachable` (`kind=timeout`), not an unbounded buffer on the transcript. Set `requestTimeoutMs: 0` only if you intend to wait for the socket.
 
-Bun and Node both honour that timeout. If oat still runs away with RAM (a bug, or a caller holding the process open), treat the process like any other prefer-kill target for `earlyoom` / systemd — Bun is often **not** in a default `--prefer` list.
+Bun and Node both honor that timeout. If oat still runs away with RAM (a bug, or a caller holding the process open), treat the process like any other prefer-kill target for `earlyoom` / systemd — Bun is often **not** in a default `--prefer` list.

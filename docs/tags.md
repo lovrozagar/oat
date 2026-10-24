@@ -45,7 +45,7 @@ x-invalidate:
   - GET /v1/projects/{project_id}/tables/{table_id}
 ```
 
-`string[]` of `"METHOD /path"`. Colon or brace path params; oat normalises to brace. Method is uppercased.
+`string[]` of `"METHOD /path"`. Colon or brace path params; oat normalizes to brace. Method is uppercased.
 
 This is the entity graph. Inverted, it is each entity's read surface. Highest-value tag.
 
@@ -201,7 +201,7 @@ x-query:
 - `likeMatches: contains` sends a `like` value as a bare substring. Under `pattern`, `%` is a wildcard, so the like-escaping check does not apply.
 - A template oat cannot read is an `x-query` gap naming the key at fault, and oat falls back to inference.
 
-A free-text filter parameter whose grammar oat cannot recognise, and that nobody declared, gets no filter terms at all: oat does not guess one parameter per field. The `x-query` gap says how to declare it.
+A free-text filter parameter whose grammar oat cannot recognize, and that nobody declared, gets no filter terms at all: oat does not guess one parameter per field. The `x-query` gap says how to declare it.
 
 `defaultOrder` / `stableTiebreak` / `maxLimit` stay. Harvest keys are generic JSON paths (`$`, dots, `[n]`, `[*]`, `[?(@.key==value)]`). Absent → no harvest.
 
@@ -431,7 +431,7 @@ On a request body property: only the highest-rank principal may set it. A lower-
 oat run --config oat.config.ts --profile cheap
 ```
 
-A profile restricts which operations a run is allowed to touch, filtering on `x-cost` and `x-destructive`. Two exist without being declared anywhere: `full` (no gating — the default, today's behaviour if you never mention a profile) and `cheap` (`{ maxCost: "low" }`). Reach for a profile when some operations are expensive to call every run — an extraction endpoint billed per request, a bulk job, anything you don't want fired on every `oat run`.
+A profile restricts which operations a run is allowed to touch, filtering on `x-cost` and `x-destructive`. Two exist without being declared anywhere: `full` (no gating — the default, today's behavior if you never mention a profile) and `cheap` (`{ maxCost: "low" }`). Reach for a profile when some operations are expensive to call every run — an extraction endpoint billed per request, a bulk job, anything you don't want fired on every `oat run`.
 
 Anything more specific than a cost band is a named entry in config:
 
@@ -464,7 +464,7 @@ x-rate-limit: { category: ai, rps: 3 }
 
 Groups operations sharing one throughput budget (`category`) and optionally the rate itself (`rps`). Without this, oat's matrix can hammer a `login` or paid-inference route past its real limit, collect 429s, and report them as backend defects — exactly the false-positive class that erodes trust fastest. With it, requests to that category are paced through a token bucket before they fire.
 
-Tags are the **proactive** path. HTTP 429 is the **reactive** path and is honoured even when the operation has no `x-rate-limit` at all (untagged JWT writes, teardown DELETEs). oat reads `Retry-After` (delta-seconds or HTTP-date), otherwise backs off 1s, 2s, 4s… capped at 30s, and retries the same request up to five times. The wait is fed into the matching bucket, or into an implicit `untagged-write` bucket so the next call does not immediately re-trip.
+Tags are the **proactive** path. HTTP 429 is the **reactive** path and is honored even when the operation has no `x-rate-limit` at all (untagged JWT writes, teardown DELETEs). oat reads `Retry-After` (delta-seconds or HTTP-date), otherwise backs off 1s, 2s, 4s… capped at 30s, and retries the same request up to five times. The wait is fed into the matching bucket, or into an implicit `untagged-write` bucket so the next call does not immediately re-trip.
 
 A 429 is only ever reported when the request that drew it was demonstrably under the _declared_ rate — oat's own bucket had a free token, so it did not have to wait for one. A 429 that arrived only after oat's bucket made the request wait means oat's own rate model was too generous, which is paced around, never reported. A 429 against a config-supplied or implicit rate is never a finding.
 

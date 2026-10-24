@@ -180,7 +180,7 @@ On a typical untagged CRUD document (create, list, item, `page`/`limit`, maybe `
 - Foundations, PATCH/delete, and schema checks usually run.
 - The query matrix runs when filter/order/select/search roles resolve.
 - Isolation runs only if you configured two principals.
-- Spec-as-adversary and tagged behaviour never run — `doctor` says so.
+- Spec-as-adversary and tagged behavior never run — `doctor` says so.
 
 Worked examples of what a finding looks like:
 
