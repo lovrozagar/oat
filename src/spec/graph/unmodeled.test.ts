@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest"
 import { GapCollector } from "../extensions/gaps.ts"
 import type { OpenApiDocument } from "../types.ts"
-import { recordUnmodelled } from "./unmodelled.ts"
+import { recordUnmodeled } from "./unmodeled.ts"
 
 function gapsOf(doc: Record<string, unknown>) {
 	const gaps = new GapCollector()
-	recordUnmodelled({ openapi: "3.1.0", ...doc } as OpenApiDocument, gaps)
+	recordUnmodeled({ openapi: "3.1.0", ...doc } as OpenApiDocument, gaps)
 	return gaps.gaps
 }
 
@@ -31,7 +31,7 @@ const additional = (operationId: string, method: string) => ({
 	tag: "additionalOperations",
 })
 
-describe("recordUnmodelled", () => {
+describe("recordUnmodeled", () => {
 	it("records nothing for a document that declares none of them", () => {
 		expect(gapsOf({})).toEqual([])
 		expect(gapsOf({ paths: { "/a": { get: { operationId: "a.get", responses: { "200": {} } } } } })).toEqual([])

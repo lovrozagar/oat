@@ -14,7 +14,7 @@ import type { EntityCall } from "./entity.ts"
 
 const createdStatus = (state: ReferenceState): number => (state.defects.has("CREATED_201_AS_200") ? 200 : 201)
 
-/* An acknowledgement-only create answers success and nothing else. */
+/* An acknowledgment-only create answers success and nothing else. */
 const acknowledged = (state: ReferenceState, call: EntityCall): boolean =>
 	state.shape.ackCreate === true && call.entity.name === state.table.name
 

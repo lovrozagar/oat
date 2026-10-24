@@ -26,7 +26,7 @@ export interface ResolvedProfile {
 
 /**
  * Picks the active profile by name, falling back to `"full"` — the same shape as today's
- * behaviour, so a config that never mentions a profile runs identically to before this existed.
+ * behavior, so a config that never mentions a profile runs identically to before this existed.
  */
 export function resolveProfile(
 	name: string | undefined,

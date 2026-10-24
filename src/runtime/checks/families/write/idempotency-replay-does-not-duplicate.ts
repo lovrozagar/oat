@@ -68,7 +68,7 @@ export const idempotentReplay: Check<{
 			reason: (status) => `the first create returned ${status}, so there was nothing to replay`,
 		})
 		if (firstRefused !== undefined) return firstRefused
-		/* An acknowledgement-only create names the record by the id it was sent, once a read shows it. */
+		/* An acknowledgment-only create names the record by the id it was sent, once a read shows it. */
 		const acknowledged = identityOf(ctx, first) === undefined
 		const firstId = identityOf(ctx, first) ?? (await confirmedIdentity(ctx, ctx.client, body))?.id
 		if (firstId === undefined) {
@@ -129,7 +129,7 @@ function refusal(
 
 function judgeReplay(replay: Replay): Promise<Outcome> | Outcome {
 	const { check, ctx, first, firstId, header, key, second } = replay
-	/* The same key and body under an acknowledgement-only create name the same record; whether the
+	/* The same key and body under an acknowledgment-only create name the same record; whether the
 	 * replay made a second one is then the collection's to say, below. */
 	const secondId = identityOf(ctx, second) ?? (replay.acknowledged ? firstId : undefined)
 	if (secondId === undefined) {

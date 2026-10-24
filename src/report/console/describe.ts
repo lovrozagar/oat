@@ -44,11 +44,11 @@ export function hasInvite(entity: EntityModel): entity is InvitingEntity {
 
 /** The entities sorted by name, less those the auth flow owns: what `plan` and `doctor` print, in order. */
 export function sortedEntities(model: SpecModel, authCreates: ReadonlySet<string> = new Set()): EntityModel[] {
-	return modelledEntities(model, authCreates).sort((a, b) => a.name.localeCompare(b.name))
+	return modeledEntities(model, authCreates).sort((a, b) => a.name.localeCompare(b.name))
 }
 
 /** The model's entities in document order, less those the auth flow owns, as a run leaves them out. */
-export function modelledEntities(model: SpecModel, authCreates: ReadonlySet<string>): EntityModel[] {
+export function modeledEntities(model: SpecModel, authCreates: ReadonlySet<string>): EntityModel[] {
 	return [...model.entities.values()].filter((entity) => authOwnedReason(entity, model, authCreates) === null)
 }
 

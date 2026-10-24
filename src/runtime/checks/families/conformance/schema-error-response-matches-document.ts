@@ -14,7 +14,7 @@ import { absentId } from "../../payloads/identity.ts"
 import { asProbe } from "../../planning/refusal.ts"
 import { graded, itemParamFor, ownOps, subjectsOf } from "../../planning/subjects.ts"
 
-export const errorSchemaHonoured: Check<{
+export const errorSchemaHonored: Check<{
 	readOp: OperationModel
 	validator: SchemaValidator
 	raw: OperationObject

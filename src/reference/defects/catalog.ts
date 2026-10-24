@@ -40,7 +40,7 @@ export const CATALOG_DEFECTS = {
 	SORT_UNKNOWN_FIELD_IGNORED: "an unknown sort field is silently ignored rather than rejected",
 	/** The document lists an operator for a field that the backend rejects. */
 	SPEC_OVERCLAIMS_FILTER_OP: "x-query declares a filter operator on a field that the backend rejects",
-	/** `contains` matches the serialised array as text, so an element also matches its superstrings. */
+	/** `contains` matches the serialized array as text, so an element also matches its superstrings. */
 	CONTAINS_MATCHES_SUBSTRING: "contains matches any element containing the value, not the element itself",
 	/** A search mode the document declares is rejected. */
 	SEARCH_MODE_REJECTED: "a declared search mode is rejected",
@@ -59,7 +59,7 @@ export const CATALOG_DEFECTS = {
 	RATE_LIMIT_STRICTER_THAN_DECLARED: "a listing answers 429 well inside the rate x-rate-limit declares",
 	/**
 	 * Under the client-ids shape: the create stores the table under an id of the server's own,
-	 * ignoring the one the client chose, and still answers only an acknowledgement.
+	 * ignoring the one the client chose, and still answers only an acknowledgment.
 	 */
 	CLIENT_ID_IGNORED: "a create ignores the client-chosen id and stores the record under another",
 	/** Under the client-ids shape: a create with an id the tenant already holds overwrites that record. */

@@ -29,7 +29,7 @@ describe("describeFilterGrammar", () => {
 				"or or({terms})",
 		)
 		expect(describeFilterGrammar(FILTER_PRESETS.equality)).toContain("combine params  or none")
-		expect(describeFilterGrammar(FILTER_PRESETS.unrecognised)).toBe(
+		expect(describeFilterGrammar(FILTER_PRESETS.unrecognized)).toBe(
 			"template {field}{op}{value}  ops   combine repeat  or none  cannot write eq,ne,neq,gt,gte,lt,lte,in,nin,like,ilike,is,contains",
 		)
 	})

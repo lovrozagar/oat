@@ -60,7 +60,7 @@ describe("recordCreated", () => {
 		expect(run.acknowledged).toBe(false)
 	})
 
-	it("marks an acknowledgement a read confirmed", async () => {
+	it("marks an acknowledgment a read confirmed", async () => {
 		const { run } = cohortRun(() => ({ body: { id: "c1", name: "a" }, status: 200 }), {}, { readable: () => true })
 		expect(await recordCreated(run, exchange("POST", run.path, { status: 200 }), { id: "c1", name: "a" })).toEqual({
 			id: "c1",

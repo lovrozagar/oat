@@ -28,7 +28,7 @@ export function inferGrammar(filter: ParameterObject | undefined): FilterGrammar
  *
  * Descriptions and examples are where an API shows its hand — `sort=-created_at` is unambiguous,
  * and so is `field:desc`. Defaults to the dotted form, which is the most common and, being an
- * unrecognised token rather than a wrong direction, fails loudly rather than silently sorting
+ * unrecognized token rather than a wrong direction, fails loudly rather than silently sorting
  * backwards when wrong.
  */
 export function inferSortGrammar(order: ParameterObject | undefined): SortGrammar {

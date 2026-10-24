@@ -1,7 +1,7 @@
 /**
  * Single source of truth for the reference backend: the server implements these descriptors and
  * the OpenAPI document is generated from them. Keeping both sides derived from one definition
- * mirrors how real backends emit their spec, and means a drift between spec and behaviour has to
+ * mirrors how real backends emit their spec, and means a drift between spec and behavior has to
  * be introduced deliberately (as a defect) rather than by accident.
  */
 

@@ -3,7 +3,7 @@ import { listExisting } from "./list-existing.ts"
 import { isScalarId, type Record_ } from "./records.ts"
 import type { Scope, Seeding } from "./types.ts"
 
-/** First listed record with a usable identity, or null — never synthesises a row. */
+/** First listed record with a usable identity, or null — never synthesizes a row. */
 export async function adoptExisting(createOp: OperationModel, seeding: Seeding, scope: Scope): Promise<Record_ | null> {
 	const { model, client, options } = seeding
 	const name = createOp.entity

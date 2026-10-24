@@ -1,4 +1,4 @@
-/** The poster's strips: every catalogued check of the focus entity as a chip, grouped by strip. */
+/** The poster's strips: every cataloged check of the focus entity as a chip, grouped by strip. */
 
 import { STRIPS } from "./catalog.ts"
 import { nodeOf } from "./slice.ts"

@@ -46,7 +46,7 @@ describe("numberFor", () => {
 		expect(numberFor({ maximum: 1, minimum: 0, multipleOf: 0.25 }, at(), false)).toBe(1)
 	})
 
-	it("honours exclusive bounds", () => {
+	it("honors exclusive bounds", () => {
 		expect(numberFor({ exclusiveMaximum: 5, exclusiveMinimum: 0 }, at({ index: 5 }), true)).toBe(1)
 		expect(numberFor({ exclusiveMaximum: 1, exclusiveMinimum: 0 }, at(), false)).toBe(0.5)
 	})

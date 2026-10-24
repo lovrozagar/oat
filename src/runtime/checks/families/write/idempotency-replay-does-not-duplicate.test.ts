@@ -102,7 +102,7 @@ describe("idempotency.replay-does-not-duplicate verdicts", () => {
 })
 
 describe("idempotency.replay-does-not-duplicate identities and gates", () => {
-	it("matches an acknowledgement-only create by the client-chosen id a read confirms", async () => {
+	it("matches an acknowledgment-only create by the client-chosen id a read confirms", async () => {
 		const item = { ...WIDGET, properties: { ...(WIDGET.properties as object), id: { type: "string" } } }
 		const rows: Rows = new Map()
 		const honest = honoringKeys(rows)

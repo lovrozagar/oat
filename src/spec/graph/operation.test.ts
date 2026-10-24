@@ -213,12 +213,12 @@ describe("modelOperation x-query", () => {
 		const { gaps, operations } = operationsOf({
 			"/notes": { get: { operationId: "notes.list", parameters: [query("filter")], responses: ok(list(member)) } },
 		})
-		expect(operations[0]?.conventions.grammar).toBe("unrecognised")
+		expect(operations[0]?.conventions.grammar).toBe("unrecognized")
 		expect(operations[0]?.query?.source).toBe("heuristic")
 		const found = details(gaps, "x-query")
 		expect(found).toHaveLength(2)
 		expect(found[0]).toMatch(/^endpoint accepts filter but does not declare which fields support them/)
-		expect(found[1]).toMatch(/^parameter "filter" takes a filter expression whose grammar could not be recognised/)
+		expect(found[1]).toMatch(/^parameter "filter" takes a filter expression whose grammar could not be recognized/)
 	})
 
 	it("reads the declared x-query grammar and the success response's Link header", () => {

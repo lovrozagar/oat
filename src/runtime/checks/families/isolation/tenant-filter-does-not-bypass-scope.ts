@@ -48,7 +48,7 @@ export const crossTenantFilterBypass: Check<{
 		if (result.exchange.status >= 400) return ASSERTED
 		if (!ids(result.items, ctx.identity).includes(id)) return ASSERTED
 
-		/* Same split as the item check. A public catalogue has no tenant at all — a 200 for
+		/* Same split as the item check. A public catalog has no tenant at all — a 200 for
 		 * `id.eq.<someone else's public row>` is the contract, not a leak. */
 		const tenantDeclared = ctx.listOp.tenantSource === "tag"
 		const detail =
@@ -70,7 +70,7 @@ export const crossTenantFilterBypass: Check<{
 			check: this.id,
 			detail:
 				`${detail} oat inferred tenant scoping from the "${ctx.listOp.tenantParam}" path ` +
-				"parameter; the document does not state it. A public catalogue has no tenant at all — " +
+				"parameter; the document does not state it. A public catalog has no tenant at all — " +
 				"no x-tenant and no tenant-named path parameter — and this check then does not apply. " +
 				"If the resource is not shared, declare x-tenant so the same 200 is SECURITY.",
 			entity: ctx.entityName,

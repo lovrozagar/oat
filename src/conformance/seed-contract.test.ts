@@ -42,7 +42,7 @@ describe("runSeedContractSuite", () => {
 			"default: {} on a column object seeds",
 			"cyclic $ref: # after deref does not throw",
 			"format: email matches a conservative regex",
-			"fixture strings honour minLength with pattern",
+			"fixture strings honor minLength with pattern",
 			"minLength > maxLength is a generation gap",
 			"overflow names table.create, not unknown",
 			"invite op is not entity.create",

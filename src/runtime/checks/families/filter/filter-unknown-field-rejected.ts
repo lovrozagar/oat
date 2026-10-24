@@ -15,8 +15,8 @@ export const unknownFilterRejected: Check<{ unknownField: Record<string, string>
 	 * Deliberately narrower than `filterable`: this asserts that a *filter expression* naming a
 	 * field the document does not declare is rejected rather than dropped.
 	 *
-	 * Under one-parameter-per-field equality there is no expression language, so an unrecognised
-	 * parameter is just an unrecognised query parameter — and ignoring those is conventional,
+	 * Under one-parameter-per-field equality there is no expression language, so an unrecognized
+	 * parameter is just an unrecognized query parameter — and ignoring those is conventional,
 	 * widely relied upon, and not a defect. Reporting it as one would fire against a large share
 	 * of real APIs, which is how a tool earns a reputation for crying wolf.
 	 */

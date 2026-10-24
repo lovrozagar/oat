@@ -41,7 +41,7 @@ describe("a failed send", () => {
 	})
 
 	it("is offline when this machine has no usable interface, whatever the error says", async () => {
-		for (const thrown of [refused(), new Error("unrecognised")]) {
+		for (const thrown of [refused(), new Error("unrecognized")]) {
 			const wire = transport(() => Promise.reject(thrown))
 			const ctx = wireOf(wire, { network: { fetchImpl: wire.fetch, interfaces: offline } })
 			await expect(sendAttempt(prepare(ctx, "GET", "/rows", { as: ANON }), 0, ctx)).rejects.toMatchObject({
@@ -51,7 +51,7 @@ describe("a failed send", () => {
 	})
 
 	it("raises an error that is not the network's as it is, recording nothing", async () => {
-		const bug = new Error("unrecognised")
+		const bug = new Error("unrecognized")
 		const wire = transport(() => Promise.reject(bug))
 		const ctx = wireOf(wire, { network: { fetchImpl: wire.fetch, interfaces: online } })
 		await expect(sendAttempt(prepare(ctx, "GET", "/rows", { as: ANON }), 0, ctx)).rejects.toBe(bug)

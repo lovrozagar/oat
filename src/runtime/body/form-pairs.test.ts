@@ -77,7 +77,7 @@ describe("formPairs per the operation's encoding", () => {
 		])
 	})
 
-	it("honours deepObject, explode false and a JSON content type", () => {
+	it("honors deepObject, explode false and a JSON content type", () => {
 		expect(formPairs("point", { x: 1 }, { style: "deepObject" })).toEqual([["point[x]", "1"]])
 		expect(formPairs("tags", ["a", "b"], { explode: false, style: "pipeDelimited" })).toEqual([["tags", "a|b"]])
 		expect(formPairs("meta", { k: 1 }, { contentType: "application/json" })).toEqual([["meta", '{"k":1}']])

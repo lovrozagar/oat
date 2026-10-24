@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { Exchange } from "../../../exchange.ts"
 import { contextFor } from "../../__fixtures__/harness.ts"
-import { readSchemaHonoured } from "./schema-read-response-matches-document.ts"
+import { readSchemaHonored } from "./schema-read-response-matches-document.ts"
 import {
 	ITEM,
 	type ItemsOptions,
@@ -25,9 +25,9 @@ async function judge(exchanges: Exchange[], options: ItemsOptions = {}) {
 	const staged = overTranscript(modelOfItems(options), exchanges, {
 		fields: { judged: (ids: readonly string[]) => judged.push([...ids]) },
 	})
-	const plan = readSchemaHonoured.plan(staged.ctx)
+	const plan = readSchemaHonored.plan(staged.ctx)
 	if (!plan.ok) throw new Error("the read-schema plan did not apply")
-	return { ...staged, judged, outcome: await readSchemaHonoured.run(staged.ctx, plan.value) }
+	return { ...staged, judged, outcome: await readSchemaHonored.run(staged.ctx, plan.value) }
 }
 
 const listed = (body: unknown, extra: Partial<Exchange> = {}): Exchange =>
@@ -37,11 +37,11 @@ describe("schema.read-response-matches-document plan", () => {
 	it("needs a validator, and an item read or a listing", () => {
 		const model = modelOfItems()
 		const { ctx } = contextFor(model, "item.list", { respond: () => undefined, fields: itemOperations(model) })
-		expect(readSchemaHonoured.plan(ctx).ok).toBe(true)
-		expect(readSchemaHonoured.plan({ ...ctx, readOp: undefined }).ok).toBe(true)
-		expect(readSchemaHonoured.plan({ ...ctx, validator: undefined }).ok).toBe(false)
+		expect(readSchemaHonored.plan(ctx).ok).toBe(true)
+		expect(readSchemaHonored.plan({ ...ctx, readOp: undefined }).ok).toBe(true)
+		expect(readSchemaHonored.plan({ ...ctx, validator: undefined }).ok).toBe(false)
 		const bare = { ...ctx, listOp: undefined, readOp: undefined } as unknown as typeof ctx
-		expect(readSchemaHonoured.plan(bare).ok).toBe(false)
+		expect(readSchemaHonored.plan(bare).ok).toBe(false)
 	})
 })
 
@@ -111,9 +111,9 @@ describe("schema.read-response-matches-document, what it leaves alone", () => {
 		expect(streamed.judged).toEqual([["item.list"]])
 		const staged = overTranscript(modelOfItems(), [seen("item.read", wrong), listed([ROW])])
 		staged.model.rawOperations.delete("item.read")
-		const plan = readSchemaHonoured.plan(staged.ctx)
+		const plan = readSchemaHonored.plan(staged.ctx)
 		if (!plan.ok) throw new Error("the read-schema plan did not apply")
-		expect(await readSchemaHonoured.run(staged.ctx, plan.value)).toEqual({ kind: "asserted" })
+		expect(await readSchemaHonored.run(staged.ctx, plan.value)).toEqual({ kind: "asserted" })
 		expect(staged.findings.findings).toEqual([])
 	})
 })

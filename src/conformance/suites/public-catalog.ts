@@ -3,8 +3,8 @@ import type { Handle } from "../../reference/http/node.ts"
 import type { ReferenceRequest, ReferenceResponse } from "../../reference/http/wire.ts"
 import { bearerSecurity } from "../harness/security.ts"
 
-const PUBLIC_CATALOGUE_SPEC = {
-	info: { title: "Public catalogue", version: "1.0" },
+const PUBLIC_CATALOG_SPEC = {
+	info: { title: "Public catalog", version: "1.0" },
 	openapi: "3.1.0",
 	paths: {
 		"/v1/templates": {
@@ -112,16 +112,16 @@ async function readJson(request: ReferenceRequest): Promise<unknown> {
 }
 
 /**
- * A catalogue every principal reads in full: no tenant names its records, so a template one
+ * A catalog every principal reads in full: no tenant names its records, so a template one
  * principal made is the other's to read too. Answers each request, failures included.
  */
-export function publicCatalogue(): Handle {
+export function publicCatalog(): Handle {
 	const rows = new Map<string, { id: string; name: string }>()
 	const tokens = new Set(["tok_alpha", "tok_beta"])
 	let seq = 0
 	const answer = async (request: ReferenceRequest): Promise<ReferenceResponse> => {
 		const { method, url } = request
-		if (url.pathname === "/v1/openapi/spec" && method === "GET") return send(200, PUBLIC_CATALOGUE_SPEC)
+		if (url.pathname === "/v1/openapi/spec" && method === "GET") return send(200, PUBLIC_CATALOG_SPEC)
 		const token = bearer(request)
 		if (token === undefined || !tokens.has(token)) return send(401, { error: "unauthorized" })
 		if (url.pathname === "/v1/templates") {

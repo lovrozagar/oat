@@ -11,7 +11,7 @@ import { overlapPlan, type Subset } from "./plans.ts"
 /**
  * A structured filter and a free-text search must compose as their intersection.
  *
- * Adding `q` often switches a backend onto a search-index path that does not honour the
+ * Adding `q` often switches a backend onto a search-index path that does not honor the
  * structured predicate — or the reverse: a filter makes the search term a no-op. Each axis is
  * correct alone; together one of them vanishes. The oracle needs no ground truth: walk each
  * axis, walk both, and the combined set must equal the intersection.

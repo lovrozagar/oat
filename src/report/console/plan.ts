@@ -10,7 +10,7 @@ import {
 	hasInvite,
 	inviteAcceptMode,
 	lifecycleGlyphs,
-	modelledEntities,
+	modeledEntities,
 	sortedEntities,
 } from "./describe.ts"
 import { type SecurityCredentials, type SecurityFacts, securityFacts, securityJson } from "./security.ts"
@@ -40,7 +40,7 @@ function viewRoots(model: SpecModel, view: PlanView): Roots {
 
 function planJson(model: SpecModel, grammars: DeclaredGrammar[], view: PlanView): string {
 	const { authCreates = new Set(), scope, unsetEnv } = view
-	const entities = modelledEntities(model, authCreates)
+	const entities = modeledEntities(model, authCreates)
 	return `${JSON.stringify(
 		{
 			entities: entities.map((entity) => ({

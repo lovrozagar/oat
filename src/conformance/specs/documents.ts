@@ -135,6 +135,6 @@ function missingOperationIds(): SpecFixture {
 		},
 		expectOperations: 2,
 		name: "missing-operation-ids",
-		why: "operationId is optional; oat must synthesise a stable identifier from method and path",
+		why: "operationId is optional; oat must synthesize a stable identifier from method and path",
 	}
 }

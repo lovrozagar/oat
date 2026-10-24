@@ -7,7 +7,7 @@ import { accessSync, constants, statSync } from "node:fs"
 import { UsageError } from "../../errors/usage-error.ts"
 import type { SpoolOptions } from "../transcript/spool.ts"
 
-/** Throws a UsageError when `transcript` sets a budget or a folder the run cannot honour. */
+/** Throws a UsageError when `transcript` sets a budget or a folder the run cannot honor. */
 export function assertTranscript(transcript: SpoolOptions | undefined): void {
 	const memoryBytes = transcript?.memoryBytes
 	if (memoryBytes !== undefined && !(Number.isSafeInteger(memoryBytes) && memoryBytes > 0)) {

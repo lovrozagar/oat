@@ -75,7 +75,7 @@ describe("record schemas", () => {
 		expect(schema.required).toEqual(TABLE.fields.filter((f) => f.required === true).map((f) => f.name))
 	})
 
-	it("names a component after the entity, capitalised", () => {
+	it("names a component after the entity, capitalized", () => {
 		expect(schemaName(TABLE)).toBe("Table")
 		expect(schemaName({ ...TABLE, name: "" })).toBe("")
 	})

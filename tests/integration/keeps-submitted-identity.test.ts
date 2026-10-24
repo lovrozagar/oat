@@ -6,7 +6,7 @@ import type { OpenApiDocument } from "../../src/spec/types.ts"
 
 /*
  * `create.keeps-submitted-identity`: a create that takes the record's id from the client and answers
- * only an acknowledgement must have stored the record under that id. A server that quietly picks
+ * only an acknowledgment must have stored the record under that id. A server that quietly picks
  * its own id has lost the client's handle on the record it just made.
  */
 

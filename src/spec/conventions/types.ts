@@ -25,13 +25,13 @@ export type FilterGrammar =
 	| "equality"
 	/** Declared as a template; `QueryConventions.filterGrammar` says how terms are spelled. */
 	| "template"
-	/** A filter expression oat could not recognise and nobody declared: no term can be written. */
-	| "unrecognised"
+	/** A filter expression oat could not recognize and nobody declared: no term can be written. */
+	| "unrecognized"
 
 /**
  * How a sort direction is spelled.
  *
- * The role of the parameter and the *grammar* of its value are separate problems, and generalising
+ * The role of the parameter and the *grammar* of its value are separate problems, and generalizing
  * only the first is a half-measure: an API that names the parameter `sort` but expects `-name`
  * receives `name.asc`, ignores or rejects it, and reads as a backend with broken sorting rather
  * than one speaking a dialect oat cannot write.

@@ -50,7 +50,7 @@ describe("select.unknown-field-rejected under ignore", () => {
 	it("fails a backend that returns the undeclared field", async () => {
 		const staged = stage(selectUnknownFieldRejected, { ...policy("ignore"), respond: echoesUnknown })
 		expect(await staged.run()).toEqual({ kind: "finding", verdict: "BACKEND_BUG" })
-		expect(staged.findings.findings[0]?.summary).toBe("unknown select field was honoured under ignore")
+		expect(staged.findings.findings[0]?.summary).toBe("unknown select field was honored under ignore")
 	})
 
 	it("is unresolved when the undeclared field is refused after all", async () => {

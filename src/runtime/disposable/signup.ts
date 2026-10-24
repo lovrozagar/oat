@@ -6,7 +6,7 @@
 
 import type { DisposableInput, Session } from "./types.ts"
 
-/** The second user labelled `label`, as a session; BLOCKED with the reason when it cannot be signed up. */
+/** The second user labeled `label`, as a session; BLOCKED with the reason when it cannot be signed up. */
 export async function signUp(input: DisposableInput, label: string): Promise<Session | { blocked: string }> {
 	const enrolled = await input.enroll(label)
 	if ("blocked" in enrolled) return enrolled

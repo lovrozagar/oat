@@ -8,7 +8,7 @@ import { connected, fetchOf, notesApi, notesDoc, optionsFor, unreachable } from 
 import { load } from "./load.ts"
 
 /*
- * The document read and modelled before anything else: served or on disk, through the fence when
+ * The document read and modeled before anything else: served or on disk, through the fence when
  * served, with the status line saying when the network is being waited for.
  */
 
@@ -71,7 +71,7 @@ describe("load", () => {
 })
 
 describe("load, the transcript option", () => {
-	it("refuses a transcript option it cannot honour before it fetches anything", async () => {
+	it("refuses a transcript option it cannot honor before it fetches anything", async () => {
 		const options = optionsFor(notesApi(), { transcript: { memoryBytes: 0 } })
 		await expect(load(options)).rejects.toThrow(UsageError)
 		await expect(load(options)).rejects.toThrow(/transcript\.memoryBytes must be a positive integer/)
@@ -87,7 +87,7 @@ describe("load, the secondary origins and the credentials config", () => {
 		spec: "http://cdn.test/openapi.json",
 	}
 
-	it("reads each origin's document once, with its overlay, and carries it modelled", async () => {
+	it("reads each origin's document once, with its overlay, and carries it modeled", async () => {
 		const overlay = { operations: { "notes.list": { operationId: "cdn.notes.list" } } }
 		const options = optionsFor(notesApi(), {
 			origins: [

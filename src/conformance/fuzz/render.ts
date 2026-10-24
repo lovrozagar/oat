@@ -19,7 +19,7 @@ export function renderFuzz(results: FuzzCase[]): { text: string; failures: numbe
 			lines.push(`      spurious ${extra.check}${extra.entity === "" ? "" : ` (${extra.entity})`}`)
 			lines.push(`               ${extra.summary}`)
 			/* Truncated, not omitted: the evidence is what distinguishes a real regression from a
-			 * timing artefact, and a rare case may never reproduce on demand. */
+			 * timing artifact, and a rare case may never reproduce on demand. */
 			lines.push(`               ${extra.detail.replace(/\s+/g, " ").slice(0, 200)}`)
 		}
 		for (const excusal of result.excused) {

@@ -9,7 +9,7 @@ export const QUERY_DEFECTS = {
 	 * is the only thing that reads the claim and then tries it.
 	 */
 	SPEC_OVERCLAIMS_FILTERABLE: "x-query declares a field filterable that the backend rejects",
-	/** `in.(a,b)` only honours the first member. */
+	/** `in.(a,b)` only honors the first member. */
 	FILTER_IN_FIRST_ONLY: "in() matches only the first listed value",
 	/** `gte` is compiled as `gt`. */
 	FILTER_GTE_IS_GT: "gte is implemented as gt",
@@ -25,7 +25,7 @@ export const QUERY_DEFECTS = {
 	IGNORES_BAD_SORT_DIRECTION: "an unknown sort direction sorts ascending instead of being refused",
 	/** Numeric sort compares as text. */
 	SORT_NUMERIC_AS_TEXT: "a numeric sortable field is ordered lexicographically",
-	/** Only the first order key is honoured. */
+	/** Only the first order key is honored. */
 	SORT_MULTI_KEY_IGNORED: "the second sort key is ignored",
 	/** A requested select field is omitted from the projection. */
 	SELECT_FIELD_MISSING: "a requested select field is dropped from the projection",
@@ -50,7 +50,7 @@ export const QUERY_DEFECTS = {
 	/**
 	 * The document declares a field selectable that the backend rejects.
 	 *
-	 * The select analogue of SPEC_OVERCLAIMS_FILTERABLE and SPEC_OVERCLAIMS_SORTABLE: the backend
+	 * The select analog of SPEC_OVERCLAIMS_FILTERABLE and SPEC_OVERCLAIMS_SORTABLE: the backend
 	 * is entitled to stop projecting a column, but the document is wrong to keep promising it can.
 	 */
 	SPEC_OVERCLAIMS_SELECTABLE: "x-query declares a field selectable that the backend rejects",

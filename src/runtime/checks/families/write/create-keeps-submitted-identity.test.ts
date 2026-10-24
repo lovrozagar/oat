@@ -72,7 +72,7 @@ describe("create.keeps-submitted-identity verdicts", () => {
 		expect(findings.findings[0]?.detail).toContain('"id" was sent "k1" and the create answered "w99"')
 	})
 
-	it("reads an acknowledgement-only create back under the id it was sent", async () => {
+	it("reads an acknowledgment-only create back under the id it was sent", async () => {
 		const rows = new Map<string, Record<string, unknown>>()
 		const api = widgetApi(rows)
 		const { ctx, findings, sent } = stage(
@@ -87,7 +87,7 @@ describe("create.keeps-submitted-identity verdicts", () => {
 	})
 })
 
-describe("create.keeps-submitted-identity on an acknowledgement-only create", () => {
+describe("create.keeps-submitted-identity on an acknowledgment-only create", () => {
 	it("reports an acknowledged create that stored the record under another id", async () => {
 		/* The backend keeps the row under an id of its own, so the client's id finds nothing. */
 		const { ctx, findings } = stage((method, path) =>

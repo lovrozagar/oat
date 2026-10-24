@@ -5,7 +5,7 @@ import { wireOf } from "../../../../client/__fixtures__/wire.ts"
 import { prepare, sendAttempt } from "../../../../client/request.ts"
 import type { Exchange } from "../../../exchange.ts"
 import { contextFor } from "../../__fixtures__/harness.ts"
-import { describeUndeclared, documentedStatusHonoured } from "./response-status-is-documented.ts"
+import { describeUndeclared, documentedStatusHonored } from "./response-status-is-documented.ts"
 import {
 	GATE_BODY,
 	ITEM,
@@ -24,15 +24,15 @@ async function judge(exchanges: Exchange[], transcript: Transcript = {}) {
 	const judged: string[][] = []
 	const fields = { judged: (ids: readonly string[]) => judged.push([...ids]), ...transcript.fields }
 	const staged = overTranscript(model, exchanges, { ...transcript, fields })
-	const outcome = await documentedStatusHonoured.run(staged.ctx, undefined)
+	const outcome = await documentedStatusHonored.run(staged.ctx, undefined)
 	return { ...staged, judged, outcome }
 }
 
 describe("response.status-is-documented plan", () => {
 	it("applies to an entity with any operation besides its create", () => {
 		const { ctx } = contextFor(model, "item.list", { respond: () => undefined })
-		expect(documentedStatusHonoured.plan(ctx).ok).toBe(true)
-		expect(documentedStatusHonoured.plan({ ...ctx, entityName: "ghost" }).ok).toBe(false)
+		expect(documentedStatusHonored.plan(ctx).ok).toBe(true)
+		expect(documentedStatusHonored.plan({ ...ctx, entityName: "ghost" }).ok).toBe(false)
 	})
 })
 
@@ -60,7 +60,7 @@ describe("response.status-is-documented run", () => {
 		const [finding] = findings.findings
 		expect(finding?.summary).toBe("an operation returned a status the document does not declare")
 		expect(finding?.detail).toBe(
-			"item.read returned 418, 500; the document declares 200, 404. Clients generated from this document will not recognise the response.",
+			"item.read returned 418, 500; the document declares 200, 404. Clients generated from this document will not recognize the response.",
 		)
 		expect(finding?.operations).toEqual(["item.read"])
 		expect(finding?.evidence).toEqual([first])
@@ -160,7 +160,7 @@ describe("response.status-is-documented stand-asides", () => {
 
 	it("still judges without a run that asks what was judged", async () => {
 		const { ctx, findings } = overTranscript(model, [seen("item.read", { status: 500 })])
-		expect(await documentedStatusHonoured.run(ctx, undefined)).toEqual({
+		expect(await documentedStatusHonored.run(ctx, undefined)).toEqual({
 			kind: "finding",
 			verdict: "SPEC_BUG",
 		})

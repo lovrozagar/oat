@@ -41,7 +41,7 @@ async function createExchanges(ctx: CheckContext, max: number): Promise<Exchange
 
 /**
  * A create that takes the record's identity from the client must store the record under it. An
- * acknowledgement-only create gives nothing back to compare, so the record is read back under the
+ * acknowledgment-only create gives nothing back to compare, so the record is read back under the
  * id it was sent; a create that answers with an identity must answer with the one it was sent.
  */
 export const createKeepsSubmittedIdentity: Check<{ readOp: OperationModel }> = defineCheck<{ readOp: OperationModel }>({

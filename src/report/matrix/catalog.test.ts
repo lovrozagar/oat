@@ -14,7 +14,7 @@ describe("checkCatalog", () => {
 		expect(catalog.stripOf.get("auth.rank-is-monotonic")).toMatchObject({ layer: "auth", title: "who may see it" })
 	})
 
-	it("catalogues every poster cell and every composition edge, so a slice has a node for each", () => {
+	it("catalogs every poster cell and every composition edge, so a slice has a node for each", () => {
 		const ids = new Set(catalog.ids)
 		expect(NODE_ORDER.filter((cell) => !ids.has(cell.id))).toEqual([])
 		expect(USES.flatMap((use) => [use.from, use.to]).filter((id) => !ids.has(id))).toEqual([])

@@ -15,7 +15,7 @@ type Model = ReturnType<typeof buildModel>
 /** What one fixture's model must show beyond its counts, by fixture name. */
 type Probe = (model: Model, externalRefs: readonly unknown[]) => string[]
 
-const MANGLED_PLURALS = ["statu", "analyse", "peopl", "campuse", "inbo"]
+const MANGLED_PLURALS = ["statu", "analyze", "peopl", "campuse", "inbo"]
 
 type Operation = Model["operations"][number] | undefined
 
@@ -47,7 +47,7 @@ function danglingRef(model: Model): string[] {
 		problems.push("payment.list has no gap for the schema its $ref names but the document lacks")
 	}
 	if (model.byOperationId.get("refund.list")?.unsendable == null) {
-		problems.push("refund.list was modelled with a parameter its $ref names but the document lacks")
+		problems.push("refund.list was modeled with a parameter its $ref names but the document lacks")
 	}
 	return problems
 }
@@ -87,10 +87,10 @@ const PROBES: Readonly<Record<string, Probe>> = {
 function countProblems(fixture: SpecFixture, model: Model): string[] {
 	const problems: string[] = []
 	if (fixture.expectOperations !== undefined && model.operations.length !== fixture.expectOperations) {
-		problems.push(`expected ${fixture.expectOperations} operation(s), modelled ${model.operations.length}`)
+		problems.push(`expected ${fixture.expectOperations} operation(s), modeled ${model.operations.length}`)
 	}
 	if (fixture.expectEntities !== undefined && model.entities.size !== fixture.expectEntities) {
-		problems.push(`expected ${fixture.expectEntities} entity/entities, modelled ${model.entities.size}`)
+		problems.push(`expected ${fixture.expectEntities} entity/entities, modeled ${model.entities.size}`)
 	}
 	return problems
 }

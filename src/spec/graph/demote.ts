@@ -9,7 +9,7 @@
  */
 
 import type { GapCollector } from "../extensions/gaps.ts"
-import { singularise } from "../extensions/entity.ts"
+import { singularize } from "../extensions/entity.ts"
 import { isParamSegment, segmentsOf } from "./segments.ts"
 import type { OperationModel } from "./types.ts"
 
@@ -51,7 +51,7 @@ function nounsWithItemRoute(operations: readonly OperationModel[]): Set<string> 
 		for (let i = 1; i < segments.length; i++) {
 			const seg = segments[i] as string
 			const prev = segments[i - 1] as string
-			if (isParamSegment(seg) && !isParamSegment(prev)) nouns.add(singularise(prev))
+			if (isParamSegment(seg) && !isParamSegment(prev)) nouns.add(singularize(prev))
 		}
 	}
 	return nouns
@@ -99,7 +99,7 @@ function enclosingEntity(path: string, entities: ReadonlySet<string>): string | 
 	for (let i = segments.length - 1; i >= 0; i--) {
 		const seg = segments[i] as string
 		if (isParamSegment(seg)) continue
-		const name = singularise(seg)
+		const name = singularize(seg)
 		if (entities.has(name)) return name
 	}
 	return null

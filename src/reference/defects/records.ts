@@ -76,7 +76,7 @@ export const RECORD_DEFECTS = {
 	/**
 	 * Non-ASCII and surrounding whitespace are stripped on write.
 	 *
-	 * The realistic shape: a column that is not Unicode, a `.trim()`, a "sanitiser" that drops
+	 * The realistic shape: a column that is not Unicode, a `.trim()`, a "sanitizer" that drops
 	 * anything outside ASCII printable. Create of ordinary English still looks right.
 	 */
 	STRING_PAYLOAD_MANGLED: "non-ASCII and surrounding whitespace are stripped on write",
@@ -127,7 +127,7 @@ export const RECORD_DEFECTS = {
 	/**
 	 * DDL names a physical column differently from every read.
 	 *
-	 * SQL-store only, and modelled on a real production bug: SQLite resolves an unknown
+	 * SQL-store only, and modeled on a real production bug: SQLite resolves an unknown
 	 * double-quoted identifier as a *string literal* instead of erroring, so the mismatch
 	 * surfaces as every row reporting the column's own name as its value — silent corruption
 	 * rather than a loud failure.

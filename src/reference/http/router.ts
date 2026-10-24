@@ -102,7 +102,7 @@ async function entityRoute(state: ReferenceState, request: ReferenceRequest): Pr
 	const itemId = match.itemId === null ? null : (scope[entity.itemParam] as string | number)
 	const call = { entity, principal, scope }
 	/* Item GET may be a delegated read — a tenant check would 403 a valid grant before the lookup
-	 * can honour it. Collection GET and mutations stay tenant-bound. */
+	 * can honor it. Collection GET and mutations stay tenant-bound. */
 	if (method !== "GET" || itemId === null) {
 		assertTenant(principal, scope["project_id"])
 		await assertParents(state, call)

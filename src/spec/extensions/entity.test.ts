@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { Endpoint, HttpMethod, OperationObject } from "../types.ts"
-import { readCreatedIdFrom, readEntity, readRecordPath, singularise } from "./entity.ts"
+import { readCreatedIdFrom, readEntity, readRecordPath, singularize } from "./entity.ts"
 import { GapCollector } from "./gaps.ts"
 
 const at = (method: HttpMethod, path: string, op: Partial<OperationObject> = {}): Endpoint => ({
@@ -10,17 +10,17 @@ const at = (method: HttpMethod, path: string, op: Partial<OperationObject> = {})
 	path,
 })
 
-describe("singularise", () => {
+describe("singularize", () => {
 	it("reads irregular, -es, -ies, non-plural and plain endings", () => {
-		expect(singularise("People")).toBe("person")
-		expect(singularise("boxes")).toBe("box")
-		expect(singularise("branches")).toBe("branch")
-		expect(singularise("policies")).toBe("policy")
-		expect(singularise("keys")).toBe("key")
-		expect(singularise("status")).toBe("status")
-		expect(singularise("analysis")).toBe("analysis")
-		expect(singularise("notes")).toBe("note")
-		expect(singularise("data")).toBe("data")
+		expect(singularize("People")).toBe("person")
+		expect(singularize("boxes")).toBe("box")
+		expect(singularize("branches")).toBe("branch")
+		expect(singularize("policies")).toBe("policy")
+		expect(singularize("keys")).toBe("key")
+		expect(singularize("status")).toBe("status")
+		expect(singularize("analysis")).toBe("analysis")
+		expect(singularize("notes")).toBe("note")
+		expect(singularize("data")).toBe("data")
 	})
 })
 

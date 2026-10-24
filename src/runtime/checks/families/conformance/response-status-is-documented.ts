@@ -79,7 +79,7 @@ async function readExchange(
 	return { exchange, operationId, undeclared: exchange.purpose === "probe" ? "probe" : "ordinary" }
 }
 
-export const documentedStatusHonoured: Check = defineCheck({
+export const documentedStatusHonored: Check = defineCheck({
 	plan: (ctx) => when(ctx.model.operations.some((op) => op.entity === ctx.entityName && op.action !== "create")),
 	id: "response.status-is-documented",
 	judgesTranscript: true,
@@ -118,7 +118,7 @@ export const documentedStatusHonoured: Check = defineCheck({
 		const { lines, evidence } = describeUndeclared(ctx, byOp)
 		return ctx.findings.attributed([...byOp.keys()]).spec(this.id, ctx.entityName, {
 			summary: "an operation returned a status the document does not declare",
-			detail: `${lines.join(". ")}. Clients generated from this document will not recognise the response.`,
+			detail: `${lines.join(". ")}. Clients generated from this document will not recognize the response.`,
 			evidence,
 		})
 	},

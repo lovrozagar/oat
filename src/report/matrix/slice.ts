@@ -1,5 +1,5 @@
 /**
- * One entity's slice of the matrix: a node per catalogued check with the status the report gave
+ * One entity's slice of the matrix: a node per cataloged check with the status the report gave
  * it, the counts, and the failed checks no other failure explains.
  */
 
@@ -61,8 +61,8 @@ function statusFor(entity: string, id: string, rows: ReportRows): CellStatus {
 }
 
 /**
- * The node a slice holds for check `id`. Every slice carries a node for every catalogued check, and
- * the poster and the mermaid source only ask for catalogued ones.
+ * The node a slice holds for check `id`. Every slice carries a node for every cataloged check, and
+ * the poster and the mermaid source only ask for cataloged ones.
  */
 export function nodeOf(entity: EntityMatrix, id: string): MatrixGraphNode {
 	return entity.nodes.find((n) => n.id === id) as MatrixGraphNode

@@ -32,7 +32,7 @@ export function declaredIdentity(ctx: SpecContext, entity: EntityDef): string {
 	return ctx.shape.tableKey === "slug" && entity.name === "table" ? "slug" : entity.identity
 }
 
-/** The tag an entity's own operations are grouped under: its name, capitalised. */
+/** The tag an entity's own operations are grouped under: its name, capitalized. */
 export function entityTag(entity: EntityDef): string {
 	return entity.name[0]?.toUpperCase() + entity.name.slice(1)
 }

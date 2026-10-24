@@ -131,7 +131,7 @@ describe("buildCohort string formats", () => {
 		expect(member?.body["email"]).toMatch(/^[^@]+@[^@]+\.[^@]+$/)
 	})
 
-	it("honours minLength and maxLength on every cohort string", () => {
+	it("honors minLength and maxLength on every cohort string", () => {
 		const members = buildCohort(
 			{
 				properties: { name: { maxLength: 32, minLength: 3, type: "string" } },
@@ -197,7 +197,7 @@ describe("buildCohort padding", () => {
 		expect(email).toMatch(/^[^@]+@[^@]+\.[^@]+$/)
 	})
 
-	it("honours minLength when maxLength is unset", () => {
+	it("honors minLength when maxLength is unset", () => {
 		const members = buildCohort(
 			{
 				properties: { name: { minLength: 5, type: "string" } },

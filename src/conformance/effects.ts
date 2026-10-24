@@ -76,7 +76,7 @@ function contradictionCase(): ParserResult {
 		.operations.filter((op) => op.operationId === "extract.once")
 		.flatMap((op) => op.effects)
 	return {
-		detail: `read=${JSON.stringify(both)} gaps=${JSON.stringify(gaps.gaps)} modelled=${JSON.stringify(effects)}`,
+		detail: `read=${JSON.stringify(both)} gaps=${JSON.stringify(gaps.gaps)} modeled=${JSON.stringify(effects)}`,
 		name: "count and min together are rejected at load",
 		ok:
 			both.length === 0 &&

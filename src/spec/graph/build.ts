@@ -19,7 +19,7 @@ import { modelOperation } from "./operation.ts"
 import { collectRoots } from "./roots.ts"
 import { fallBackToSiblings, invertInvalidate, markTrackable } from "./surface.ts"
 import type { EntityModel, OperationModel, SpecModel } from "./types.ts"
-import { recordUnmodelled, recordUnsendable } from "./unmodelled.ts"
+import { recordUnmodeled, recordUnsendable } from "./unmodeled.ts"
 import { parseRouteRef } from "../routes.ts"
 
 export function buildModel(doc: OpenApiDocument): SpecModel {
@@ -46,7 +46,7 @@ export function buildModel(doc: OpenApiDocument): SpecModel {
 	const byRoute = new Map(operations.map((o) => [o.route, o]))
 	const entities = buildEntities(operations, byRoute, gaps)
 	reportMissingCleanup(operations, byRoute, gaps)
-	recordUnmodelled(doc, gaps)
+	recordUnmodeled(doc, gaps)
 
 	return {
 		byOperationId,

@@ -157,7 +157,7 @@ export const STRIPS: readonly Strip[] = [
 	},
 ]
 
-/** The catalogued checks, each with its strip, what it needs, and the edges between them. */
+/** The cataloged checks, each with its strip, what it needs, and the edges between them. */
 export interface CheckCatalog {
 	/** Every check id the matrix tracks, in strip order. */
 	ids: readonly string[]

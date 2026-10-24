@@ -28,7 +28,7 @@ export const WRITE_ONLY_FIELD_ONLY: ReadonlySet<DefectName> = /* @__PURE__ */ ne
  * The only defects a remote D1 can say anything an in-process engine cannot.
  *
  * Every statement against D1 is a network round trip, so a full pass costs minutes. The defects
- * worth paying that for are the ones whose behaviour comes from the *engine build* — collation,
+ * worth paying that for are the ones whose behavior comes from the *engine build* — collation,
  * type affinity, NULL ordering, LIKE escaping, identifier resolution. Everything else is decided
  * in the request handler, where D1 would re-derive a result `node:sqlite` already gave for free.
  * The lost update is not among them: the handler holds the write open on purpose, so it is real on
@@ -85,7 +85,7 @@ export const DIALECTS_WITH_FILTER_EXPRESSION: ReadonlySet<string> = /* @__PURE__
 /** Defects that need a filter expression language to exist at all. */
 export const EXPRESSION_ONLY: ReadonlySet<DefectName> = /* @__PURE__ */ new Set<DefectName>([
 	"ERROR_500_ON_BAD_FILTER",
-	/* Per-field equality has no declared filter *expression* to overclaim: an unrecognised
+	/* Per-field equality has no declared filter *expression* to overclaim: an unrecognized
 	 * parameter is simply ignored, which is conventional rather than a broken promise. */
 	"SPEC_OVERCLAIMS_FILTERABLE",
 	"FILTER_IGNORED",

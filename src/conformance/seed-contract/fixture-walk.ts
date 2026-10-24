@@ -1,6 +1,6 @@
 /**
  * The fixture walk on schemas a real document trips: `z.unknown()` / `z.record` after `$ref`
- * inlining, identity cycles, string bounds a pattern must honour, and bounds that cannot be met.
+ * inlining, identity cycles, string bounds a pattern must honor, and bounds that cannot be met.
  */
 
 import { messageOf } from "../../errors/message.ts"
@@ -160,7 +160,7 @@ export const FIXTURE_WALK: readonly WalkCase[] = [
 		why: "required email must not be Quarterly Report N",
 	},
 	{
-		name: "fixture strings honour minLength with pattern",
+		name: "fixture strings honor minLength with pattern",
 		probe: () => boundedPattern(HANDLE_SCHEMA),
 		why: "handle must not be a; every cohort name is in [3, 32]",
 	},

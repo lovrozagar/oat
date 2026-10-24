@@ -5,7 +5,7 @@ import { run } from "../../src/runtime/run/index.ts"
 import type { JsonSchema, OpenApiDocument } from "../../src/spec/types.ts"
 
 /*
- * Two ways a client-chosen identity with an acknowledgement-only create can trip oat:
+ * Two ways a client-chosen identity with an acknowledgment-only create can trip oat:
  *  - as a parent: notes live under a folder, and the folder's create answers `{ success: true }`.
  *    oat must still make the folder, use the id it sent once a read confirms it, and remove it.
  *  - in a small id space: every create oat sends, checks included, must avoid the ids its own
@@ -226,7 +226,7 @@ async function runAgainst(space: number) {
 	return { folders, notes, result }
 }
 
-describe("an acknowledgement-only parent with a client-chosen id", () => {
+describe("an acknowledgment-only parent with a client-chosen id", () => {
 	it("is created, confirmed, used as the child's parent, and removed", async () => {
 		const { folders, notes, result } = await runAgainst(999)
 		expect(result.findings.filter((finding) => finding.check === "world.seed")).toEqual([])

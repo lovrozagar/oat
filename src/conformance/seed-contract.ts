@@ -48,7 +48,7 @@ const PROJECT: Credentials = {
 }
 
 const CHEAP = "cheap profile does not POST extract.once"
-const HONOURED = "effects must honour excludedByProfile"
+const HONORED = "effects must honor excludedByProfile"
 
 async function profiles(via: Via, results: ParserResult[]): Promise<void> {
 	const cheapBackend = projectBackend()
@@ -64,7 +64,7 @@ async function profiles(via: Via, results: ParserResult[]): Promise<void> {
 		detail: `hits=${cheapBackend.extractHits()} skip=${skip?.detail ?? "none"}`,
 		name: CHEAP,
 		ok: !cheapPosted && skip !== undefined && cheapBackend.extractHits() === 0,
-		why: HONOURED,
+		why: HONORED,
 	})
 
 	const fullBackend = projectBackend()
@@ -140,7 +140,7 @@ async function registerNotSeeded(via: Via, results: ParserResult[]): Promise<voi
 }
 
 const CASES: readonly ContractCase[] = [
-	{ name: CHEAP, probe: profiles, why: HONOURED },
+	{ name: CHEAP, probe: profiles, why: HONORED },
 	{
 		name: "invite-only member is not seeded with a generated email",
 		probe: inviteOnly,
@@ -153,7 +153,7 @@ const CASES: readonly ContractCase[] = [
 	},
 ]
 
-/* The invite operation is modelled as the entity's invite, never as its create. */
+/* The invite operation is modeled as the entity's invite, never as its create. */
 function inviteModel(): ParserResult {
 	const member = buildModel(dereference(memberSpec()).doc).entities.get("member")
 	return {

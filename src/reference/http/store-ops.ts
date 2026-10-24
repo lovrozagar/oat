@@ -85,9 +85,9 @@ export async function assertUnique(state: ReferenceState, written: EntityRecord,
 /**
  * Keeps a parent's derived count current after a child write.
  *
- * This is the behaviour `x-invalidate` promises: a write here changes what a *different* route
+ * This is the behavior `x-invalidate` promises: a write here changes what a *different* route
  * serves. Under the defect the promise is published and not kept, which is the common real
- * failure — a denormalised counter or a cached projection that nobody refreshes.
+ * failure — a denormalized counter or a cached projection that nobody refreshes.
  */
 export async function refreshParentCount(state: ReferenceState, entity: EntityDef, scope: Scope): Promise<void> {
 	if (entity.name !== "row" || state.defects.has("PARENT_PROJECTION_STALE")) return

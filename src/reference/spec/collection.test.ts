@@ -110,7 +110,7 @@ describe("the create operation", () => {
 		])
 	})
 
-	it("answers an acknowledgement for a table under ack-create, and the record otherwise", () => {
+	it("answers an acknowledgment for a table under ack-create, and the record otherwise", () => {
 		const ack = operations({ ackCreate: true }).post.responses["201"]
 		expect(ack).toHaveProperty("content.application/json.schema.required", ["success"])
 		const row = operations({ ackCreate: true }, "row").post.responses["201"]

@@ -90,7 +90,7 @@ export interface SeededCohort {
 	 */
 	uniqueAdopted?: boolean
 	/**
-	 * The create answered an acknowledgement without the record, and the records are the bodies
+	 * The create answered an acknowledgment without the record, and the records are the bodies
 	 * oat submitted (client-chosen identity). Checks that judge the create's echo stand down.
 	 */
 	acknowledged?: boolean

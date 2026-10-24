@@ -86,12 +86,12 @@ export const LINKED: Dialect = {
 }
 
 /**
- * JSON:API-flavoured: `sort=-name` for descending, `fields[table]=id,name` for projection.
+ * JSON:API-flavored: `sort=-name` for descending, `fields[table]=id,name` for projection.
  *
  * The parameter *names* here are unremarkable — `sort`, `fields`, `page`, `filter` — which is the
- * point. Everything oat had generalised was the name; the value grammars stayed hardcoded to one
+ * point. Everything oat had generalized was the name; the value grammars stayed hardcoded to one
  * spelling. A shape that renames nothing but writes its values differently is the sharpest test
- * of whether that generalisation was real.
+ * of whether that generalization was real.
  */
 export const JSONAPI: Dialect = {
 	envelope: {

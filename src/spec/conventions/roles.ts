@@ -7,7 +7,7 @@ export type Role = "filter" | "order" | "select" | "search" | "searchMode" | "li
 
 /*
  * Aliases seen across real APIs. Order matters only for readability; a parameter is matched
- * case-insensitively and with separators normalised, so `perPage`, `per_page` and `PerPage` are
+ * case-insensitively and with separators normalized, so `perPage`, `per_page` and `PerPage` are
  * one entry.
  */
 const ALIASES: Readonly<Record<Role, readonly string[]>> = {
@@ -22,12 +22,12 @@ const ALIASES: Readonly<Record<Role, readonly string[]>> = {
 	select: ["select", "fields", "field", "include_fields", "projection", "only"],
 }
 
-function normalise(name: string): string {
+function normalize(name: string): string {
 	return (
 		name
 			/* A bracketed suffix is a *value* carried in the parameter name — `fields[articles]`,
 			 * `filter[status]` — not part of the role's name. Matching the whole string against the
-			 * alias list would fail to recognise the role at all, and the check that needed it would
+			 * alias list would fail to recognize the role at all, and the check that needed it would
 			 * report itself inapplicable against an API that plainly supports it. */
 			.replace(/\[[^\]]*\]$/, "")
 			.replace(/([a-z0-9])([A-Z])/g, "$1_$2")
@@ -76,7 +76,7 @@ function takesStructuredInput(parameter: ParameterObject): boolean {
  * takes structured input is passed over: free text is the one thing a search check sends.
  */
 export function roleName(query: readonly ParameterObject[], role: Role): string | undefined {
-	return query.find((p) => ALIASES[role].includes(normalise(p.name)) && (role !== "search" || !takesStructuredInput(p)))
+	return query.find((p) => ALIASES[role].includes(normalize(p.name)) && (role !== "search" || !takesStructuredInput(p)))
 		?.name
 }
 
@@ -113,7 +113,7 @@ export function resolvePagingRoles(candidates: readonly ParameterObject[]): Pagi
 
 /** The free role this parameter's name claims. */
 function namedRole(parameter: ParameterObject, roles: PagingRoles): keyof PagingRoles | undefined {
-	const name = normalise(parameter.name)
+	const name = normalize(parameter.name)
 	const schema = schemaOf(parameter)
 	const hasMaximum = typeof schema.maximum === "number"
 	/* `count` is a page size only when it reads like one; otherwise it is a total. */

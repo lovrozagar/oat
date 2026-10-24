@@ -83,13 +83,13 @@ describe("create.persists-submitted-fields on JSON bodies", () => {
 		expect(findings.findings[0]?.detail).toContain("title sent")
 	})
 
-	it("stands down on a create that answers only an acknowledgement and has no item read", async () => {
+	it("stands down on a create that answers only an acknowledgment and has no item read", async () => {
 		for (const answer of [{ status: 201 }, { body: { id: 5, message: "Order sent successfully." }, status: 200 }]) {
 			const { outcome, findings } = await judge({ body: { name: "a" } }, answer)
 			expect(outcome).toEqual({
 				kind: "stood-down",
 				reason:
-					"note.create answered an acknowledgement, not the record, and the entity has no item read to read it back by",
+					"note.create answered an acknowledgment, not the record, and the entity has no item read to read it back by",
 			})
 			expect(findings.findings).toEqual([])
 		}
@@ -117,10 +117,10 @@ describe("create.persists-submitted-fields on JSON bodies", () => {
 	})
 })
 
-describe("create.persists-submitted-fields on acknowledgement-only creates", () => {
+describe("create.persists-submitted-fields on acknowledgment-only creates", () => {
 	const ack = { body: { id: 5, message: "Order sent successfully." }, status: 200 }
 
-	it("passes an acknowledgement-only create whose record holds every field it was sent", async () => {
+	it("passes an acknowledgment-only create whose record holds every field it was sent", async () => {
 		const body = { name: "a", size: 3 }
 		const { outcome, findings, sent } = await judge({ body }, ack, { body: { ...body, id: 5 }, status: 200 })
 		expect(outcome).toEqual({ kind: "asserted" })
@@ -128,7 +128,7 @@ describe("create.persists-submitted-fields on acknowledgement-only creates", () 
 		expect(sent.at(-1)).toMatchObject({ method: "GET", path: "/notes/5" })
 	})
 
-	it("fails an acknowledgement-only create whose record read back lacks a field", async () => {
+	it("fails an acknowledgment-only create whose record read back lacks a field", async () => {
 		const body = { name: "a", size: 3 }
 		const { outcome, findings } = await judge({ body }, ack, { body: { id: 5, name: "a" }, status: 200 })
 		expect(outcome).toEqual({ kind: "finding", verdict: "BACKEND_BUG" })
@@ -154,15 +154,15 @@ describe("create.persists-submitted-fields on acknowledgement-only creates", () 
 		expect(sent.at(-1)).toMatchObject({ method: "GET", path: "/notes/n7" })
 	})
 
-	it("stands down on an acknowledgement whose record cannot be read back", async () => {
+	it("stands down on an acknowledgment whose record cannot be read back", async () => {
 		const { outcome } = await judge({ body: { name: "a" } }, ack, { status: 404 })
 		expect(outcome).toEqual({
 			kind: "stood-down",
-			reason: "note.create answered an acknowledgement, not the record, and note.get answered 404 for it under 5",
+			reason: "note.create answered an acknowledgment, not the record, and note.get answered 404 for it under 5",
 		})
 	})
 
-	it("stands down on an acknowledgement that names no id to read back by", async () => {
+	it("stands down on an acknowledgment that names no id to read back by", async () => {
 		const { outcome, sent } = await judge(
 			{ body: { name: "a" } },
 			{ body: { message: "ok" }, status: 200 },
@@ -170,7 +170,7 @@ describe("create.persists-submitted-fields on acknowledgement-only creates", () 
 		)
 		expect(outcome).toEqual({
 			kind: "stood-down",
-			reason: "note.create answered an acknowledgement, not the record, and named no id to read it back by",
+			reason: "note.create answered an acknowledgment, not the record, and named no id to read it back by",
 		})
 		expect(sent.filter((request) => request.method === "GET")).toEqual([])
 	})
@@ -273,7 +273,7 @@ describe("create.persists-submitted-fields on form bodies", () => {
 describe("create.persists-submitted-fields, against the fields the record declares", () => {
 	const ack = { body: { id: 5, message: "Order sent successfully." }, status: 200 }
 
-	/** `judge` on an acknowledgement read back, with the plan's `declared` fields. */
+	/** `judge` on an acknowledgment read back, with the plan's `declared` fields. */
 	async function judgeDeclared(body: Record<string, unknown>, read: Answer, declared?: readonly string[]) {
 		const stage = await afterCreate({ body }, ack, { read })
 		const outcome = await createPersistsFields.run(stage.ctx, {
@@ -333,7 +333,7 @@ describe("create.persists-submitted-fields plan", () => {
 		expect(createPersistsFields.plan({ ...ctx, records: [] }).ok).toBe(false)
 	})
 
-	it("plans for an acknowledgement-only create, which is read back", () => {
+	it("plans for an acknowledgment-only create, which is read back", () => {
 		const { ctx } = notesContext(MODEL, () => undefined, { records: COHORT })
 		expect(createPersistsFields.plan({ ...ctx, createAcknowledged: true }).ok).toBe(true)
 	})

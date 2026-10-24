@@ -21,7 +21,7 @@ function jsonText(sent: unknown): unknown {
  * An id the answer names by contract (a declared `createdIdFrom`, its own identity, or its
  * `Location`) stands. A candidate — the record under an envelope, an id key found deeper in the
  * answer — stands once a read under it shows what was sent; so does an id the client chose, for a
- * create that answers only an acknowledgement. `acknowledged` says the answer named no id at all.
+ * create that answers only an acknowledgment. `acknowledged` says the answer named no id at all.
  *
  * An answer under a trusted id that is not the record (`answersRecord`) is read back by that id
  * (`readBackCreated`), unless the caller `wants` only the id: a ledger needs nothing else.

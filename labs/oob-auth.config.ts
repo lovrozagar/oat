@@ -31,7 +31,7 @@ function freshEmail(label: string): string {
 /**
  * Register, collect the emailed verification link, GET it, keep the session cookie.
  *
- * Registration provisions an organisation and a project, so each principal arrives owning its
+ * Registration provisions an organization and a project, so each principal arrives owning its
  * own tenant — which is what makes the isolation checks meaningful without a single fixture
  * identifier being configured by hand: `claims` reads the tenant and both path parameters out of
  * the session token. The document's `session` scheme is an apiKey in the `session` cookie, so the

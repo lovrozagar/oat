@@ -8,10 +8,10 @@ import { parseFilter } from "../query/filter.ts"
 import { likePattern } from "../query/like.ts"
 import { parseOrder } from "../query/order.ts"
 import { parseSearch } from "../query/search.ts"
-import { compileOrder, compileWhere, globText, likeText, type SqlFlavour, type SqlParam } from "./sql-compile.ts"
+import { compileOrder, compileWhere, globText, likeText, type SqlFlavor, type SqlParam } from "./sql-compile.ts"
 
-/* An engine whose spelling is plain to read: each flavour hook names itself in the SQL it writes. */
-const plain: SqlFlavour = {
+/* An engine whose spelling is plain to read: each flavor hook names itself in the SQL it writes. */
+const plain: SqlFlavor = {
 	binary: (expr) => `${expr} BINARY`,
 	bind: (args, value) => {
 		args.push(value)
@@ -37,14 +37,14 @@ const plain: SqlFlavour = {
 
 function where(expression: string, defects: DefectName[] = []): { sql: string; args: SqlParam[] } {
 	const args: SqlParam[] = []
-	const sql = compileWhere(parseFilter(expression, context(defects, {}, ROW)), { args, entity: ROW, flavour: plain })
+	const sql = compileWhere(parseFilter(expression, context(defects, {}, ROW)), { args, entity: ROW, flavor: plain })
 	return { args, sql }
 }
 
 function search(q: string, mode: "contains" | "prefix", defects: DefectName[] = []): { sql: string; args: SqlParam[] } {
 	const args: SqlParam[] = []
 	const node = parseSearch(q, mode, { defects: new DefectSet(defects), entity: ROW })
-	const sql = node === null ? "" : compileWhere(node, { args, entity: ROW, flavour: plain })
+	const sql = node === null ? "" : compileWhere(node, { args, entity: ROW, flavor: plain })
 	return { args, sql }
 }
 
@@ -105,7 +105,7 @@ describe("compileWhere: groups, lists and patterns", () => {
 		expect(where("label.ilike.*b")).toEqual({ args: ["%b"], sql: "label ILIKE ?" })
 	})
 
-	it("tests array membership, or the serialised array as text under CONTAINS_MATCHES_SUBSTRING", () => {
+	it("tests array membership, or the serialized array as text under CONTAINS_MATCHES_SUBSTRING", () => {
 		expect(where("tags.contains.red")).toEqual({ args: ["red"], sql: "HAS(tags, ?)" })
 		expect(where("tags.contains.red", ["CONTAINS_MATCHES_SUBSTRING"])).toEqual({
 			args: ["red"],

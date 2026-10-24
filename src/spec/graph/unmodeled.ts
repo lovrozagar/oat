@@ -73,7 +73,7 @@ export function leaveUntested(op: OperationModel, reason: string): void {
 }
 
 /** Records a gap for every webhook, callback, response link and additional operation the document declares. */
-export function recordUnmodelled(doc: OpenApiDocument, gaps: GapCollector): void {
+export function recordUnmodeled(doc: OpenApiDocument, gaps: GapCollector): void {
 	for (const name of keysOf(member(doc, "webhooks"))) {
 		gaps.record(
 			`webhook ${name}`,

@@ -1,6 +1,6 @@
 /** Path parameters nothing in the document can produce, and the entity each parameter identifies. */
 
-import { singularise } from "../extensions/entity.ts"
+import { singularize } from "../extensions/entity.ts"
 import { isParamSegment, pathShape, segmentsOf } from "./segments.ts"
 import type { EntityModel, OperationModel } from "./types.ts"
 
@@ -59,7 +59,7 @@ export function owningEntityName(path: string, param: string): string | null {
 	if (index <= 0) return null
 	const previous = segments[index - 1] as string
 	if (isParamSegment(previous)) return null
-	return singularise(previous)
+	return singularize(previous)
 }
 
 /** `{project_id}` → `project`, `{tableId}` → `table`. */

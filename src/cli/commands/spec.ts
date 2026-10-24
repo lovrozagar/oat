@@ -16,8 +16,8 @@ import { type Args, str, USAGE } from "../flags.ts"
 import type { Writer } from "../writer.ts"
 import { EXIT } from "../../runtime/exit.ts"
 
-/** The document a command reads, modelled, with what its config said about it. */
-export interface Modelled {
+/** The document a command reads, modeled, with what its config said about it. */
+export interface Modeled {
 	model: SpecModel
 	/** `$ref`s left unresolved: a URL, an anchor, or any ref of a fetched document. */
 	externalRefs: string[]
@@ -56,11 +56,11 @@ function baseUrlOf(flags: Args["flags"], { config, unsetEnv = [] }: OfflineConfi
 }
 
 /**
- * The document `--spec` (or the config's) names, modelled offline — or the exit code of a refusal
+ * The document `--spec` (or the config's) names, modeled offline — or the exit code of a refusal
  * already written. A relative document resolves against the config's base URL, as for `run`. Nothing
  * is sent, so a config whose variables are not set yet is read, each listed in `unsetEnv`.
  */
-export async function modelled(writer: Writer, flags: Args["flags"]): Promise<Modelled | number> {
+export async function modeled(writer: Writer, flags: Args["flags"]): Promise<Modeled | number> {
 	const configPath = str(flags, "config")
 	const read = await offlineConfig(writer, configPath)
 	if (typeof read === "number") return read

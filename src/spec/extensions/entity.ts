@@ -51,7 +51,7 @@ const IRREGULAR_PLURALS: Record<string, string> = {
  */
 const NON_PLURAL_ENDINGS = /(?:us|ss|is|os|as|ics|ews|ess|ous|sis)$/
 
-export function singularise(word: string): string {
+export function singularize(word: string): string {
 	const lower = word.toLowerCase()
 	const irregular = IRREGULAR_PLURALS[lower]
 	if (irregular !== undefined) return irregular
@@ -122,7 +122,7 @@ function inferEntity(endpoint: Endpoint): EntityRef | null {
 	/* Every segment after the noun is a parameter, so any segment there makes it item-scoped. */
 	const itemScoped = nounIndex < segments.length - 1
 
-	const name = singularise(noun)
+	const name = singularize(noun)
 	const method = endpoint.method.toUpperCase()
 
 	if (method !== "GET" && !itemScoped && method !== "POST") return { action: "action", name, source: "heuristic" }

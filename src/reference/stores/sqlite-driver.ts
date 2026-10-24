@@ -45,7 +45,7 @@ export async function nodeSqliteDriver(): Promise<SqliteDriver> {
 	const db = new DatabaseSync(":memory:")
 	db.exec("PRAGMA foreign_keys = OFF")
 	/* Default SQLite LIKE is case-insensitive for ASCII, which makes `ilike` vs `like`
-	 * indistinguishable. Honour the grammar's distinction the way Postgres does. */
+	 * indistinguishable. Honor the grammar's distinction the way Postgres does. */
 	db.exec("PRAGMA case_sensitive_like = ON")
 
 	return {

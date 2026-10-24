@@ -17,12 +17,12 @@ import { querySearchAndSelectCompose } from "./families/composition/query-search
 import { querySearchAndSortCompose } from "./families/composition/query-search-and-sort-compose.ts"
 import { querySortAndSelectCompose } from "./families/composition/query-sort-and-select-compose.ts"
 import { unknownParameterConsistent } from "./families/composition/query-unknown-parameter-consistent.ts"
-import { documentedStatusHonoured } from "./families/conformance/response-status-is-documented.ts"
-import { errorSchemaHonoured } from "./families/conformance/schema-error-response-matches-document.ts"
+import { documentedStatusHonored } from "./families/conformance/response-status-is-documented.ts"
+import { errorSchemaHonored } from "./families/conformance/schema-error-response-matches-document.ts"
 import { problemJsonShape } from "./families/conformance/schema-problem-json-shape.ts"
-import { readSchemaHonoured } from "./families/conformance/schema-read-response-matches-document.ts"
+import { readSchemaHonored } from "./families/conformance/schema-read-response-matches-document.ts"
 import { writeOnlyNotReturned } from "./families/conformance/response-write-only-not-returned.ts"
-import { successSchemaHonoured } from "./families/conformance/schema-success-response-matches-document.ts"
+import { successSchemaHonored } from "./families/conformance/schema-success-response-matches-document.ts"
 import { projectionsAgree } from "./families/consistency/consistency-projections-agree.ts"
 import { declaredInvalidationHappens } from "./families/consistency/invalidation-declared-route-changes.ts"
 import { listedRowIsTheGet } from "./families/consistency/list-item-matches-listed-row.ts"
@@ -136,7 +136,7 @@ export const CHECKS: readonly RegisteredCheck[] = [
 	listedRowIsTheGet,
 	createPersistsFields,
 	createStatusMatchesSpec,
-	successSchemaHonoured,
+	successSchemaHonored,
 	limitBoundsPageSize,
 	limitRespectsMax,
 	hasMoreIsAccurate,
@@ -277,9 +277,9 @@ export const CHECKS: readonly RegisteredCheck[] = [
 	ifMatchEnforced,
 	/* After every other check has written to the transcript — create is owned by
 	 * create.status-matches-document. */
-	documentedStatusHonoured,
-	errorSchemaHonoured,
-	readSchemaHonoured,
+	documentedStatusHonored,
+	errorSchemaHonored,
+	readSchemaHonored,
 	writeOnlyNotReturned,
 	problemJsonShape,
 	declaredRateLimitHonored,

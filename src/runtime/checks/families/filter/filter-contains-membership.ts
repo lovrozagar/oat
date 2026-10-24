@@ -40,7 +40,7 @@ export const filterContainsMembership: Check<{
 		const field = containsField(ctx)
 		if (field === undefined) return cannot()
 		/* The most telling element is one that also occurs inside another element's text: an
-		 * implementation matching the serialised array instead of its members over-selects there. */
+		 * implementation matching the serialized array instead of its members over-selects there. */
 		const elements = [
 			...new Set(
 				ctx.records.flatMap((row) => (Array.isArray(row[field.field]) ? (row[field.field] as unknown[]) : [])),

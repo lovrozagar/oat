@@ -81,7 +81,7 @@ export async function answered(
 		url: url.toString(),
 		...paced(sent.pacing, landed.room),
 		...stamped(sent),
-		...travelled(landed, url),
+		...traveled(landed, url),
 	}
 	registerSecrets(wire, exchange, request.options.context?.secrets ?? [])
 	await wire.deliver(exchange, request.resolved?.entity ?? undefined)
@@ -117,7 +117,7 @@ function paced(pacing: Pacing | undefined, room: boolean | undefined): Partial<E
 }
 
 /* The redirects it followed, where it landed when that is elsewhere, and the cookies it was handed. */
-function travelled(landed: Timed, url: URL): Partial<Exchange> {
+function traveled(landed: Timed, url: URL): Partial<Exchange> {
 	const cookies = landed.jar.snapshot()
 	const landing = landed.landing.toString()
 	return {

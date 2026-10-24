@@ -252,7 +252,7 @@ export function securityProblems(
 }
 
 /** A document and its model: what a run, `doctor` and `plan` check a config against. */
-export interface ModelledDocument {
+export interface ModeledDocument {
 	doc: OpenApiDocument
 	model: ModelView
 }
@@ -260,8 +260,8 @@ export interface ModelledDocument {
 /** Throws a UsageError naming every `securityProblems` problem against the primary document and each origin's. */
 export function assertSecurity(
 	config: Config,
-	primary: ModelledDocument,
-	origins: ReadonlyMap<string, ModelledDocument> = new Map(),
+	primary: ModeledDocument,
+	origins: ReadonlyMap<string, ModeledDocument> = new Map(),
 ): void {
 	const views = Object.fromEntries([...origins].map(([id, origin]) => [id, specView(origin.model, origin.doc)]))
 	const problems = securityProblems(config, specView(primary.model, primary.doc), views)

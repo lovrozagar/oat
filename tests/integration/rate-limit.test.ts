@@ -314,7 +314,7 @@ async function runDeclared(defects: string[]) {
 }
 
 describe("a declared rate limit, on the CLI", () => {
-	it("is graded as honoured on a backend that keeps it", async () => {
+	it("is graded as honored on a backend that keeps it", async () => {
 		const { code, runs } = await runDeclared([])
 		expect(code).toBe(EXIT.clean)
 		const list = (await latestReport(runs)).scope.operations.find((op) => op.operationId === "table.list")
@@ -325,7 +325,7 @@ describe("a declared rate limit, on the CLI", () => {
 	it("fails the run when the backend throttles well inside it, and retries the 429", async () => {
 		const { code, runs, text } = await runDeclared(["RATE_LIMIT_STRICTER_THAN_DECLARED"])
 		expect(code).toBe(EXIT.defects)
-		expect(text).toContain('the declared "table.list" rate limit is not honoured')
+		expect(text).toContain('the declared "table.list" rate limit is not honored')
 		expect(text).toMatch(/✗ table\.list\s+failed .*spec\.declared-rate-limit-is-honored/)
 		const report = await latestReport(runs)
 		expect(report.findings).toContainEqual(

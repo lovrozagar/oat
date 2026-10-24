@@ -33,7 +33,7 @@ export function renderUnknownOp(term: ProbeTerm, token: string): Record<string, 
 }
 
 /**
- * `term` without `piece`, together with the literal that joined that piece to its neighbour: the
+ * `term` without `piece`, together with the literal that joined that piece to its neighbor: the
  * literal after it, or — at the end — the literal before it.
  */
 function withoutPiece(term: string, piece: string): string {
@@ -50,7 +50,7 @@ function withoutPiece(term: string, piece: string): string {
 
 /**
  * An equality term with one required piece left out — its conjunction where it has one, else its
- * operator, together with the literal that joined that piece to its neighbour. `null` when the
+ * operator, together with the literal that joined that piece to its neighbor. `null` when the
  * grammar's terms have neither.
  */
 export function renderMalformed(term: ProbeTerm): Record<string, string> | null {

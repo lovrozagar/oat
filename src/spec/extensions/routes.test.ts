@@ -3,7 +3,7 @@ import type { OperationObject } from "../types.ts"
 import { readCleanup, readInvalidate } from "./routes.ts"
 
 describe("route tags", () => {
-	it("reads x-invalidate as normalised routes, keeping what is not one trimmed", () => {
+	it("reads x-invalidate as normalized routes, keeping what is not one trimmed", () => {
 		const op = { "x-invalidate": [" get /v1/notes/:id ", 1, "  stray  ", "GET /v1/notes/{id}"] } as OperationObject
 		expect(readInvalidate(op)).toEqual(["GET /v1/notes/{id}", "stray", "GET /v1/notes/{id}"])
 		expect(readInvalidate({ "x-invalidate": "GET /x" } as OperationObject)).toEqual([])

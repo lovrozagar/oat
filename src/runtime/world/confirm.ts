@@ -39,7 +39,7 @@ function sentFields(sent: Record_, input: ConfirmInput): Array<[string, unknown]
 }
 
 /**
- * Reads back a record an acknowledgement-only create made under a client-chosen identity.
+ * Reads back a record an acknowledgment-only create made under a client-chosen identity.
  *
  * An id oat only sent proves nothing: a server may ignore it and store the record under one of its
  * own, and on an integer-id API the id oat sent can belong to somebody else's row. The submitted

@@ -35,7 +35,7 @@ export const contentTypeEnforced: Check<CreateBody> = defineCheck<CreateBody>({
 		if (refused !== null) return refused
 
 		return ctx.findings.backend(this.id, ctx.entityName, {
-			summary: "a request labelled with an undeclared content type was processed",
+			summary: "a request labeled with an undeclared content type was processed",
 			detail:
 				`the operation documents 415 and declares ${declaredMediaType}, but the same body sent as ` +
 				`text/plain was processed (${exchange.status}). Content negotiation is documented ` +

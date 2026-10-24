@@ -30,7 +30,7 @@ import type { RunOptions } from "./types.ts"
  * adds its own part. A stage's input type names exactly what it may use.
  */
 
-/** The document read and modelled; nothing sent to the API yet. */
+/** The document read and modeled; nothing sent to the API yet. */
 export interface Loaded {
 	options: RunOptions
 	hooks: Hooks
@@ -40,7 +40,7 @@ export interface Loaded {
 	fence: Fence | undefined
 	model: SpecModel
 	/**
-	 * Each secondary origin's document, read and modelled once at load, where the config's
+	 * Each secondary origin's document, read and modeled once at load, where the config's
 	 * credentials are checked against it. By origin id; each origin's client is built on it.
 	 */
 	origins: ReadonlyMap<string, LoadedOrigin>

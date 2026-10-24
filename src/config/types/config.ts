@@ -39,7 +39,7 @@ export interface OriginSpec {
  * already declare (parsed onto every `OperationModel`, unconsulted until a profile selects one).
  *
  * Two profiles always exist without being declared here: `"full"` (no gating — today's default
- * behaviour) and `"cheap"` (`{ maxCost: "low" }`). Anything more specific than a cost band —
+ * behavior) and `"cheap"` (`{ maxCost: "low" }`). Anything more specific than a cost band —
  * "skip the extraction endpoints that call a paid inference API" — is a named entry here.
  */
 export interface ProfileSpec {

@@ -24,7 +24,7 @@ import type { RunOptions } from "./types.ts"
  * them, and checks the config's credentials against them: a misfit is a UsageError, nothing sent.
  */
 export async function load(options: RunOptions): Promise<Loaded> {
-	/* An unknown profile, or a transcript budget or folder the run cannot honour, is a config error: it costs nothing to find out. */
+	/* An unknown profile, or a transcript budget or folder the run cannot honor, is a config error: it costs nothing to find out. */
 	const profile = resolveProfile(options.profile, options.profiles)
 	assertTranscript(options.transcript)
 	const findings = new FindingCollector()
@@ -84,7 +84,7 @@ function modelOf(raw: Parameters<typeof prepareDocument>[0], options: RunOptions
 }
 
 /**
- * Each secondary origin's document after its overlay, read once and modelled, by origin id. A relative
+ * Each secondary origin's document after its overlay, read once and modeled, by origin id. A relative
  * path is read from `dir`, the config's folder.
  */
 export async function loadOrigins(

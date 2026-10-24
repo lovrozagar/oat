@@ -538,7 +538,7 @@
               "url": "http://reference.test/v1/projects/proj_alpha/jobs"
             }
           ],
-          "summary": "the declared \"job.list\" rate limit is not honoured",
+          "summary": "the declared \"job.list\" rate limit is not honored",
           "verdict": "SPEC_BUG"
         },
         {
@@ -555,7 +555,7 @@
               "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows?limit=5"
             }
           ],
-          "summary": "the declared \"row.list\" rate limit is not honoured",
+          "summary": "the declared \"row.list\" rate limit is not honored",
           "verdict": "SPEC_BUG"
         },
         {
@@ -572,7 +572,7 @@
               "url": "http://reference.test/v1/projects/proj_alpha/tables"
             }
           ],
-          "summary": "the declared \"table.list\" rate limit is not honoured",
+          "summary": "the declared \"table.list\" rate limit is not honored",
           "verdict": "SPEC_BUG"
         }
       ]

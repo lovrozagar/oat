@@ -35,7 +35,7 @@ export const filterAndSelectCompose: Check<Subset & { extra: string; projection:
 			"create.persists-submitted-fields",
 			"filter.equality-selects-exactly-one",
 			/* If select is accepted and ignored, both sides still carry every column and the
-			 * membership comparison remains well-defined — but a backend that has stopped honouring
+			 * membership comparison remains well-defined — but a backend that has stopped honoring
 			 * select at all may also have stopped taking the code path this check is probing. */
 			"select.projection-honored",
 			"pagination.page-walk-covers-set",

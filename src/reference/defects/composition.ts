@@ -21,7 +21,7 @@ export const COMPOSITION_DEFECTS = {
 	 * The filter is applied when it is the only query parameter, and dropped once a free-text
 	 * search joins it.
 	 *
-	 * Adding `q` often switches the backend onto a search-index path that does not honour the
+	 * Adding `q` often switches the backend onto a search-index path that does not honor the
 	 * structured predicate. Search alone is correct, the filter alone is correct, and together
 	 * the filter silently vanishes.
 	 */
@@ -37,7 +37,7 @@ export const COMPOSITION_DEFECTS = {
 		"a filter stops being applied once a sort and a select are requested together",
 	/**
 	 * The filter survives filter+search and filter+sort, and vanishes only when a search and a
-	 * sort are requested together — typically the search-index path that also tries to honour
+	 * sort are requested together — typically the search-index path that also tries to honor
 	 * an ORDER BY and drops the structured predicate to do it.
 	 */
 	FILTER_DROPPED_WHEN_SORTED_AND_SEARCHED:

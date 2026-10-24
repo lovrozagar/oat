@@ -1,7 +1,7 @@
 /** Route references (`GET /things/{id}`) and the path templates they name. */
 
-/** Normalises `/things/:id` to `/things/{id}` so both path syntaxes compare equal. */
-export function normalisePath(path: string): string {
+/** Normalizes `/things/:id` to `/things/{id}` so both path syntaxes compare equal. */
+export function normalizePath(path: string): string {
 	return path.replace(/:([A-Za-z_][A-Za-z0-9_]*)/g, "{$1}")
 }
 
@@ -10,7 +10,7 @@ export function parseRouteRef(ref: string): { method: string; path: string } | n
 	const match = /^\s*([A-Za-z]+)\s+(\S+)\s*$/.exec(ref)
 	if (match === null) return null
 	const [, method, path] = match as unknown as [string, string, string]
-	return { method: method.toUpperCase(), path: normalisePath(path) }
+	return { method: method.toUpperCase(), path: normalizePath(path) }
 }
 
 /** `{param}` and `:param` segments match one path component. */
@@ -24,7 +24,7 @@ export function pathTemplateMatches(template: string, pathname: string): boolean
  */
 export function pathTemplateParams(template: string, pathname: string): Record<string, string> | null {
 	const names: string[] = []
-	const compiled = normalisePath(template)
+	const compiled = normalizePath(template)
 		.split("/")
 		.map((segment) => {
 			if (segment.startsWith("{") && segment.endsWith("}")) {

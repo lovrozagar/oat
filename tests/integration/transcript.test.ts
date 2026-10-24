@@ -27,7 +27,7 @@ async function track(started: Promise<Listening>): Promise<Listening> {
 	return server
 }
 
-function recognisesDescriptors() {
+function recognizesDescriptors() {
 	expect(isBodyRef(null)).toBe(false)
 	expect(isBodyRef([])).toBe(false)
 	expect(isBodyRef({ sha256: "a", bytes: 1 })).toBe(false)
@@ -184,7 +184,7 @@ async function compactsResponseBodies() {
 }
 
 describe("body descriptors", () => {
-	it("recognises refs, snapshots, and live payloads", recognisesDescriptors)
+	it("recognizes refs, snapshots, and live payloads", recognizesDescriptors)
 	it("compacts FormData, bytes, oversized text, and passes descriptors through", compactsRequestBodies)
 	it("compacts SSE frames, oversized responses, and binary bodies", compactsResponseBodies)
 })

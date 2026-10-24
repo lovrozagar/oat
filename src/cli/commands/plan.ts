@@ -10,7 +10,7 @@ import { resolveTargetScope } from "../../runtime/scope/target.ts"
 import { ScopeError } from "../../runtime/scope/scope-error.ts"
 import { type Args, list } from "../flags.ts"
 import type { Writer } from "../writer.ts"
-import { modelled } from "./spec.ts"
+import { modeled } from "./spec.ts"
 
 /* What of the config the plan reads: its recipes and principals, and the hook that supplies roots. */
 function configView(config: OatConfig | undefined): Pick<PlanView, "credentials" | "hooks"> {
@@ -27,7 +27,7 @@ function configView(config: OatConfig | undefined): Pick<PlanView, "credentials"
 
 /** `oat plan`: the test model derived from the document, offline; targeted when `--ops` or `--only` says. */
 export async function commandPlan(writer: Writer, flags: Args["flags"]): Promise<number> {
-	const read = await modelled(writer, flags)
+	const read = await modeled(writer, flags)
 	if (typeof read === "number") return read
 	const { model, config, unsetEnv } = read
 	const ops = list(flags, "ops") ?? config?.ops

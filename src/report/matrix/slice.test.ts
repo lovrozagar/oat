@@ -35,7 +35,7 @@ const input = report({
 const slice = sliceOf(input)
 
 describe("entitySlice", () => {
-	it("gives each catalogued check the status the report gave it", () => {
+	it("gives each cataloged check the status the report gave it", () => {
 		expect(slice.nodes.map((node) => node.id)).toEqual(catalog.ids)
 		const status = (id: string) => nodeOf(slice, id).status
 		expect(status("sort.order-is-applied")).toBe("failed")

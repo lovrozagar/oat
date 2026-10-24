@@ -21,7 +21,7 @@ import type { JsonSchema } from "../../../../spec/types.ts"
  * `x-invalidate` is the tag the whole entity graph is derived from, and until now it was believed
  * rather than tested: oat inverted the claim into a read surface and never asked whether the
  * claim was true. The interesting case is cross-entity — creating a child changes what the
- * *parent* route serves, via a denormalised counter or a cached projection. Those are the writes
+ * *parent* route serves, via a denormalized counter or a cached projection. Those are the writes
  * that go wrong quietly: the write succeeds, the child's own listing is right, and only the other
  * route the document named is stale. Nothing but following the declaration finds it.
  *
@@ -104,7 +104,7 @@ export const declaredInvalidationHappens: Check<{
 				detail:
 					`creating a ${ctx.entityName} declares x-invalidate on "${stale.probe.op.route}", but that ` +
 					"route returned a byte-identical body before and after the write. Either it serves " +
-					"a value derived from this entity and that value is stale — a denormalised counter " +
+					"a value derived from this entity and that value is stale — a denormalized counter " +
 					"or a cached projection nobody refreshed — or the declaration is wrong and every " +
 					"client following it is invalidating the wrong cache key.",
 				evidence: [created, stale.after],

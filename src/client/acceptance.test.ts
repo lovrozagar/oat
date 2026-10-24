@@ -26,7 +26,7 @@ afterEach(() => {
 })
 
 /* The exchange file the run's journal writes for `exchange`, as text. */
-async function journalled(exchange: Exchange, redactor: Parameters<typeof createExchangeJournal>[1]): Promise<string> {
+async function journaled(exchange: Exchange, redactor: Parameters<typeof createExchangeJournal>[1]): Promise<string> {
 	const dir = mkdtempSync(join(tmpdir(), "oat-client-acceptance-"))
 	dirs.push(dir)
 	const journal = createExchangeJournal(dir, redactor)
@@ -66,7 +66,7 @@ describe("bar 1: exactly the credentials of one satisfied alternative", () => {
 		expect(sent[0]?.headers).toEqual({ Authorization: "ApiKey key_machine_123456" })
 		expect(exchange).toMatchObject({ operationId: "row.list", principal: "alpha", schemes: ["apiKey"] })
 		expect(exchange).not.toHaveProperty("forged")
-		const file = JSON.parse(await journalled(exchange, client.redactor)) as { requestHeaders: object }
+		const file = JSON.parse(await journaled(exchange, client.redactor)) as { requestHeaders: object }
 		expect(file.requestHeaders).toEqual({ Authorization: `ApiKey ${REDACTED}` })
 	})
 
@@ -106,7 +106,7 @@ describe("bar 4: redaction derives from placements", () => {
 		expect(sent[0]?.headers).toEqual({ "X-Key": "hdr-secret-value-1", cookie: "sess=sess-secret-value-1" })
 		expect(sent[0]?.url).toBe(`${BASE}/all?k=qry-secret-value-1`)
 		expect(exchange.schemes).toEqual(["hdr", "qry", "sess"])
-		const file = await journalled(exchange, client.redactor)
+		const file = await journaled(exchange, client.redactor)
 		const curl = toCurl(exchange, { redactor: client.redactor })
 		for (const written of [file, curl]) expect(written).not.toMatch(/secret-value/)
 		const parsed = JSON.parse(file) as { requestHeaders: object; url: string; responseBody: unknown }
@@ -123,7 +123,7 @@ describe("BLOCKING 2: a forged value derived from a real credential is a secret"
 		const { client, sent } = clientOf({ answer: () => json({ echo: derived }, 401), doc: placesDoc, security: places })
 		const forged = await client.get("/all", { as: { forged: { derived: true, scheme: "jwt", value: derived } } })
 		expect(sent[0]?.headers).toMatchObject({ Authorization: `Bearer ${derived}` })
-		const file = await journalled(forged, client.redactor)
+		const file = await journaled(forged, client.redactor)
 		const script = toCurl(forged, { redactor: client.redactor })
 		for (const written of [file, script]) expect(written).not.toContain(derived)
 		expect((JSON.parse(file) as { requestHeaders: object }).requestHeaders).toMatchObject({
@@ -141,7 +141,7 @@ describe("every value a recipe extracts is a secret before its answer is recorde
 			as: { anonymous: true },
 			context: { purpose: "auth", secrets },
 		})
-		const file = await journalled(signIn, client.redactor)
+		const file = await journaled(signIn, client.redactor)
 		for (const value of ["at-secret-123", "rt-secret-123", "jwt-neutral-key-1"]) expect(file).not.toContain(value)
 		expect((JSON.parse(file) as { responseBody: unknown }).responseBody).toEqual({
 			access_token: REDACTED,
@@ -351,7 +351,7 @@ describe("forged values and probes", () => {
 		expect(sent[0]?.url).toBe(`${BASE}/q?k=forged-key-1`)
 		expect(exchange).toMatchObject({ forged: true, schemes: ["qry"], status: 401 })
 		expect(exchange).not.toHaveProperty("principal")
-		expect(JSON.parse(await journalled(exchange, client.redactor))).toMatchObject({ url: `${BASE}/q?k=forged-key-1` })
+		expect(JSON.parse(await journaled(exchange, client.redactor))).toMatchObject({ url: `${BASE}/q?k=forged-key-1` })
 	})
 
 	it("places a forged value under the config's format", async () => {

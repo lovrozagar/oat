@@ -13,7 +13,7 @@ import { overlapPlan, sortFieldBeside, type Subset } from "./plans.ts"
  * A filter, a search and a sort must compose: the intersection of filter and search must not
  * change when a sort is added.
  *
- * The search-index path that also tries to honour an ORDER BY is a common place to drop the
+ * The search-index path that also tries to honor an ORDER BY is a common place to drop the
  * structured predicate. Pairwise, filter+search and filter+sort both hold; together they do not.
  */
 export const filterSearchSortCompose: Check<Subset & { token: string; sortField: string }> = defineCheck<

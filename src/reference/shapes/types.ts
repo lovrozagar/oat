@@ -47,7 +47,7 @@ export interface ReferenceShape {
 	ackCreate?: boolean
 	/**
 	 * What every record's create answers instead of the record (an async job's receipt stays as it
-	 * is): `id-message` an acknowledgement `{ id, message: "created" }`, `location` a 201 with an
+	 * is): `id-message` an acknowledgment `{ id, message: "created" }`, `location` a 201 with an
 	 * empty body and the new record's URL in `Location`.
 	 */
 	createAnswer?: "id-message" | "location"

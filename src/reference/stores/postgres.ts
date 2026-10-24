@@ -17,7 +17,7 @@ import { ENTITIES } from "../model/entities.ts"
 import type { EntityDef, FieldDef } from "../model/types.ts"
 import type { SelectPlan } from "../query-types.ts"
 import type { Row, Store } from "../store-api.ts"
-import { type SqlFlavour, type SqlParam, compileOrder, compileWhere, likeText } from "./sql-compile.ts"
+import { type SqlFlavor, type SqlParam, compileOrder, compileWhere, likeText } from "./sql-compile.ts"
 
 /** What the store needs of a Postgres connection. postgres.js's client is one; a test passes its own. */
 export interface PgConnection {
@@ -47,7 +47,7 @@ function ident(name: string): string {
 }
 
 /* How Postgres spells what the shared compiler leaves to the engine. */
-function pgFlavour(): SqlFlavour {
+function pgFlavor(): SqlFlavor {
 	return {
 		binary: (expr) => `${expr} COLLATE "C"`,
 		bind: (args, value) => {
@@ -87,7 +87,7 @@ interface PgParts {
 }
 
 export class PgStore implements Store {
-	private readonly flavour: SqlFlavour = pgFlavour()
+	private readonly flavor: SqlFlavor = pgFlavor()
 	private readonly sql: PgConnection
 	private readonly admin: PgConnection
 	private readonly dbName: string
@@ -141,7 +141,7 @@ export class PgStore implements Store {
 
 	/** The stored column for a field — diverges from the declared name only under the defect. */
 	private physical(name: string): string {
-		return this.defects.has("COLUMN_NAME_MISMATCH") && name === "name" ? "mislabelled_name" : name
+		return this.defects.has("COLUMN_NAME_MISMATCH") && name === "name" ? "mislabeled_name" : name
 	}
 
 	/**
@@ -202,8 +202,8 @@ export class PgStore implements Store {
 
 	async select(entity: EntityDef, plan: SelectPlan): Promise<Row[]> {
 		const args: SqlParam[] = []
-		const where = compileWhere(plan.where, { args, entity, flavour: this.flavour })
-		const order = compileOrder(plan, entity, this.flavour)
+		const where = compileWhere(plan.where, { args, entity, flavor: this.flavor })
+		const order = compileOrder(plan, entity, this.flavor)
 		const rows = await this.sql.unsafe(
 			`SELECT ${this.selectList(entity)} FROM ${ident(entity.plural)} WHERE ${where}${order}`,
 			args,

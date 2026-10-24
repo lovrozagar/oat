@@ -36,7 +36,7 @@ export const countIsConsistentWithPage: Check = defineCheck({
 				`the response carries count=${reported} while returning ${returned} record(s) in the same ` +
 				`body${envelopeValue(ctx, result, "hasMore") === true ? " and hasMore=true" : ""}. The total is being ` +
 				"computed by a query that disagrees with the one producing the rows, so any caller " +
-				"rendering a result count contradicts the list it is labelling.",
+				"rendering a result count contradicts the list it is labeling.",
 			evidence: [result.exchange],
 		})
 	},

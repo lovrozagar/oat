@@ -13,7 +13,7 @@ import { notesContext } from "./__fixtures__/notes.ts"
 
 const withRecords = (records: Record_[]): Listed => notesContext(undefined, { records }).ctx
 
-/** The notes context with the sort behaviour the document declares. */
+/** The notes context with the sort behavior the document declares. */
 function declaring(sort: { collation?: "binary" | "case-insensitive" | "locale"; defaultNulls?: "first" | "last" }) {
 	const ctx = notesContext().ctx
 	return { ...ctx, capabilities: { ...resolvedCaps(ctx), sort } }

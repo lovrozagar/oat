@@ -14,7 +14,7 @@ const is = (raw: string, name = "description", ctx: ParseContext = context()) =>
 	isTerm(termRead({ ctx, field: field(name, ctx.entity), op: "is", raw }))
 
 describe("listTerm", () => {
-	it("tests membership in a parenthesised list, blanks dropped", () => {
+	it("tests membership in a parenthesized list, blanks dropped", () => {
 		expect(list("in", "(a, ,b)")).toEqual({
 			asText: false,
 			field: "status",
@@ -67,7 +67,7 @@ describe("isTerm", () => {
 			value: true,
 		})
 		expect(is("false", "active", context([], {}, ROW))).toMatchObject({ value: false })
-		expect(() => is("true")).toThrow("is.true is not a recognised predicate")
-		expect(() => is("maybe", "active", context([], {}, ROW))).toThrow("is.maybe is not a recognised predicate")
+		expect(() => is("true")).toThrow("is.true is not a recognized predicate")
+		expect(() => is("maybe", "active", context([], {}, ROW))).toThrow("is.maybe is not a recognized predicate")
 	})
 })

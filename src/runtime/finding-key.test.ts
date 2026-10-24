@@ -3,7 +3,7 @@ import type { Finding } from "./finding.ts"
 import { findingKey, normalizeDetail } from "./finding-key.ts"
 
 /*
- * The same defect found by two runs must be recognisable as the same: a baseline matches it and a
+ * The same defect found by two runs must be recognizable as the same: a baseline matches it and a
  * diff calls it persisting. Its detail carries run-specific values — record ids, UUIDs, ports,
  * timestamps — that change every run while the defect does not.
  */

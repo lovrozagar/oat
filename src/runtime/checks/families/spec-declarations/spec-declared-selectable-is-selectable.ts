@@ -10,7 +10,7 @@ import { conv, q } from "../../query/capabilities.ts"
 import { list } from "../../sets/list.ts"
 
 /**
- * The select analogue of `declaredFilterableWorks` and `declaredSortableWorks`:
+ * The select analog of `declaredFilterableWorks` and `declaredSortableWorks`:
  * `x-query.selectable` is a promise too, and a sparse fieldset the backend rejects breaks every
  * client generated from the document exactly the same way a rejected filter or sort does.
  */
@@ -30,7 +30,7 @@ export const declaredSelectableWorks: Check = defineCheck({
 		"error.malformed-filter-not-5xx",
 		/* Same shape as the sort check's dependency on sort.order-is-applied, found by inspection
 		 * before the fuzzer had to: `project()` returns the row untouched under SELECT_IGNORED
-		 * *before* the excluded-field check runs, so a backend that has stopped honouring `select`
+		 * *before* the excluded-field check runs, so a backend that has stopped honoring `select`
 		 * at all also stops rejecting an overclaimed field — the request just returns every column. */
 		"select.projection-honored",
 	],
@@ -56,7 +56,7 @@ export const declaredSelectableWorks: Check = defineCheck({
 			const { field, result } = answered
 			probed += 1
 			/* Only a rejection counts. A field accepted and then ignored is select.projection-
-			 * honoured's finding, not a capability claim breaking. */
+			 * honored's finding, not a capability claim breaking. */
 			const answer = declarationAnswer(result.exchange.status)
 			if (answer === "refused") rejected.push({ exchange: result.exchange, field, status: result.exchange.status })
 			if (answer === "unknown") unknown.push(`${field} (${result.exchange.status})`)

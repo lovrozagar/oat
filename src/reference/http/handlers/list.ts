@@ -35,7 +35,7 @@ export async function list(
 			embed: (relation, row) => embedded(state, call, { relation, row }),
 			scope: { ...call.scope, project_id: call.principal.projectId },
 			/* Applied to the collection only — the item route never passes through here — so a
-			 * skewed field makes the two projections disagree exactly as a stale denormalised
+			 * skewed field makes the two projections disagree exactly as a stale denormalized
 			 * listing does. */
 			transform: (record) => shown(state, entity, skewForList(defects, record)),
 		},

@@ -31,7 +31,7 @@ export const createStatusMatchesSpec: Check<{ createOp: OperationModel; success:
 			detail:
 				`${createOp.operationId} returned ${exchange.status}; the document declares ` +
 				`${success.join(", ")}. Either the handler or the document is wrong, and clients ` +
-				"generated from the spec will not recognise the response.",
+				"generated from the spec will not recognize the response.",
 			evidence: [exchange],
 		})
 	},

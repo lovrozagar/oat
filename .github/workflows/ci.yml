@@ -246,7 +246,7 @@ jobs:
           name: proven-postgres-postgrest
           path: proven/
 
-  # Runs even when a shard failed or was cancelled, and fails then: a skipped job counts as a passed
+  # Runs even when a shard failed or was canceled, and fails then: a skipped job counts as a passed
   # check, so without this a red shard would leave the conformance check green.
   test:
     name: conformance
@@ -257,7 +257,7 @@ jobs:
     steps:
       - name: Every shard ran and passed
         if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
-        run: echo "a conformance shard failed or was cancelled" && exit 1
+        run: echo "a conformance shard failed or was canceled" && exit 1
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:

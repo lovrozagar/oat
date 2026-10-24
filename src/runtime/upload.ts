@@ -242,10 +242,10 @@ async function walkFiles(dir: string): Promise<string[]> {
 
 /** A glob's literal directory and the pattern under it; `pattern` has a wildcard. */
 function splitGlob(pattern: string): { dir: string; glob: string } {
-	const normalised = pattern.replace(/\\/g, "/")
-	const slash = normalised.lastIndexOf("/", normalised.search(/[*?]/))
-	if (slash < 0) return { dir: ".", glob: normalised }
-	return { dir: normalised.slice(0, slash), glob: normalised.slice(slash + 1) }
+	const normalized = pattern.replace(/\\/g, "/")
+	const slash = normalized.lastIndexOf("/", normalized.search(/[*?]/))
+	if (slash < 0) return { dir: ".", glob: normalized }
+	return { dir: normalized.slice(0, slash), glob: normalized.slice(slash + 1) }
 }
 
 function globToRegExp(glob: string): RegExp {

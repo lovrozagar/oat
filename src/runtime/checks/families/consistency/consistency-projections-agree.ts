@@ -101,7 +101,7 @@ export const projectionsAgree: Check<{
 		}
 		/*
 		 * The item route read *now* is the reference, not the value oat submitted at seed time.
-		 * A backend is entitled to normalise what it stores — trimming, case-folding, rounding —
+		 * A backend is entitled to normalize what it stores — trimming, case-folding, rounding —
 		 * and holding every projection to the submitted value would report that as inconsistency.
 		 * The claim being tested is that the read paths agree with each other, which is exactly
 		 * what anchoring on one of them and comparing the rest establishes.

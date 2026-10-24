@@ -186,7 +186,7 @@ export const STRING_PAYLOADS: readonly StringPayload[] = [
 	{ id: "quotes", value: "' \" `", why: "ASCII quotes" },
 	{ id: "backslash", value: "\\", why: "backslash" },
 	{ id: "sql-comment", value: "-- /*", why: "SQL comment tokens" },
-	{ id: "html-script", value: "<script>", why: "HTML script tag, sanitiser bait" },
+	{ id: "html-script", value: "<script>", why: "HTML script tag, sanitizer bait" },
 	{ id: "html-entity", value: "&amp;", why: "HTML entity" },
 	{ id: "template-dollar", value: "${7}", why: "template interpolation" },
 	{ id: "mustache", value: "{{name}}", why: "mustache interpolation" },

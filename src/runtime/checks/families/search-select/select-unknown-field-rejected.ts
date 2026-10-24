@@ -47,7 +47,7 @@ export const selectUnknownFieldRejected: Check<{
 		const extras = Object.keys(result.items[0] ?? {}).filter((key) => key === "oat_no_such_select_xyz")
 		if (extras.length === 0) return ASSERTED
 		return ctx.findings.backend(this.id, ctx.entityName, {
-			summary: "unknown select field was honoured under ignore",
+			summary: "unknown select field was honored under ignore",
 			detail: "select.unknown=ignore should drop the undeclared name, not return it.",
 			evidence: [result.exchange],
 		})

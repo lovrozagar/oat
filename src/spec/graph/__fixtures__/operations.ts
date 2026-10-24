@@ -8,7 +8,7 @@ import type { OperationModel, SpecModel } from "../types.ts"
 
 /* Operations and models read from real documents, so each pass is tested on what the passes before it produce. */
 
-/** Every operation of a document, modelled one by one, before any whole-model pass. */
+/** Every operation of a document, modeled one by one, before any whole-model pass. */
 export function operationsOf(
 	paths: Record<string, unknown>,
 	extra: Record<string, unknown> = {},
@@ -23,7 +23,7 @@ export function modelOf(paths: Record<string, unknown>, extra: Record<string, un
 	return buildModel(dereference(doc(paths, extra)).doc)
 }
 
-/** One operation, modelled from `GET /things`, with the fields a test cares about laid over it. */
+/** One operation, modeled from `GET /things`, with the fields a test cares about laid over it. */
 export function operation(overrides: Partial<OperationModel> = {}): OperationModel {
 	const [base] = operationsOf({ "/things": { get: { operationId: "things.list", responses: {} } } }).operations
 	return { ...(base as OperationModel), ...overrides }

@@ -198,7 +198,7 @@ async function walkOf(paging: Paging, held: Store, envelope?: OperationModel["co
 }
 
 /** One page of a note, with the envelope total `total`. */
-const totalled = (total: number) =>
+const totaled = (total: number) =>
 	store({}, { answers: { "GET /notes": { body: { items: [{ id: "n1" }], total }, status: 200 } } })
 
 describe("listing: whether the read reached the list's end", () => {
@@ -213,8 +213,8 @@ describe("listing: whether the read reached the list's end", () => {
 	})
 
 	it("is complete once the rows served reach the envelope's total, and not before", async () => {
-		expect((await walkOf("none", totalled(1), { total: "total" }))?.complete).toBe(true)
-		expect((await walkOf("none", totalled(5), { total: "total" }))?.complete).toBe(false)
+		expect((await walkOf("none", totaled(1), { total: "total" }))?.complete).toBe(true)
+		expect((await walkOf("none", totaled(5), { total: "total" }))?.complete).toBe(false)
 	})
 
 	it("is complete on a page whose envelope says no more follow", async () => {

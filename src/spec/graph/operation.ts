@@ -74,7 +74,7 @@ type ContractFacts =
 
 export function modelOperation(endpoint: Endpoint, doc: OpenApiDocument, gaps: GapCollector): OperationModel {
 	const reading = readOperation(endpoint, doc, gaps)
-	return { ...contractFacts(reading), ...behaviourFacts(reading), ...requestFacts(reading) }
+	return { ...contractFacts(reading), ...behaviorFacts(reading), ...requestFacts(reading) }
 }
 
 function readOperation(endpoint: Endpoint, doc: OpenApiDocument, gaps: GapCollector): Reading {
@@ -156,7 +156,7 @@ function contractFacts(reading: Reading): Pick<OperationModel, ContractFacts> {
 	}
 }
 
-function behaviourFacts(reading: Reading) {
+function behaviorFacts(reading: Reading) {
 	const { endpoint, gaps } = reading
 	const { op, operationId, path } = endpoint
 	const effects = ext(op, "x-effects")

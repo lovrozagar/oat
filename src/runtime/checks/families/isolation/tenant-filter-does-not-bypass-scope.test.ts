@@ -64,8 +64,8 @@ describe("tenant.filter-does-not-bypass-scope", () => {
 	it("names what is missing when the record has no id or the grammar cannot say equality", () => {
 		const { ctx } = notesContext(filtered(), listing(200, []), { records: [{ title: "first" }] })
 		expect(crossTenantFilterBypass.plan(ctx)).toEqual({ needs: "a record that carries its identity", ok: false })
-		const unrecognised = modelOf(notesDocument({ listQuery: [FILTER] }))
-		const { ctx: plain } = notesContext(unrecognised, listing(200, []))
+		const unrecognized = modelOf(notesDocument({ listQuery: [FILTER] }))
+		const { ctx: plain } = notesContext(unrecognized, listing(200, []))
 		expect(crossTenantFilterBypass.plan(plain)).toEqual({
 			needs: "a filter grammar that can express equality on the identity",
 			ok: false,

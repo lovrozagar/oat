@@ -12,7 +12,7 @@ import { DANGLING_KEY } from "../load/walk.ts"
 import { PATH_ITEM_METHODS } from "../methods.ts"
 import type { Endpoint } from "../types.ts"
 import type { OperationModel } from "./types.ts"
-import { leaveUntested } from "./unmodelled.ts"
+import { leaveUntested } from "./unmodeled.ts"
 
 /* The dangling pointers one operation reaches, by where they sit. */
 interface Found {
@@ -91,7 +91,7 @@ const operation: Visit = (found, node) => {
 
 /**
  * Records a `$ref` gap for each dangling pointer each operation reaches, and leaves an operation
- * untested when one sits outside a schema. `operations` are `endpoints` modelled, in order.
+ * untested when one sits outside a schema. `operations` are `endpoints` modeled, in order.
  */
 export function recordDangling(
 	endpoints: readonly Endpoint[],

@@ -13,7 +13,7 @@ export function pathParameterNames(path: string): string[] {
 
 export function readTenantSource(endpoint: Endpoint): "tag" | "heuristic" | null {
 	const tag = ext(endpoint.op, "x-tenant")
-	/* `false` is a shared catalogue that happens to sit under a project path. */
+	/* `false` is a shared catalog that happens to sit under a project path. */
 	if (tag === false) return null
 	if (typeof tag === "string") return "tag"
 	const guess = pathParameterNames(endpoint.path).find((name) => TENANT_PARAM.test(name))

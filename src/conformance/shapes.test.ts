@@ -26,7 +26,7 @@ function finding(check: string, verdict: Finding["verdict"] = "BACKEND_BUG"): Fi
 	return { check, detail: "", entity: "widget", evidence: [], summary: `${check} broke`, verdict }
 }
 
-describe("the shape catalogue", () => {
+describe("the shape catalog", () => {
 	it("names every shape, in order, and targets the default dialect", () => {
 		expect(SHAPE_NAMES).toEqual(SHAPES.map((named) => named.name))
 		expect(shapeTarget("sqlite", inProcess)).toEqual({ backend: "sqlite", dialect: "postgrest", via: inProcess })

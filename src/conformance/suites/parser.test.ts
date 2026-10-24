@@ -38,9 +38,9 @@ describe("runParserSuite", () => {
 		expect(results.length).toBeGreaterThan(0)
 	})
 
-	it("fails a fixture modelled with other counts than it states", () => {
+	it("fails a fixture modeled with other counts than it states", () => {
 		expect(details("counts", EMPTY, { expectEntities: 1, expectOperations: 2 })).toEqual([
-			"false expected 2 operation(s), modelled 0; expected 1 entity/entities, modelled 0",
+			"false expected 2 operation(s), modeled 0; expected 1 entity/entities, modeled 0",
 		])
 	})
 
@@ -96,7 +96,7 @@ describe("runParserSuite and a dangling ref", () => {
 	it("fails one read as a schema with no gap, or as a parameter the operation is sent with", () => {
 		expect(details("dangling-ref", EMPTY)).toEqual([
 			"false payment.list has no gap for the schema its $ref names but the document lacks; " +
-				"refund.list was modelled with a parameter its $ref names but the document lacks",
+				"refund.list was modeled with a parameter its $ref names but the document lacks",
 		])
 	})
 })

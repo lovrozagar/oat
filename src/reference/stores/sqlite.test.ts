@@ -172,7 +172,7 @@ describe("SqlStore queries on node:sqlite", () => {
 		await store.close()
 	})
 
-	it("tests array membership, and the serialised array as text under the defect", async () => {
+	it("tests array membership, and the serialized array as text under the defect", async () => {
 		const store = await seeded()
 		expect(ids(await store.select(ITEM, plan(contains(false))))).toEqual(["a"])
 		expect(ids(await store.select(ITEM, plan(contains(true))))).toEqual(["a", "b"])
@@ -218,12 +218,12 @@ describe("COLUMN_NAME_MISMATCH", () => {
 	it("names the column in its natural form on an engine with the double-quoted-string fallback", async () => {
 		const { calls, driver } = recordingDriver({ dqs: true })
 		const store = await SqlStore.create(new DefectSet(["COLUMN_NAME_MISMATCH"]), driver, { entities: [named] })
-		expect(calls[0]?.sql).toContain('"mislabelled_name" TEXT')
+		expect(calls[0]?.sql).toContain('"mislabeled_name" TEXT')
 		expect(await store.insert(named, { id: "a", name: "real" })).toEqual({ id: "a", name: "real" })
 		expect(calls[1]).toEqual({
 			args: ["a", "real"],
 			kind: "all",
-			sql: 'INSERT INTO "items" ("id", "mislabelled_name") VALUES (?, ?) RETURNING "id", "name"',
+			sql: 'INSERT INTO "items" ("id", "mislabeled_name") VALUES (?, ?) RETURNING "id", "name"',
 		})
 	})
 })

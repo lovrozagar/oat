@@ -66,7 +66,7 @@ describe("PgStore.create", () => {
 
 	it("names the column otherwise in DDL, and reads a literal back, under COLUMN_NAME_MISMATCH", async () => {
 		const { pg, store: created } = await store(() => [], ["COLUMN_NAME_MISMATCH"])
-		expect(pg.statements[1]?.query).toContain('"mislabelled_name" text')
+		expect(pg.statements[1]?.query).toContain('"mislabeled_name" text')
 		await created.remove(ITEM, "a")
 		await created.byId(ITEM, "a")
 		expect(since(pg.statements).map((statement) => statement.query)).toEqual([

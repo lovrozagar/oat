@@ -17,7 +17,7 @@ describe("tenantBoundary", () => {
 		expect(tenantBoundary(op(modelOf(notesDocument()), "readNote"))).toBe(true)
 	})
 
-	it("is false for a shared catalogue under a project path, tagged x-tenant: false", () => {
+	it("is false for a shared catalog under a project path, tagged x-tenant: false", () => {
 		expect(tenantBoundary(op(modelOf(notesDocument({ tenant: false })), "readNote"))).toBe(false)
 	})
 

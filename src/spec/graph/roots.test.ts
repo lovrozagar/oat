@@ -53,7 +53,7 @@ describe("owningEntityOf", () => {
 })
 
 describe("owningEntityName", () => {
-	it("singularises the segment before the parameter, unless it is another parameter", () => {
+	it("singularizes the segment before the parameter, unless it is another parameter", () => {
 		expect(owningEntityName("/projects/{project_id}", "project_id")).toBe("project")
 		expect(owningEntityName("/a/{x}/{y}", "y")).toBeNull()
 		expect(owningEntityName("/{y}", "y")).toBeNull()

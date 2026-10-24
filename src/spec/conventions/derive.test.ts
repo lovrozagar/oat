@@ -88,20 +88,20 @@ describe("deriveQueryConventions filter grammar", () => {
 		expect(template.filterGrammar?.term).toBe(TEMPLATE.term)
 	})
 
-	it("calls a free-text filter it cannot read unrecognised, and says so only when nothing was declared", () => {
+	it("calls a free-text filter it cannot read unrecognized, and says so only when nothing was declared", () => {
 		const guesses: string[] = []
 		const filter = [query("filter")]
 		expect(deriveQueryConventions(filter, null, { onGuess: (message) => guesses.push(message) }).grammar).toBe(
-			"unrecognised",
+			"unrecognized",
 		)
 		expect(guesses).toHaveLength(1)
-		expect(guesses[0]).toMatch(/^parameter "filter" takes a filter expression whose grammar could not be recognised/)
-		expect(deriveQueryConventions(filter, null).grammar).toBe("unrecognised")
+		expect(guesses[0]).toMatch(/^parameter "filter" takes a filter expression whose grammar could not be recognized/)
+		expect(deriveQueryConventions(filter, null).grammar).toBe("unrecognized")
 		const declared = deriveQueryConventions(filter, null, {
 			declared: { grammar: { term: 1 } },
 			onGuess: (message) => guesses.push(message),
 		})
-		expect(declared.grammar).toBe("unrecognised")
+		expect(declared.grammar).toBe("unrecognized")
 		expect(declared.grammarDeclared).toBeUndefined()
 		expect(guesses).toHaveLength(1)
 		expect(deriveQueryConventions([int("filter")], null).grammar).toBe("equality")

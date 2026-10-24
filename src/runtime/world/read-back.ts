@@ -1,8 +1,8 @@
 /**
  * The record a create made, when its answer is not that record.
  *
- * A create may answer an acknowledgement, `{ id, message }`, or nothing but a `Location`. Taking
- * that for the record seeds the cohort with the acknowledgement's own fields: every check that
+ * A create may answer an acknowledgment, `{ id, message }`, or nothing but a `Location`. Taking
+ * that for the record seeds the cohort with the acknowledgment's own fields: every check that
  * reads a field off a seeded record then works from what the server never said it stored. Such an
  * answer is read back through the entity's item read, by the id it gave, and the cohort holds what
  * the read returns. With nothing to read it back by, the record is what oat sent under that id,
@@ -61,7 +61,7 @@ function answeredOf(input: { answered?: unknown }): Record<string, unknown> {
 }
 
 /**
- * The fields of a create's answer the entity's record declares: an acknowledgement's `message` is
+ * The fields of a create's answer the entity's record declares: an acknowledgment's `message` is
  * no field of the record, and is never seeded as one. Nothing, when the record declares none.
  */
 export function declaredFields(

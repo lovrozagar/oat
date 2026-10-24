@@ -6,7 +6,7 @@ import { headLines } from "./markdown-head.ts"
 const clean = { outcome: "clean" as const, reason: "no defects" }
 
 describe("headLines on a plain run", () => {
-	it("summarises a plain run: backend, result, timing, entities, checks and requests", () => {
+	it("summarizes a plain run: backend, result, timing, entities, checks and requests", () => {
 		const input = reportOf()
 		expect(headLines(input, clean, coverageByCheck(input))).toEqual([
 			"# oat report",

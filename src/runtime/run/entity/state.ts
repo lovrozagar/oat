@@ -48,7 +48,7 @@ export interface World {
 	degraded: boolean
 	/** Adopted after a unique conflict: the unique-conflict checks still run against the row. */
 	uniqueAdopted: boolean
-	/** The create answered with an acknowledgement rather than the record. */
+	/** The create answered with an acknowledgment rather than the record. */
 	createAcknowledged: boolean
 	/** The records are the bodies oat sent: no read showed what the server stored. */
 	recordsUnverified?: true

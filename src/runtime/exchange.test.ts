@@ -12,7 +12,7 @@ import {
 const ref = { bytes: 3, mediaType: "application/pdf", sha256: "ab" }
 
 describe("body shapes", () => {
-	it("recognises a stored reference and nothing that merely resembles one", () => {
+	it("recognizes a stored reference and nothing that merely resembles one", () => {
 		expect(isBodyRef(ref)).toBe(true)
 		expect([null, "x", [ref], { ...ref, bytes: "3" }, { ...ref, extra: 1 }].map(isBodyRef)).toEqual([
 			false,
@@ -23,7 +23,7 @@ describe("body shapes", () => {
 		])
 	})
 
-	it("recognises a form snapshot and nothing else", () => {
+	it("recognizes a form snapshot and nothing else", () => {
 		expect(isFormSnapshot({ parts: [] })).toBe(true)
 		expect([null, [], { parts: "x" }, { other: 1, parts: [] }].map(isFormSnapshot)).toEqual([
 			false,

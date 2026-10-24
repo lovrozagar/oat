@@ -20,7 +20,7 @@ export interface ListingOptions {
 	conventions: QueryConventions
 	/**
 	 * A ceiling the server applies without documenting it. A request above it is served a short
-	 * page rather than rejected — the "clamps silently" behaviour many real APIs have.
+	 * page rather than rejected — the "clamps silently" behavior many real APIs have.
 	 */
 	clampLimit?: number | undefined
 	/** Applied to each row before projection; the listing-only skew and job progress hook in here. */

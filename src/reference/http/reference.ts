@@ -1,10 +1,10 @@
 /**
  * The reference backend in process — one implementation, any store, no socket.
  *
- * Routing, auth, tenancy, validation and the defect behaviours that live above storage are written
+ * Routing, auth, tenancy, validation and the defect behaviors that live above storage are written
  * once. Each engine supplies only a `Store`, so a defect is defined in one place and exercised
  * identically on every backend; when two engines then disagree about what that defect *does*, the
- * disagreement is real rather than an artefact of two implementations drifting apart.
+ * disagreement is real rather than an artifact of two implementations drifting apart.
  *
  * This is a test fixture. It is excluded from the published package; oat itself never talks to a
  * database.

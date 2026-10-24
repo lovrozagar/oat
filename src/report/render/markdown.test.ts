@@ -37,7 +37,7 @@ describe("renderMarkdown", () => {
 			"# oat report",
 			"## Leftovers",
 			"## Fenced requests",
-			"## Observed behaviour",
+			"## Observed behavior",
 			"## Summary",
 			"## Operations",
 			"## Known",

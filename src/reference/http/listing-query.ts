@@ -50,7 +50,7 @@ function canonicalTerm(term: string, grammar: NonNullable<Dialect["sortGrammar"]
 /**
  * Collects one-parameter-per-field equality filters into a canonical expression.
  *
- * Only fields the document declares filterable are honoured; anything else falls through to the
+ * Only fields the document declares filterable are honored; anything else falls through to the
  * unknown-parameter path, so a caller misspelling a field still gets told rather than silently
  * receiving the whole collection.
  */

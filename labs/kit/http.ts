@@ -71,7 +71,7 @@ export function assertWrite(role: Role, kind: "create" | "update" | "delete"): v
 
 export function assertTenant(c: Tenant): void {
 	if (c.req.param("org_id") !== c.get("orgId")) {
-		throw new HttpError(404, "not_found", "no route for this organisation")
+		throw new HttpError(404, "not_found", "no route for this organization")
 	}
 }
 

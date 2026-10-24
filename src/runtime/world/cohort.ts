@@ -38,7 +38,7 @@ export interface CohortRun {
 	lastFail: { member: CohortMember; exchange: Exchange } | undefined
 }
 
-/** `null` for an acknowledgement oat could not confirm: it names no record, so it joins no cohort. */
+/** `null` for an acknowledgment oat could not confirm: it names no record, so it joins no cohort. */
 export async function recordCreated(run: CohortRun, exchange: Exchange, sent: unknown): Promise<Record_ | null> {
 	const { createOp, seeding, scope } = run
 	const { model, client, options } = seeding
@@ -104,7 +104,7 @@ export async function postFresh(
 	return { exchange: made.exchange, sent, ...(made.exhausted === undefined ? {} : { exhausted: made.exhausted }) }
 }
 
-/** The cohort with what the run learned along the way: gaps, lost variants, acknowledgements, unverified records, existing ids. */
+/** The cohort with what the run learned along the way: gaps, lost variants, acknowledgments, unverified records, existing ids. */
 export function withGap(run: CohortRun, cohort: SeededCohort): SeededCohort {
 	return {
 		...cohort,

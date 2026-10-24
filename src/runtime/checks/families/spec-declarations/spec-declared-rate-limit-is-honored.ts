@@ -42,7 +42,7 @@ export const declaredRateLimitHonored: Check = defineCheck({
 		}
 		for (const [category, exchanges] of byCategory) {
 			ctx.findings.spec(this.id, ctx.entityName, {
-				summary: `the declared "${category}" rate limit is not honoured`,
+				summary: `the declared "${category}" rate limit is not honored`,
 				detail:
 					`${exchanges.length} request(s) to the "${category}" category returned 429 despite oat ` +
 					"pacing them within the rate x-rate-limit declares — each had a free token in its own " +

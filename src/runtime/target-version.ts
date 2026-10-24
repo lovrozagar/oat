@@ -4,7 +4,7 @@
  * Read once, after sign-in and before anything is created, from a version route: a JSON path into
  * its body or a response header. It goes through the client like every request, so the fence and
  * the allowlist apply. A version that cannot be read is noted in the report; it never changes the
- * verdict, because it says nothing about the backend's behaviour.
+ * verdict, because it says nothing about the backend's behavior.
  */
 
 import type { SpecModel } from "../spec/graph/types.ts"

@@ -6,7 +6,7 @@ import type { Answer, Responder } from "../../../__fixtures__/harness.ts"
 /*
  * A small notes API for the consistency checks: a paged, sortable, projectable, filterable
  * collection of notes, a board collection and a stats singleton that a note create declares it
- * invalidates, and a route under an organisation whose identifier no note context holds.
+ * invalidates, and a route under an organization whose identifier no note context holds.
  */
 
 const note = {

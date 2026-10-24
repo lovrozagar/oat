@@ -23,7 +23,7 @@ export type FilterNode =
 	| { kind: "in"; field: string; values: Scalar[]; negate: boolean; asText: boolean }
 	| { kind: "isnull"; field: string; negate: boolean }
 	| { kind: "like"; field: string; pattern: LikeSegment[]; insensitive: boolean }
-	/** Array membership. `substring` is the defect: the serialised array matched as text. */
+	/** Array membership. `substring` is the defect: the serialized array matched as text. */
 	| { kind: "contains"; field: string; value: string; substring: boolean }
 	| {
 			kind: "search"

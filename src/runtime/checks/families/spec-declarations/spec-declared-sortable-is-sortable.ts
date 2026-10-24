@@ -10,7 +10,7 @@ import { conv, q } from "../../query/capabilities.ts"
 import { list } from "../../sets/list.ts"
 
 /**
- * The sort analogue of `declaredFilterableWorks`: `x-query.sortable` is a promise too, and
+ * The sort analog of `declaredFilterableWorks`: `x-query.sortable` is a promise too, and
  * an `order` value the backend rejects breaks every client generated from the document exactly
  * the same way a rejected filter does.
  */

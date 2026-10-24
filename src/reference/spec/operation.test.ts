@@ -39,7 +39,7 @@ describe("declaredIdentity", () => {
 })
 
 describe("entityTag", () => {
-	it("is the entity's name, capitalised", () => {
+	it("is the entity's name, capitalized", () => {
 		expect(entityTag(ROW)).toBe("Row")
 	})
 })

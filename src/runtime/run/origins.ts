@@ -33,7 +33,7 @@ export function loadOriginClients(loaded: Loaded, wiring: OriginWiring): Map<str
 	const { store } = wiring
 	const clients = new Map<string, OriginClient>()
 	for (const origin of options.origins ?? []) {
-		/* Load read and modelled every declared origin. */
+		/* Load read and modeled every declared origin. */
 		const { model } = loaded.origins.get(origin.id) as LoadedOrigin
 		const credentials = createCredentialSource({
 			mapping: origin.security ?? {},

@@ -54,7 +54,7 @@ function decorate(defects: DefectSet, record: Row): Row {
  * Rewrites a field in the *collection* projection only.
  *
  * Applied where the listing is built, never on the item route, so the two disagree exactly as a
- * stale denormalised listing would. The value is plausible rather than obviously wrong: a
+ * stale denormalized listing would. The value is plausible rather than obviously wrong: a
  * projection that returned garbage would be caught by schema validation instead.
  */
 export function skewForList(defects: DefectSet, record: Row): Row {

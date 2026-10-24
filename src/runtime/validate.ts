@@ -1,7 +1,7 @@
 /**
- * Response-schema validation — the floor beneath the behavioural checks.
+ * Response-schema validation — the floor beneath the behavioral checks.
  *
- * Schemas are compiled per operation+status and reused. `additionalProperties: false` is honoured
+ * Schemas are compiled per operation+status and reused. `additionalProperties: false` is honored
  * as written: a document that declares a closed object and a backend that returns extra fields
  * genuinely disagree, and which one is wrong is a decision for the reader, not for oat.
  */

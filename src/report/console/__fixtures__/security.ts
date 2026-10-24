@@ -5,7 +5,7 @@ import { documentOf, modelOf } from "./models.ts"
 
 /* The documents and configs the security facts and their text are tested on. */
 
-/** A document modelled as doctor and plan model it. */
+/** A document modeled as doctor and plan model it. */
 export const model = (doc: unknown): SpecModel => modelOf(doc).model
 
 /** A config's credentials: `security`, read by `principals` (alpha alone by default). */

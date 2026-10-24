@@ -60,16 +60,16 @@ describe("x-query.grammar as a template", () => {
 		expect(conventionsOf(built).grammar).not.toBe("template")
 	})
 
-	it("writes no filter term at all while the expression's grammar is unrecognised", () => {
+	it("writes no filter term at all while the expression's grammar is unrecognized", () => {
 		/* Guessing one parameter per field would send parameters the document never declared and
 		 * read the backend ignoring them as a defect. */
 		const conventions = conventionsOf(model())
-		expect(conventions.grammar).toBe("unrecognised")
+		expect(conventions.grammar).toBe("unrecognized")
 		expect(filterTerm(conventions, { field: "Qty", op: "eq", value: 2 })).toBeNull()
-		expect(conventionsOf(model({ ...TEMPLATE, ops: { approx: "~" } })).grammar).toBe("unrecognised")
+		expect(conventionsOf(model({ ...TEMPLATE, ops: { approx: "~" } })).grammar).toBe("unrecognized")
 	})
 
-	it("names the template form when oat cannot recognise a filter expression", () => {
+	it("names the template form when oat cannot recognize a filter expression", () => {
 		expect(queryGaps(model()).some((detail) => detail.includes("{ term:"))).toBe(true)
 	})
 })

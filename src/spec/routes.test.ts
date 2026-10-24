@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest"
-import { normalisePath, parseRouteRef, pathTemplateMatches, pathTemplateParams } from "./routes.ts"
+import { normalizePath, parseRouteRef, pathTemplateMatches, pathTemplateParams } from "./routes.ts"
 
-describe("normalisePath", () => {
+describe("normalizePath", () => {
 	it("writes `:param` segments as `{param}`", () => {
-		expect(normalisePath("/v1/things/:thing_id/rows/:id")).toBe("/v1/things/{thing_id}/rows/{id}")
-		expect(normalisePath("/v1/things/{id}")).toBe("/v1/things/{id}")
+		expect(normalizePath("/v1/things/:thing_id/rows/:id")).toBe("/v1/things/{thing_id}/rows/{id}")
+		expect(normalizePath("/v1/things/{id}")).toBe("/v1/things/{id}")
 	})
 })
 
 describe("parseRouteRef", () => {
-	it("reads a method and a path, upper-casing the method and normalising the path", () => {
+	it("reads a method and a path, upper-casing the method and normalizing the path", () => {
 		expect(parseRouteRef("  get   /things/:id ")).toEqual({ method: "GET", path: "/things/{id}" })
 	})
 

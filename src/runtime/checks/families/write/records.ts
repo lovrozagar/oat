@@ -13,7 +13,7 @@ import { itemParamFor } from "../../planning/subjects.ts"
 export const NO_RECORD = "the answer holds no record where x-entity.recordPath says it is"
 
 /**
- * The id an acknowledgement-only create made, proven by the entity's read under the id it was
+ * The id an acknowledgment-only create made, proven by the entity's read under the id it was
  * sent (see `confirmSubmitted`). The read is the one this check context may call, or none.
  */
 export async function confirmedIdentity(

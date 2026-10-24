@@ -25,7 +25,7 @@ type Judged = { exchange: Exchange; errors: string[] } | { exchange: Exchange; u
  * drew and sends nothing; a sparse-fieldset answer, asked for less than the record, is not held to
  * the record's schema, and a body the transcript holds only by its hash is not validated at all.
  */
-export const readSchemaHonoured: Check<{ validator: SchemaValidator }> = defineCheck<{ validator: SchemaValidator }>({
+export const readSchemaHonored: Check<{ validator: SchemaValidator }> = defineCheck<{ validator: SchemaValidator }>({
 	plan: (ctx) => {
 		const { validator } = ctx
 		if (validator === undefined || (ctx.readOp === undefined && ctx.listOp === undefined)) return cannot()

@@ -344,7 +344,7 @@ paths:
                   status: { type: string, enum: [pending, running, complete, failed] }
                 required: [export_id, status]
 
-  # ── public catalogue ──────────────────────────────────────────────────────
+  # ── public catalog ──────────────────────────────────────────────────────
   # No x-tenant, and `{template_id}` is not a tenant name. A second principal
   # GETting a row created by the first is correct: the resource is shared.
   # tenant.item-not-readable-cross-tenant does not apply here. The workspace

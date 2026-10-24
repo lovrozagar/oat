@@ -47,14 +47,14 @@ function otherExpectations(model: Model): Expectation[] {
 	return [
 		["workspace widget read is tagged", "SECURITY vs AMBIGUITY is unchanged", widgetRead?.tenantSource, "tag"],
 		[
-			"public catalogue is unscoped",
+			"public catalog is unscoped",
 			"no x-tenant and template_id is not a tenant name",
 			templateRead?.tenantSource,
 			null,
 		],
-		["public catalogue has no tenant param", 'omit is not the string "null"', templateRead?.tenantParam, null],
+		["public catalog has no tenant param", 'omit is not the string "null"', templateRead?.tenantParam, null],
 		["x-invalidate names two routes", "one of them cross-entity", create?.invalidates.length, 2],
-		["idempotency header is modelled", "a promise oat replays", create?.idempotencyHeader, "Idempotency-Key"],
+		["idempotency header is modeled", "a promise oat replays", create?.idempotencyHeader, "Idempotency-Key"],
 		["x-immutable is read", "probed for rejection", update?.immutable.includes("workspace_id"), true],
 		["x-async is read", "oat follows the job", start?.async?.poll, "export.read"],
 		["x-feature-gate is read", "a matching 403 is coverage, not a seed defect", create?.featureGate, "widgets"],

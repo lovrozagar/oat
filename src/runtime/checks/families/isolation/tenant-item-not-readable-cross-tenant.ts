@@ -42,7 +42,7 @@ export const crossTenantItemRead: Check<{
 			return ctx.findings.unresolved(this.id, ctx.entityName, "the cross-tenant read failed for another reason")
 
 		/* Only assert a breach when the document says the route is tenant-scoped. Where oat merely
-		 * guessed scoping from a path parameter, a shared catalogue and a data leak are the same
+		 * guessed scoping from a path parameter, a shared catalog and a data leak are the same
 		 * observation, and claiming the worse one erodes trust in every other finding. */
 		const tenantDeclared = readOp.tenantSource === "tag"
 		const detail =
@@ -63,7 +63,7 @@ export const crossTenantItemRead: Check<{
 			check: this.id,
 			detail:
 				`${detail} oat inferred tenant scoping from the "${readOp.tenantParam}" path ` +
-				"parameter; the document does not state it. A public catalogue has no tenant at all — " +
+				"parameter; the document does not state it. A public catalog has no tenant at all — " +
 				"no x-tenant and no tenant-named path parameter — and this check then does not apply. " +
 				"If the resource is not shared, declare x-tenant so the same 200 is SECURITY.",
 			entity: ctx.entityName,

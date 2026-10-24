@@ -97,7 +97,7 @@ describe("observedSection", () => {
 				],
 			}),
 		)
-		expect(lines).toEqual(["## Observed behaviour", "", "- PATCH merges (row, table)", "- ids are opaque (row)", ""])
+		expect(lines).toEqual(["## Observed behavior", "", "- PATCH merges (row, table)", "- ids are opaque (row)", ""])
 	})
 })
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { type Answer, contextFor } from "../../__fixtures__/harness.ts"
-import { successSchemaHonoured } from "./schema-success-response-matches-document.ts"
+import { successSchemaHonored } from "./schema-success-response-matches-document.ts"
 import { type ItemsOptions, UNCOMPILABLE, itemOperations, modelOfItems } from "./__fixtures__/items.ts"
 
 /** A context whose run already created an item, answered with `created`; then the check's outcome. */
@@ -9,9 +9,9 @@ async function judge(created: Answer | null, options: ItemsOptions = {}) {
 	const staged = contextFor(model, "item.list", { respond: () => created ?? undefined, fields: itemOperations(model) })
 	if (created !== null)
 		await staged.ctx.client.request("POST", "/items", { as: { principal: "alpha" }, operationId: "item.create" })
-	const plan = successSchemaHonoured.plan(staged.ctx)
+	const plan = successSchemaHonored.plan(staged.ctx)
 	if (!plan.ok) throw new Error("the success-schema plan did not apply")
-	return { ...staged, outcome: await successSchemaHonoured.run(staged.ctx, plan.value) }
+	return { ...staged, outcome: await successSchemaHonored.run(staged.ctx, plan.value) }
 }
 
 const verdicts = (findings: { findings: { verdict: string; summary: string }[] }) =>
@@ -21,15 +21,15 @@ describe("schema.success-response-matches-document plan", () => {
 	it("needs a create, a validator, and the create in the document", () => {
 		const model = modelOfItems()
 		const { ctx } = contextFor(model, "item.list", { respond: () => undefined, fields: itemOperations(model) })
-		expect(successSchemaHonoured.plan(ctx).ok).toBe(true)
-		expect(successSchemaHonoured.plan({ ...ctx, createOp: undefined })).toEqual({ needs: undefined, ok: false })
-		expect(successSchemaHonoured.plan({ ...ctx, validator: undefined }).ok).toBe(false)
+		expect(successSchemaHonored.plan(ctx).ok).toBe(true)
+		expect(successSchemaHonored.plan({ ...ctx, createOp: undefined })).toEqual({ needs: undefined, ok: false })
+		expect(successSchemaHonored.plan({ ...ctx, validator: undefined }).ok).toBe(false)
 		model.rawOperations.delete("item.create")
-		expect(successSchemaHonoured.plan(ctx).ok).toBe(false)
+		expect(successSchemaHonored.plan(ctx).ok).toBe(false)
 	})
 
 	it("runs after the create's status is judged", () => {
-		expect(successSchemaHonoured.dependsOn).toEqual(["create.status-matches-document"])
+		expect(successSchemaHonored.dependsOn).toEqual(["create.status-matches-document"])
 	})
 })
 

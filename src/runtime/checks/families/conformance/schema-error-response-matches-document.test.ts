@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { Exchange } from "../../../exchange.ts"
 import type { Answer } from "../../__fixtures__/harness.ts"
-import { errorSchemaHonoured } from "./schema-error-response-matches-document.ts"
+import { errorSchemaHonored } from "./schema-error-response-matches-document.ts"
 import {
 	GATE_BODY,
 	type ItemsOptions,
@@ -25,9 +25,9 @@ async function judge(exchanges: Exchange[], missing: Answer, { document: options
 	const judged: string[][] = []
 	const fields = { judged: (ids: readonly string[]) => judged.push([...ids]), ...transcript.fields }
 	const staged = overTranscript(modelOfItems(options), exchanges, { ...transcript, fields, respond: () => missing })
-	const plan = errorSchemaHonoured.plan(staged.ctx)
+	const plan = errorSchemaHonored.plan(staged.ctx)
 	if (!plan.ok) throw new Error("the error-schema plan did not apply")
-	const outcome = await errorSchemaHonoured.run(staged.ctx, plan.value)
+	const outcome = await errorSchemaHonored.run(staged.ctx, plan.value)
 	return { ...staged, judged, outcome }
 }
 
@@ -37,18 +37,18 @@ const summaries = (findings: { findings: { verdict: string; summary: string; ope
 describe("schema.error-response-matches-document plan", () => {
 	it("needs a read, a validator, and the read in the document", () => {
 		const { ctx, model } = overTranscript(modelOfItems(), [])
-		expect(errorSchemaHonoured.plan(ctx).ok).toBe(true)
-		expect(errorSchemaHonoured.plan({ ...ctx, readOp: undefined })).toEqual({ needs: undefined, ok: false })
-		expect(errorSchemaHonoured.plan({ ...ctx, validator: undefined }).ok).toBe(false)
+		expect(errorSchemaHonored.plan(ctx).ok).toBe(true)
+		expect(errorSchemaHonored.plan({ ...ctx, readOp: undefined })).toEqual({ needs: undefined, ok: false })
+		expect(errorSchemaHonored.plan({ ...ctx, validator: undefined }).ok).toBe(false)
 		model.rawOperations.delete("item.read")
-		expect(errorSchemaHonoured.plan(ctx).ok).toBe(false)
+		expect(errorSchemaHonored.plan(ctx).ok).toBe(false)
 	})
 
 	it("grades the read, the gated operations and those that declare unique columns", () => {
 		const model = modelOfItems()
 		const item = model.entities.get("item")
 		if (item === undefined) throw new Error("the document has an item entity")
-		expect(errorSchemaHonoured.subjects(item, model).toSorted()).toEqual(["item.create", "item.read", "item.update"])
+		expect(errorSchemaHonored.subjects(item, model).toSorted()).toEqual(["item.create", "item.read", "item.update"])
 	})
 })
 
@@ -109,9 +109,9 @@ describe("schema.error-response-matches-document probe preconditions", () => {
 
 	it("stands down on an empty list with no create, and probes when the list held a record", async () => {
 		const { ctx } = overTranscript(modelOfItems(), [], { fields: { createOp: undefined } })
-		const plan = errorSchemaHonoured.plan(ctx)
+		const plan = errorSchemaHonored.plan(ctx)
 		if (!plan.ok) throw new Error("the error-schema plan did not apply")
-		expect(await errorSchemaHonoured.run(ctx, plan.value)).toEqual({
+		expect(await errorSchemaHonored.run(ctx, plan.value)).toEqual({
 			kind: "stood-down",
 			reason: "the list returned no id",
 		})
@@ -194,14 +194,14 @@ describe("schema.error-response-matches-document transcript stand-asides", () =>
 	it("counts a refusal on an operation missing from the document as judged, without a finding", async () => {
 		const model = modelOfItems()
 		const staged = overTranscript(model, [seen("item.create", { body: {}, status: 409 })], { respond: () => fine })
-		const plan = errorSchemaHonoured.plan(staged.ctx)
+		const plan = errorSchemaHonored.plan(staged.ctx)
 		if (!plan.ok) throw new Error("the error-schema plan did not apply")
 		model.rawOperations.delete("item.create")
 		const judged: string[][] = []
-		await errorSchemaHonoured.run({ ...staged.ctx, judged: (ids) => judged.push([...ids]) }, plan.value)
+		await errorSchemaHonored.run({ ...staged.ctx, judged: (ids) => judged.push([...ids]) }, plan.value)
 		expect(staged.findings.findings).toEqual([])
 		expect(judged).toEqual([["item.read", "item.create"]])
-		expect(await errorSchemaHonoured.run(staged.ctx, plan.value)).toEqual({
+		expect(await errorSchemaHonored.run(staged.ctx, plan.value)).toEqual({
 			kind: "asserted",
 		})
 	})

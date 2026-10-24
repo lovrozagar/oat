@@ -208,7 +208,7 @@ export const PLATFORM: World = {
 	title: "labs/platform — twenty workspace resources",
 }
 
-/** 20 parents × 9 children = 200 entities. Names singularise by dropping a final `s`. */
+/** 20 parents × 9 children = 200 entities. Names singularize by dropping a final `s`. */
 export function hugeWorld(size = 200, id = "huge"): World {
 	const roots = 20
 	const children = Math.max(0, Math.floor((size - roots) / roots))

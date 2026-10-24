@@ -10,13 +10,13 @@ import type { OpenApiDocument } from "../../../spec/types.ts"
 
 /* Documents as `oat doctor` and `oat plan` model them: the reference's own, served in process, and small hand-built ones. */
 
-export interface Modelled {
+export interface Modeled {
 	model: SpecModel
 	externalRefs: string[]
 }
 
-/** A document modelled the way the CLI models it. */
-export function modelOf(doc: unknown, grammars?: GrammarConfig): Modelled {
+/** A document modeled the way the CLI models it. */
+export function modelOf(doc: unknown, grammars?: GrammarConfig): Modeled {
 	const { doc: resolved, externalRefs } = dereference(prepareDocument(doc as OpenApiDocument, {}, () => {}))
 	const model = buildModel(resolved)
 	if (grammars !== undefined) applyGrammarOverrides(model, grammars)
@@ -25,7 +25,7 @@ export function modelOf(doc: unknown, grammars?: GrammarConfig): Modelled {
 }
 
 /** The reference backend's document for these options, read over its in-process transport. */
-export async function referenceModel(options: ReferenceOptions = {}): Promise<Modelled> {
+export async function referenceModel(options: ReferenceOptions = {}): Promise<Modeled> {
 	const ref = await createMemoryReference(options)
 	try {
 		const get = ref.fetch

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest"
 import { referenceRequest } from "../../reference/http/wire.ts"
 import { bearerSecurity } from "../harness/security.ts"
-import { publicCatalogue } from "./public-catalogue.ts"
+import { publicCatalog } from "./public-catalog.ts"
 
-const ORIGIN = "http://catalogue.test"
+const ORIGIN = "http://catalog.test"
 const AUTH = { authorization: "Bearer tok_alpha" }
 
 /** A request's body and headers: none, and the owner's token, unless given. */
@@ -18,9 +18,9 @@ function request(method: string, path: string, { body = "", headers = AUTH }: Se
 
 const json = (text: string): unknown => JSON.parse(text)
 
-describe("publicCatalogue", () => {
+describe("publicCatalog", () => {
 	it("serves its document to anyone, and nothing else without a known token", async () => {
-		const handle = publicCatalogue()
+		const handle = publicCatalog()
 		const spec = await handle(request("GET", "/v1/openapi/spec", { headers: {} }))
 		expect(spec.status).toBe(200)
 		expect(json(spec.body)).toMatchObject({ openapi: "3.1.0", ...bearerSecurity() })
@@ -32,7 +32,7 @@ describe("publicCatalogue", () => {
 	})
 
 	it("creates, lists, filters, reads and deletes templates, for every principal alike", async () => {
-		const handle = publicCatalogue()
+		const handle = publicCatalog()
 		const created = await handle(request("POST", "/v1/templates", { body: '{"name":"T"}', headers: AUTH }))
 		expect([created.status, json(created.body)]).toEqual([201, { id: "tmpl_1", name: "T" }])
 		const beta = { authorization: "Bearer tok_beta" }
@@ -54,7 +54,7 @@ describe("publicCatalogue", () => {
 	})
 
 	it("names a template without a name with an empty one, and refuses what it does not serve", async () => {
-		const handle = publicCatalogue()
+		const handle = publicCatalog()
 		expect(json((await handle(request("POST", "/v1/templates"))).body)).toEqual({ id: "tmpl_1", name: "" })
 		expect((await handle(request("PUT", "/v1/templates"))).status).toBe(404)
 		expect((await handle(request("PUT", "/v1/templates/tmpl_1"))).status).toBe(404)
@@ -62,7 +62,7 @@ describe("publicCatalogue", () => {
 	})
 
 	it("answers 500 to a body that is not JSON, or a path that does not decode", async () => {
-		const handle = publicCatalogue()
+		const handle = publicCatalog()
 		expect((await handle(request("POST", "/v1/templates", { body: "{", headers: AUTH }))).status).toBe(500)
 		expect((await handle(request("GET", "/v1/templates/%E0%A4%A"))).status).toBe(500)
 	})

@@ -277,7 +277,7 @@
       "added": [
         {
           "check": "create.status-matches-document",
-          "detail": "job.create returned 200; the document declares 201. Either the handler or the document is wrong, and clients generated from the spec will not recognise the response.",
+          "detail": "job.create returned 200; the document declares 201. Either the handler or the document is wrong, and clients generated from the spec will not recognize the response.",
           "entity": "job",
           "operations": [
             "job.create"
@@ -294,7 +294,7 @@
         },
         {
           "check": "create.status-matches-document",
-          "detail": "row.create returned 200; the document declares 201. Either the handler or the document is wrong, and clients generated from the spec will not recognise the response.",
+          "detail": "row.create returned 200; the document declares 201. Either the handler or the document is wrong, and clients generated from the spec will not recognize the response.",
           "entity": "row",
           "operations": [
             "row.create"
@@ -311,7 +311,7 @@
         },
         {
           "check": "create.status-matches-document",
-          "detail": "table.create returned 200; the document declares 201. Either the handler or the document is wrong, and clients generated from the spec will not recognise the response.",
+          "detail": "table.create returned 200; the document declares 201. Either the handler or the document is wrong, and clients generated from the spec will not recognize the response.",
           "entity": "table",
           "operations": [
             "table.create"
@@ -328,7 +328,7 @@
         },
         {
           "check": "create.status-matches-document",
-          "detail": "webhook.create returned 200; the document declares 201. Either the handler or the document is wrong, and clients generated from the spec will not recognise the response.",
+          "detail": "webhook.create returned 200; the document declares 201. Either the handler or the document is wrong, and clients generated from the spec will not recognize the response.",
           "entity": "webhook",
           "operations": [
             "webhook.create"

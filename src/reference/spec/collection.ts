@@ -7,7 +7,7 @@ import { errorResponses } from "./errors.ts"
 import { declaredIdentity, entityTag, jsonResponse, listResponseHeaders, ok } from "./operation.ts"
 import { listQueryParams, pathParams, tenantParam } from "./params.ts"
 import { queryDeclaration } from "./query.ts"
-import { acknowledgementSchema, bodySchema, createdSchema, listLocated, listSchema, located } from "./schemas.ts"
+import { acknowledgmentSchema, bodySchema, createdSchema, listLocated, listSchema, located } from "./schemas.ts"
 import type { Json, SpecContext } from "./types.ts"
 
 /**
@@ -99,7 +99,7 @@ function createdResponse(ctx: SpecContext, entity: EntityDef): Json {
 	}
 	/* The async job is an action's receipt, not a record: its answer stays as it is. */
 	const answer = entity.name === "job" ? undefined : ctx.shape.createAnswer
-	if (answer === "id-message") return jsonResponse(`Created ${entity.name}`, acknowledgementSchema(entity))
+	if (answer === "id-message") return jsonResponse(`Created ${entity.name}`, acknowledgmentSchema(entity))
 	if (answer === "location") {
 		return {
 			description: `Created ${entity.name}`,

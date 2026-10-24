@@ -141,7 +141,7 @@
         },
         {
           "check": "response.status-is-documented",
-          "detail": "job.start returned 500; the document declares 202, 400, 401, 403, 404, 415. Clients generated from this document will not recognise the response.",
+          "detail": "job.start returned 500; the document declares 202, 400, 401, 403, 404, 415. Clients generated from this document will not recognize the response.",
           "entity": "job",
           "operations": [
             "job.start"

@@ -63,7 +63,7 @@ describe("createdRecord", () => {
 		expect(sent.map((request) => request.path)).toEqual(["/projects/p1/notes/n2"])
 	})
 
-	it("confirms an acknowledgement under the id the client chose", async () => {
+	it("confirms an acknowledgment under the id the client chose", async () => {
 		const read = { body: { id: "c1", name: "a" }, status: 200 }
 		const { result } = created({ answer: { status: 200 }, read, sent: { id: "c1", name: "a" } })
 		expect(await result).toEqual({ acknowledged: true, record: { id: "c1", name: "a" } })
@@ -73,7 +73,7 @@ describe("createdRecord", () => {
 describe("createdRecord, from an answer that is not the record", () => {
 	const read = { body: { id: "n1", name: "a", size: 2 }, status: 200 }
 
-	it("reads an acknowledgement's record back by the id it names, and seeds what the read returns", async () => {
+	it("reads an acknowledgment's record back by the id it names, and seeds what the read returns", async () => {
 		const { result, sent } = created({
 			answer: { body: { id: "n1", message: "created" }, status: 201 },
 			read,

@@ -5,7 +5,7 @@
  * by their parents: `project-member` and `org-member`. A tagged name is the author's and stays.
  */
 
-import { singularise } from "../extensions/entity.ts"
+import { singularize } from "../extensions/entity.ts"
 import { isParamSegment, segmentsOf, templateKey } from "./segments.ts"
 import type { OperationModel } from "./types.ts"
 
@@ -44,7 +44,7 @@ function heuristicTemplate(op: OperationModel): string[] | null {
 	const segments = segmentsOf(op.path)
 	for (let i = segments.length - 1; i >= 0; i--) {
 		const segment = segments[i] as string
-		if (!isParamSegment(segment) && singularise(segment) === op.entity) return segments.slice(0, i + 1)
+		if (!isParamSegment(segment) && singularize(segment) === op.entity) return segments.slice(0, i + 1)
 	}
 	return null
 }
@@ -58,7 +58,7 @@ function distinctNames(name: string, byTemplate: ReadonlyMap<string, string[]>):
 				.slice(0, -1)
 				.filter((segment) => !isParamSegment(segment) && !/^v\d+$/i.test(segment))
 				.slice(-depth)
-				.map(singularise)
+				.map(singularize)
 			names.set(template, [...parents, name].join("-"))
 		}
 		const exhausted = [...byTemplate.values()].every(

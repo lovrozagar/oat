@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 import { inProcess, type Via } from "../harness/launch.ts"
 import type { Handle } from "../../reference/http/node.ts"
 import { type ReferenceResponse, referenceRequest, respond } from "../../reference/http/wire.ts"
-import { publicCatalogue } from "./public-catalogue.ts"
+import { publicCatalog } from "./public-catalog.ts"
 import { runTenantScopeSuite } from "./tenant-scope.ts"
 
 /* A transport that cannot reach anything: each case reports why, and the rest still run. */
@@ -12,7 +12,7 @@ const nowhere: Via = {
 }
 
 describe("runTenantScopeSuite", () => {
-	it("keeps a public catalogue out of isolation, and splits stated from inferred tenancy", async () => {
+	it("keeps a public catalog out of isolation, and splits stated from inferred tenancy", async () => {
 		const results = await runTenantScopeSuite(inProcess)
 		expect(results.filter((r) => !r.ok).map((r) => `${r.name}: ${r.detail}`)).toEqual([])
 		expect(results.map((r) => r.detail)).toEqual([
@@ -57,7 +57,7 @@ describe("runTenantScopeSuite", () => {
 
 const WORKSPACE = { in: "path", name: "workspace_id", required: true, schema: { type: "string" } }
 
-/** The catalogue's document with every route under a workspace that `x-tenant` names. */
+/** The catalog's document with every route under a workspace that `x-tenant` names. */
 function tenanted(spec: { paths: Record<string, Record<string, Record<string, unknown>>> }): unknown {
 	const paths = Object.entries(spec.paths).map(([path, item]) => {
 		const ops = Object.entries(item).map(([method, op]) => {
@@ -81,17 +81,17 @@ function scoped(answer: ReferenceResponse, owners: Map<string, string>, workspac
 }
 
 /**
- * The public catalogue mounted under a stated tenant: one shared table that leaks across
+ * The public catalog mounted under a stated tenant: one shared table that leaks across
  * workspaces, or, with `enforce`, each row kept to the workspace that made it.
  */
-function catalogueUnder(enforce: boolean): Handle {
-	const catalogue = publicCatalogue()
+function catalogUnder(enforce: boolean): Handle {
+	const catalog = publicCatalog()
 	const owners = new Map<string, string>()
 	return async (request) => {
 		const [, workspace = ""] = /^\/v1\/workspaces\/([^/]+)\//.exec(request.url.pathname) ?? []
 		const url = new URL(request.url)
 		url.pathname = request.url.pathname.replace(`/workspaces/${workspace}/`, "/")
-		const answer = await catalogue(
+		const answer = await catalog(
 			referenceRequest(request.method, url, { headers: request.headers, read: request.text }),
 		)
 		if (url.pathname === "/v1/openapi/spec") {
@@ -103,9 +103,9 @@ function catalogueUnder(enforce: boolean): Handle {
 	}
 }
 
-describe("runTenantScopeSuite against a catalogue that states a tenant", () => {
-	it("fails the catalogue cases, naming the findings and that the checks ran", async () => {
-		const results = await runTenantScopeSuite({ ...inProcess, host: () => inProcess.host(catalogueUnder(false)) })
+describe("runTenantScopeSuite against a catalog that states a tenant", () => {
+	it("fails the catalog cases, naming the findings and that the checks ran", async () => {
+		const results = await runTenantScopeSuite({ ...inProcess, host: () => inProcess.host(catalogUnder(false)) })
 		expect([results[0], results[3]].map((r) => [r?.ok, r?.detail])).toEqual([
 			[false, "findings=SECURITY:tenant.item-not-readable-cross-tenant; ran=true; skipped=false"],
 			[false, "findings=SECURITY:tenant.filter-does-not-bypass-scope; ran=true; skipped=false"],
@@ -113,7 +113,7 @@ describe("runTenantScopeSuite against a catalogue that states a tenant", () => {
 	}, 300_000)
 
 	it("fails them too where the stated tenant holds: the checks applied", async () => {
-		const results = await runTenantScopeSuite({ ...inProcess, host: () => inProcess.host(catalogueUnder(true)) })
+		const results = await runTenantScopeSuite({ ...inProcess, host: () => inProcess.host(catalogUnder(true)) })
 		expect([results[0], results[3]].map((r) => [r?.ok, r?.detail])).toEqual([
 			[false, "findings=none; ran=true; skipped=false"],
 			[false, "findings=none; ran=true; skipped=false"],

@@ -23,7 +23,7 @@ export function errorResponse(error: unknown, defects: DefectSet): ReferenceResp
 		return failure(error.status, error.errorKey, error.message)
 	}
 	if (error instanceof SqlError) {
-		/* Correct behaviour is a 400. The defect lets the filter parser's own exception escape, which
+		/* Correct behavior is a 400. The defect lets the filter parser's own exception escape, which
 		 * the transport surfaces as a 500 — validation confused with crashing. */
 		if (defects.has("ERROR_500_ON_BAD_FILTER") && error.code === "invalid_filter") {
 			return failure(500, "internal_error", error.message)

@@ -28,7 +28,7 @@ describe("entityBand", () => {
 		)
 	})
 
-	it("splits up to twelve entities over two rows, and stops labelling arrows past eight", () => {
+	it("splits up to twelve entities over two rows, and stops labeling arrows past eight", () => {
 		const svg = bandOf({ entities: names(9), invalidates: [{ routes: ["GET /e0"], writer: "e8" }] })
 		expect(svg).toContain('<svg viewBox="0 0 1120 268"')
 		expect(svg).toContain('<path d="M 896 136 Q 541.3333333333334 -8, 186.66666666666666 40"')

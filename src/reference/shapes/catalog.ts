@@ -112,7 +112,7 @@ export const SHAPES: readonly NamedShape[] = [
 	{
 		name: "ack-create",
 		shape: { createAnswer: "id-message" },
-		why: 'a create answers only an acknowledgement, { "id": ..., "message": "created" }, never the record',
+		why: 'a create answers only an acknowledgment, { "id": ..., "message": "created" }, never the record',
 	},
 	{
 		name: "location-create",

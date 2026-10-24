@@ -296,7 +296,7 @@ afterEach(async () => {
 })
 
 describe("plan-limit adopt", () => {
-	it("recognises 402 and table_plan_limit", () => {
+	it("recognizes 402 and table_plan_limit", () => {
 		expect(isPlanLimitResponse(402, { error: "nope" })).toBe(true)
 		expect(isPlanLimitResponse(400, { error_key: "table_plan_limit", status_key: "payment_required" })).toBe(true)
 		expect(isPlanLimitResponse(429, { error_key: "table_plan_limit" })).toBe(false)

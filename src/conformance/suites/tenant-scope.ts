@@ -5,7 +5,7 @@ import { run } from "../harness/counting.ts"
 import { launch, reach, type Via } from "../harness/launch.ts"
 import type { ParserResult } from "../harness/result.ts"
 import { PRINCIPALS, SECURITY } from "../matrix/principals.ts"
-import { publicCatalogue } from "./public-catalogue.ts"
+import { publicCatalog } from "./public-catalog.ts"
 
 /** One case: what it is called, why it matters, and what it found. */
 interface TenantCase {
@@ -14,19 +14,19 @@ interface TenantCase {
 	probe: (via: Via) => Promise<{ ok: boolean; detail: string }>
 }
 
-/** One principal per workspace, each with the token the catalogue knows it by. */
-const CATALOGUE_PRINCIPALS: PrincipalsConfig = {
+/** One principal per workspace, each with the token the catalog knows it by. */
+const CATALOG_PRINCIPALS: PrincipalsConfig = {
 	alpha: { scope: { workspace_id: "ws_a" }, tenant: "ws_a", token: "tok_alpha" },
 	beta: { scope: { workspace_id: "ws_b" }, tenant: "ws_b", token: "tok_beta" },
 }
 
-/** oat run once against a fresh public catalogue. */
-async function catalogueRun(via: Via): Promise<RunResult> {
-	const hosted = await via.host(publicCatalogue())
+/** oat run once against a fresh public catalog. */
+async function catalogRun(via: Via): Promise<RunResult> {
+	const hosted = await via.host(publicCatalog())
 	try {
 		return await run({
 			baseUrl: hosted.url,
-			principals: CATALOGUE_PRINCIPALS,
+			principals: CATALOG_PRINCIPALS,
 			security: { bearer: { static: "{principal.token}" } },
 			seed: 42,
 			spec: `${hosted.url}/v1/openapi/spec`,
@@ -37,7 +37,7 @@ async function catalogueRun(via: Via): Promise<RunResult> {
 	}
 }
 
-/* A check that must not apply to the catalogue: skipped, not run, and no finding from any of `checks`. */
+/* A check that must not apply to the catalog: skipped, not run, and no finding from any of `checks`. */
 function standsDown(result: RunResult, check: string, checks: readonly string[]): { ok: boolean; detail: string } {
 	const hits = result.findings.filter((f) => checks.includes(f.check))
 	const skipped = result.checksSkipped.some((s) => s.check === check)
@@ -98,15 +98,15 @@ const STATED = "x-tenant + 200 from the other principal is a stated-boundary bre
 const INFERRED = "workspace_id / project_id still infers a tenant when x-tenant is stripped"
 
 /**
- * A public catalogue is unscoped. Two principals, create as A, GET or filter as B → 200 is the
+ * A public catalog is unscoped. Two principals, create as A, GET or filter as B → 200 is the
  * contract, and the isolation checks must not apply. The workspace-scoped widget fixture is
  * unchanged: tag → SECURITY, heuristic → AMBIGUITY. Same split for item GET and for
  * `filter=id.eq.<other tenant>`.
  */
 const CASES: readonly TenantCase[] = [
 	{
-		name: "public catalogue 200 is not a finding",
-		probe: async (via) => standsDown(await catalogueRun(via), ITEM, [ITEM, "tenant.denial-does-not-reveal-existence"]),
+		name: "public catalog 200 is not a finding",
+		probe: async (via) => standsDown(await catalogRun(via), ITEM, [ITEM, "tenant.denial-does-not-reveal-existence"]),
 		why: "no x-tenant and template_id is not a tenant name, so isolation does not apply",
 	},
 	/* @__PURE__ */ leakCase("tagged tenant leak is SECURITY", STATED, {
@@ -120,8 +120,8 @@ const CASES: readonly TenantCase[] = [
 		untagged: true,
 	}),
 	{
-		name: "public catalogue filter 200 is not a finding",
-		probe: async (via) => standsDown(await catalogueRun(via), FILTER, [FILTER]),
+		name: "public catalog filter 200 is not a finding",
+		probe: async (via) => standsDown(await catalogRun(via), FILTER, [FILTER]),
 		why: "no x-tenant and no tenant-named path param, so a 200 on id.eq.<other row> is the contract",
 	},
 	/* @__PURE__ */ leakCase(

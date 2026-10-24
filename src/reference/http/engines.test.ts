@@ -70,7 +70,7 @@ describe("postgresStore", () => {
 		expect(store).toBeInstanceOf(PgStore)
 		const tables = pg.statements.filter(({ query }) => query.startsWith("CREATE TABLE"))
 		expect(tables).toHaveLength(ENTITIES.length)
-		expect(tables.some(({ query }) => query.includes('"mislabelled_name" text'))).toBe(true)
+		expect(tables.some(({ query }) => query.includes('"mislabeled_name" text'))).toBe(true)
 	})
 })
 

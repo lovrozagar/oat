@@ -92,7 +92,7 @@ export async function untilAnswered(first: Exchange, retry: StatusRetry): Promis
 }
 
 /* 429 is reactive: the first one is never a seed/check failure. Tags pace proactively; this path
- * honours the server even when the op has no x-rate-limit at all. */
+ * honors the server even when the op has no x-rate-limit at all. */
 async function afterTooMany(first: Exchange, retry: StatusRetry): Promise<Exchange> {
 	let exchange = first
 	for (let attempt = 0; exchange.status === 429 && attempt < MAX_429_RETRIES; attempt++) {

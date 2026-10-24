@@ -52,7 +52,7 @@ export interface RunOptions {
 	ops?: string[]
 	/** Named profiles this run can select between. `"full"` and `"cheap"` exist without an entry. */
 	profiles?: Record<string, ProfileSpec>
-	/** Active profile by name. Defaults to `"full"` — every operation runs, today's behaviour. */
+	/** Active profile by name. Defaults to `"full"` — every operation runs, today's behavior. */
 	profile?: string
 	/** Stops the run between checks; teardown and the result still follow. */
 	signal?: AbortSignal

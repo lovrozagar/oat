@@ -102,7 +102,7 @@ async function acceptInvite(flow: Flow, invited: Exchange): Promise<{ exchange: 
 			summary: "an invite grants access before it is accepted",
 			detail:
 				`inviting ${delegate.id} made ${flow.subjectLabel} readable immediately. The accept ` +
-				"step is then theatre — anyone who can be named in an invite body is already in.",
+				"step is then theater — anyone who can be named in an invite body is already in.",
 			evidence: [invited],
 		})
 		return { outcome }

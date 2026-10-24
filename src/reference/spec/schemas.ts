@@ -93,8 +93,8 @@ export function createdSchema(ctx: SpecContext, entity: EntityDef): JsonSchema {
 		type: "object",
 	}
 }
-/** Under `createAnswer: "id-message"`: the acknowledgement a create answers instead of the record. */
-export function acknowledgementSchema(entity: EntityDef): JsonSchema {
+/** Under `createAnswer: "id-message"`: the acknowledgment a create answers instead of the record. */
+export function acknowledgmentSchema(entity: EntityDef): JsonSchema {
 	return {
 		additionalProperties: false,
 		properties: { id: identitySchema(entity), message: { type: "string" } },

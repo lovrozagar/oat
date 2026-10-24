@@ -5,7 +5,7 @@ import { run } from "../../src/runtime/run/index.ts"
 import type { OpenApiDocument } from "../../src/spec/types.ts"
 
 /*
- * A backend whose create takes a client-chosen id and answers only an acknowledgement
+ * A backend whose create takes a client-chosen id and answers only an acknowledgment
  * (`{ success: true }`), the way a file-backed config store or a git-committing API does.
  * The record is what the client sent; oat must track it by that id, read it back, and remove it.
  */

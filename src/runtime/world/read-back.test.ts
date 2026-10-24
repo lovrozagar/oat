@@ -19,7 +19,7 @@ describe("answersRecord", () => {
 	it("is not the record when it lacks a required field or one the create sent", () => {
 		expect(answersRecord({ id: "n1", size: 1 }, expected)).toBe(false)
 		expect(answersRecord({ id: "n1", name: "a" }, expected)).toBe(false)
-		/* An acknowledgement's own fields do not make it the record. */
+		/* An acknowledgment's own fields do not make it the record. */
 		expect(answersRecord({ id: "n1", message: "created" }, expected)).toBe(false)
 	})
 })
@@ -113,7 +113,7 @@ describe("readBackCreated", () => {
 })
 
 describe("declaredFields", () => {
-	it("keeps the fields of an answer the record declares, never an acknowledgement's message", () => {
+	it("keeps the fields of an answer the record declares, never an acknowledgment's message", () => {
 		const model = modelOf(notes({}))
 		expect(declaredFields(model, op(model, "note.create"), { id: "n1", message: "created", name: "a" })).toEqual({
 			id: "n1",

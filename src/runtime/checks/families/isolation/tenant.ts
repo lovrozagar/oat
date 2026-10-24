@@ -1,7 +1,7 @@
 import type { OperationModel } from "../../../../spec/graph/types.ts"
 
 /**
- * Isolation checks need a tenant boundary to have meaning. A public catalogue has neither
+ * Isolation checks need a tenant boundary to have meaning. A public catalog has neither
  * `x-tenant` nor a path parameter that looks like one; a 200 from another principal is the
  * contract, not a leak.
  */

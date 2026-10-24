@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest"
 import { runExampleSpecSuite } from "./example.ts"
 
 describe("runExampleSpecSuite", () => {
-	it("finds the annotated example modelled as its comments claim", async () => {
+	it("finds the annotated example modeled as its comments claim", async () => {
 		const results = await runExampleSpecSuite()
 		expect(results.filter((r) => !r.ok).map((r) => `${r.name}: ${r.detail}`)).toEqual([])
 		expect(results.length).toBeGreaterThan(10)
@@ -24,9 +24,7 @@ describe("runExampleSpecSuite", () => {
 			const results = await runExampleSpecSuite(path)
 			expect(results.every((r) => !r.ok)).toBe(true)
 			expect(results[0]?.detail).toBe('expected "postgrest", got undefined')
-			expect(results.find((r) => r.name === "public catalogue is unscoped")?.detail).toBe(
-				"expected null, got undefined",
-			)
+			expect(results.find((r) => r.name === "public catalog is unscoped")?.detail).toBe("expected null, got undefined")
 		} finally {
 			await rm(dir, { force: true, recursive: true })
 		}

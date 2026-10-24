@@ -162,7 +162,7 @@ async function raceAndJudge(race: Race, path: string, [first, second]: [string, 
  * Fields a probe may write an arbitrary string into without the backend having grounds to refuse.
  *
  * "Writable" is not enough: an enum, a pattern or a length cap makes an arbitrary value invalid,
- * and a backend that rejects or normalises it is behaving correctly. Reading that back as a lost
+ * and a backend that rejects or normalizes it is behaving correctly. Reading that back as a lost
  * write turns sound validation into a fabricated concurrency bug — which is exactly what happened
  * when a probe value was written into a `status` enum.
  */

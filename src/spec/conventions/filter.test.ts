@@ -42,7 +42,7 @@ describe("filter terms", () => {
 	it("give the bare text of an equality term", () => {
 		expect(filterFragment(at("postgrest"), "qty", "2")).toBe("qty.eq.2")
 		expect(filterFragment(at("equality"), "qty", "2")).toBe("2")
-		expect(filterFragment(at("unrecognised"), "qty", "2")).toBeNull()
+		expect(filterFragment(at("unrecognized"), "qty", "2")).toBeNull()
 	})
 
 	it("join two equalities with the grammar's and, and its or where it has one", () => {

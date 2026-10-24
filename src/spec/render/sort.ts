@@ -21,7 +21,7 @@ export interface SortGrammarSpec {
 	nulls?: { first: string; last: string }
 }
 
-/** The sort grammars oat recognises by name; `sortSpec` reads each `SortGrammar` but a template here. */
+/** The sort grammars oat recognizes by name; `sortSpec` reads each `SortGrammar` but a template here. */
 export type SortPreset = "colon" | "dotted" | "prefixed" | "spaced"
 
 export const SORT_PRESETS: Readonly<Record<SortPreset, SortGrammarSpec>> = {

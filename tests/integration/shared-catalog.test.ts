@@ -20,15 +20,15 @@ const item = {
 }
 
 function spec(): OpenApiDocument {
-	const entity = { name: "catalogue" }
+	const entity = { name: "catalog" }
 	return {
 		...bearerSecurity(),
-		info: { title: "catalogue", version: "1" },
+		info: { title: "catalog", version: "1" },
 		openapi: "3.1.0",
 		paths: {
 			"/v1/projects/{project_id}/templates": {
 				get: {
-					operationId: "catalogue.list",
+					operationId: "catalog.list",
 					parameters: [{ in: "path", name: "project_id", required: true, schema: { type: "string" } }],
 					responses: {
 						"200": {
@@ -41,7 +41,7 @@ function spec(): OpenApiDocument {
 					"x-tenant": false,
 				},
 				post: {
-					operationId: "catalogue.create",
+					operationId: "catalog.create",
 					parameters: [{ in: "path", name: "project_id", required: true, schema: { type: "string" } }],
 					requestBody: {
 						content: {
@@ -61,7 +61,7 @@ function spec(): OpenApiDocument {
 			},
 			"/v1/projects/{project_id}/templates/{id}": {
 				get: {
-					operationId: "catalogue.get",
+					operationId: "catalog.get",
 					parameters: [
 						{ in: "path", name: "project_id", required: true, schema: { type: "string" } },
 						{ in: "path", name: "id", required: true, schema: { type: "string" } },
@@ -106,7 +106,7 @@ function isTemplateList(parts: string[]): boolean {
 	return parts[0] === "v1" && parts[1] === "projects" && parts[3] === "templates" && parts.length === 4
 }
 
-/* Every token sees the same templates: the catalogue is shared, not a tenant's. */
+/* Every token sees the same templates: the catalog is shared, not a tenant's. */
 async function route(
 	{ document, rows }: { document: OpenApiDocument; rows: Template[] },
 	req: IncomingMessage,
@@ -137,7 +137,7 @@ async function serve(): Promise<string> {
 	return url
 }
 
-describe("shared catalogue", () => {
+describe("shared catalog", () => {
 	it("does not call a shared template a tenant leak", async () => {
 		const url = await serve()
 		const result = await run({
@@ -153,7 +153,7 @@ describe("shared catalogue", () => {
 		const defects = result.findings.filter((finding) => DEFECT_VERDICTS.has(finding.verdict))
 		expect(defects).toEqual([])
 		/* The only get in this run asked for an id that was never listed (404): no pass to claim. */
-		const get = result.scope.operations.find((op) => op.operationId === "catalogue.get")
+		const get = result.scope.operations.find((op) => op.operationId === "catalog.get")
 		expect(get?.status).not.toBe("failed")
 		expect(get?.findings).toBe(0)
 	})

@@ -6,7 +6,7 @@ function stripParens(value: string): string {
 	return value.startsWith("(") && value.endsWith(")") ? value.slice(1, -1) : value
 }
 
-/** `in` and `nin`: membership in a parenthesised, comma-separated list. */
+/** `in` and `nin`: membership in a parenthesized, comma-separated list. */
 export function listTerm({ asText, ctx, field, op, raw, typed }: TermRead): FilterNode {
 	const { defects, entity } = ctx
 	const members = stripParens(raw)
@@ -38,5 +38,5 @@ export function isTerm({ ctx, field, raw }: TermRead): FilterNode {
 	if ((raw === "true" || raw === "false") && field.type === "boolean") {
 		return { asText: false, field: field.name, kind: "cmp", nullsMatch: false, op: "eq", value: raw === "true" }
 	}
-	throw new SqlError("invalid_filter", `is.${raw} is not a recognised predicate`)
+	throw new SqlError("invalid_filter", `is.${raw} is not a recognized predicate`)
 }

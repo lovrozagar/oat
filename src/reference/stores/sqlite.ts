@@ -16,7 +16,7 @@ import type { EntityDef, FieldDef } from "../model/types.ts"
 import { ENTITIES } from "../model/entities.ts"
 import type { SelectPlan } from "../query-types.ts"
 import type { Row, Store } from "../store-api.ts"
-import { type SqlFlavour, type SqlParam, compileOrder, compileWhere, globText } from "./sql-compile.ts"
+import { type SqlFlavor, type SqlParam, compileOrder, compileWhere, globText } from "./sql-compile.ts"
 import type { SqliteDriver, SqlValue } from "./sqlite-driver.ts"
 
 /** SQLite storage class per declared field type. */
@@ -32,7 +32,7 @@ const AFFINITY: Record<FieldDef["type"], string> = {
 /**
  * Physical column name.
  *
- * Deliberately the declared field name, quoted. A production API this was modelled on named
+ * Deliberately the declared field name, quoted. A production API this was modeled on named
  * columns one way in DDL and another way in every read, and SQLite's double-quoted-string
  * fallback turned the mismatch into wrong data instead of an error — see the
  * COLUMN_NAME_MISMATCH defect, which reproduces it.
@@ -67,7 +67,7 @@ interface SqlParts {
 }
 
 export class SqlStore implements Store {
-	private readonly flavour: SqlFlavour
+	private readonly flavor: SqlFlavor
 	private readonly defects: DefectSet
 	private readonly db: SqliteDriver
 	private readonly prefix: string
@@ -78,7 +78,7 @@ export class SqlStore implements Store {
 		this.db = parts.db
 		this.prefix = parts.prefix
 		this.entities = parts.entities
-		this.flavour = {
+		this.flavor = {
 			binary: (expr) => expr,
 			bind: (args, value) => {
 				args.push(value)
@@ -152,7 +152,7 @@ export class SqlStore implements Store {
 
 	/** The stored column for a field — diverges from the declared name only under the defect. */
 	private physical(name: string): string {
-		return this.defects.has("COLUMN_NAME_MISMATCH") && name === "name" ? col("mislabelled_name") : col(name)
+		return this.defects.has("COLUMN_NAME_MISMATCH") && name === "name" ? col("mislabeled_name") : col(name)
 	}
 
 	async insert(entity: EntityDef, record: Row): Promise<Row> {
@@ -183,7 +183,7 @@ export class SqlStore implements Store {
 			.map((f) => {
 				if (!this.defects.has("COLUMN_NAME_MISMATCH") || f.name !== "name") return col(f.name)
 				/*
-				 * The bug is that DDL wrote `mislabelled_name` while reads ask for `name`.
+				 * The bug is that DDL wrote `mislabeled_name` while reads ask for `name`.
 				 *
 				 * On an engine with double-quoted-string fallback ON, that is expressible in its
 				 * natural form — `"name"` resolves to no column, so SQLite hands back the literal
@@ -227,8 +227,8 @@ export class SqlStore implements Store {
 
 	async select(entity: EntityDef, plan: SelectPlan): Promise<Row[]> {
 		const args: SqlParam[] = []
-		const where = compileWhere(plan.where, { args, entity, flavour: this.flavour })
-		const order = compileOrder(plan, entity, this.flavour)
+		const where = compileWhere(plan.where, { args, entity, flavor: this.flavor })
+		const order = compileOrder(plan, entity, this.flavor)
 		const rows = await this.db.all(
 			`SELECT ${this.selectList(entity)} FROM ${tableName(entity, this.prefix)} WHERE ${where}${order}`,
 			args.map(toSql),

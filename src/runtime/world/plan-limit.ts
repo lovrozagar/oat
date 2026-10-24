@@ -16,9 +16,9 @@ function planLimitSignal(body: unknown): string | null {
 	}
 	for (const candidate of candidates) {
 		if (typeof candidate !== "string") continue
-		const normalised = candidate.toLowerCase()
-		if (normalised === "payment_required" || normalised === "plan_limit" || normalised.includes("plan_limit")) {
-			return normalised
+		const normalized = candidate.toLowerCase()
+		if (normalized === "payment_required" || normalized === "plan_limit" || normalized.includes("plan_limit")) {
+			return normalized
 		}
 	}
 	return null

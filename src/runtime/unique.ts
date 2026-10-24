@@ -123,7 +123,7 @@ export function uniquifyProbeBody(
 /**
  * A value for a unique column that no earlier record — this run's or an earlier run's — holds.
  *
- * Drawn from the column's own schema with the token mixed in, so it honours `maximum`,
+ * Drawn from the column's own schema with the token mixed in, so it honors `maximum`,
  * `multipleOf`, `enum`, `pattern` and `format`. Appending a suffix to whatever was there broke
  * every one of those. Where the schema admits nothing new, the value is left as it was and the
  * caller's collision check decides.

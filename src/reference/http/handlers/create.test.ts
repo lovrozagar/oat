@@ -51,7 +51,7 @@ describe("a create in another shape", () => {
 		expect((await call("POST", TABLES, { body: { name: "j" } })).status).toBe(415)
 	})
 
-	it("answers only an acknowledgement for a table under ackCreate", async () => {
+	it("answers only an acknowledgment for a table under ackCreate", async () => {
 		const { call } = await api({ shape: { ackCreate: true } })
 		expect((await call("POST", TABLES, { body: { name: "a" } })).body).toEqual({ success: true })
 		expect((await call("POST", JOBS, { body: { name: "j" } })).body).toMatchObject({ name: "j" })

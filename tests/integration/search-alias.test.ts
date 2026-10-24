@@ -7,8 +7,8 @@ import { dereference } from "../../src/spec/load/dereference.ts"
 import type { OpenApiDocument, ParameterObject } from "../../src/spec/types.ts"
 
 /*
- * `searchTerm` is a common name for a free-text search parameter. Unrecognised, every search check
- * stands down on an API that has search. Recognising it must not move any other parameter's role.
+ * `searchTerm` is a common name for a free-text search parameter. Unrecognized, every search check
+ * stands down on an API that has search. Recognizing it must not move any other parameter's role.
  */
 
 const conventionsFor = (name: string) =>
@@ -16,7 +16,7 @@ const conventionsFor = (name: string) =>
 
 describe("the search role", () => {
 	it.each(["searchTerm", "search_term", "SearchTerm", "search-term", "searchterm"])(
-		"recognises searchTerm however it is spelled: %s",
+		"recognizes searchTerm however it is spelled: %s",
 		(name) => {
 			expect(conventionsFor(name).search).toBe(name)
 		},

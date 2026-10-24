@@ -8,7 +8,7 @@ export const CORE_DEFECTS = {
 	UNSTABLE_SORT: "sort lacks a tiebreak; page walks drop or duplicate rows",
 	/** Writes land in the item store but the list projection serves a stale snapshot. */
 	STALE_LIST: "list projection does not reflect writes visible on the item route",
-	/** Unrecognised filter fields are dropped instead of rejected. */
+	/** Unrecognized filter fields are dropped instead of rejected. */
 	FILTER_IGNORED: "unknown filter field is silently ignored rather than rejected",
 	/** Cursor pagination and offset pagination disagree about the underlying set. */
 	CURSOR_DRIFT: "cursor pagination yields a different set than offset pagination",
@@ -37,14 +37,14 @@ export const CORE_DEFECTS = {
 	 * Accepts an Idempotency-Key and creates a second record anyway.
 	 *
 	 * The failure mode is a retry — a timeout, a proxy replay, a double-click — silently
-	 * duplicating a charge or an order. The key is the client's only defence against that, and
-	 * whether it is honoured cannot be established without replaying a request.
+	 * duplicating a charge or an order. The key is the client's only defense against that, and
+	 * whether it is honored cannot be established without replaying a request.
 	 */
 	IDEMPOTENCY_IGNORED: "Idempotency-Key is accepted but replay creates a duplicate record",
 	/**
 	 * A write invalidates a route the document says it invalidates — except it does not.
 	 *
-	 * The parent keeps serving a derived value computed before the child write: a denormalised
+	 * The parent keeps serving a derived value computed before the child write: a denormalized
 	 * counter nobody refreshes, or a cached projection whose key was never busted. The write
 	 * succeeds, the child's own listing is correct, and only the *other* route the document named
 	 * is wrong — which is why nothing short of following `x-invalidate` finds it.
@@ -53,7 +53,7 @@ export const CORE_DEFECTS = {
 	/**
 	 * The collection serves a different value for a field than the item route does.
 	 *
-	 * A denormalised listing, a search index rebuilt on a lag, a cached projection: each read path
+	 * A denormalized listing, a search index rebuilt on a lag, a cached projection: each read path
 	 * is internally consistent and individually plausible, so every per-projection check passes.
 	 * Only comparing the paths against each other reveals that a client's view of a record depends
 	 * on which route it happened to use.

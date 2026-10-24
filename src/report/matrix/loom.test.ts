@@ -27,7 +27,7 @@ describe("loomSvg", () => {
 		expect(svg.match(/<g>/g)).toHaveLength(15)
 	})
 
-	it("ties each read and axis to the cohort, and each composition to its parts, in the status's colour", () => {
+	it("ties each read and axis to the cohort, and each composition to its parts, in the status's color", () => {
 		expect(svg).toContain('<line x1="130" y1="270" x2="130" y2="70" stroke="#7dcea0" stroke-width="1.6" />')
 		expect(svg).toContain('<line x1="130" y1="270" x2="390" y2="180" stroke="#ff6b3d" stroke-width="1.6" />')
 		expect(svg).toContain(

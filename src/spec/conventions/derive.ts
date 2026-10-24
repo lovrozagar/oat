@@ -10,7 +10,7 @@ import type { QueryConventions } from "./types.ts"
 /** What the document says beside the parameters: its `x-query` grammars and response headers. */
 export interface ConventionSources {
 	declared?: { grammar?: unknown; sortGrammar?: unknown } | undefined
-	/** Told when the filter grammar could not be recognised and nothing declared it. */
+	/** Told when the filter grammar could not be recognized and nothing declared it. */
 	onGuess?: (message: string) => void
 	/** Response headers the success response declares, by name. */
 	responseHeaders?: readonly string[]
@@ -56,11 +56,11 @@ function filterConventions(query: readonly ParameterObject[], sources: Conventio
 	if (stated !== undefined) return stated
 	const inferred = inferGrammar(filterParam)
 	/* A single free-text `filter` parameter almost never means equality-per-field; it means a grammar
-	 * oat could not recognise. Writing `?name=value` anyway would send parameters the document never
+	 * oat could not recognize. Writing `?name=value` anyway would send parameters the document never
 	 * declared and read the shrug that comes back as a defect, so no filter term is written at all. */
-	const unrecognised = inferred === "equality" && filterParam?.schema?.type === "string"
-	if (unrecognised && declared === undefined) sources.onGuess?.(unrecognisedMessage(filterParam.name))
-	return { grammar: unrecognised ? "unrecognised" : inferred }
+	const unrecognized = inferred === "equality" && filterParam?.schema?.type === "string"
+	if (unrecognized && declared === undefined) sources.onGuess?.(unrecognizedMessage(filterParam.name))
+	return { grammar: unrecognized ? "unrecognized" : inferred }
 }
 
 /** The filter grammar `x-query` names or describes as a template, when it does so readably. */
@@ -75,10 +75,10 @@ function statedGrammar(declared: unknown): FilterConventions | undefined {
 		: undefined
 }
 
-function unrecognisedMessage(name: string): string {
+function unrecognizedMessage(name: string): string {
 	return (
 		`parameter "${name}" takes a filter expression whose grammar could not be ` +
-		"recognised from its description or examples, so oat writes no filter terms for it. " +
+		"recognized from its description or examples, so oat writes no filter terms for it. " +
 		'Declare it with x-query: { grammar: "postgrest" | "colon" | "equality" }, or describe it as a ' +
 		'template: { grammar: { term: "{conj}_{field}_{op}_{value}", ops: { eq: "eq" }, … } }'
 	)

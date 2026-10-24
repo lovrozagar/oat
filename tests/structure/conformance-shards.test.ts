@@ -47,7 +47,7 @@ describe("CI's conformance", () => {
 		expect(job("test")).toMatch(/conformance --aggregate proven/)
 	})
 
-	it("judges even when a shard failed or was cancelled, and fails then: a skipped check passes a gate", () => {
+	it("judges even when a shard failed or was canceled, and fails then: a skipped check passes a gate", () => {
 		const test = job("test")
 		expect(test).toContain("if: ${{ always() }}")
 		expect(test).toContain("contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')")

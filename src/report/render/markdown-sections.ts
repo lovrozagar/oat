@@ -61,7 +61,7 @@ export function observedSection(input: ReportInput): string[] {
 		observed.set(note.note, [...(observed.get(note.note) ?? []), note.entity])
 	}
 	if (observed.size === 0) return []
-	const lines = ["## Observed behaviour", ""]
+	const lines = ["## Observed behavior", ""]
 	for (const [note, entities] of observed) lines.push(`- ${note} (${entities.join(", ")})`)
 	lines.push("")
 	return lines

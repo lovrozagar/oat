@@ -28,7 +28,7 @@ interface Plan {
  * create answered (or the client chose), is what was stored; an echoed record speaks for the create
  * too. A field counts as dropped only when neither holds it as sent: an echo that leaves a field
  * out is not a lost write once the read shows it, and a read that leaves out what the create echoed
- * is a read-side disagreement, judged by `consistency.projections-agree`. An acknowledgement-only
+ * is a read-side disagreement, judged by `consistency.projections-agree`. An acknowledgment-only
  * create, with no record to read back, gives nothing to judge.
  */
 export const createPersistsFields: Check<Plan> = defineCheck<Plan>({
@@ -69,7 +69,7 @@ export const createPersistsFields: Check<Plan> = defineCheck<Plan>({
 		/* The create echoed a record when the answer holds a submitted field beyond the identity. */
 		const echoes = judged.some(([key]) => key !== ctx.identity && Object.hasOwn(echoed, key))
 		if (back.record === undefined && !echoes)
-			return standDown(`${createOp.operationId} answered an acknowledgement, not the record, and ${back.why}`)
+			return standDown(`${createOp.operationId} answered an acknowledgment, not the record, and ${back.why}`)
 
 		const dropped = await droppedFields(ctx, judged, { back, echoed })
 		if (dropped.length === 0) return ASSERTED
@@ -106,7 +106,7 @@ type ReadBack =
 /**
  * The submitted fields no witness holds as sent: the echo, the record read back, or the row the
  * listing shows under the same id. A field the listing holds was stored, and an item read leaving
- * it out is a read-side disagreement; behind an acknowledgement the read is the only other witness.
+ * it out is a read-side disagreement; behind an acknowledgment the read is the only other witness.
  */
 async function droppedFields(
 	ctx: CheckContext,

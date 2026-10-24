@@ -4,7 +4,7 @@ import { listening } from "../../src/conformance/harness/launch.ts"
 
 /*
  * Behind the client-ids shape the create answers only `{ success: true }`. A record oat could not
- * confirm is not a record: treating that acknowledgement as one put a phantom with no fields into
+ * confirm is not a record: treating that acknowledgment as one put a phantom with no fields into
  * the cohort, and checks that reason about the cohort (nulls, sort) reported a correct backend.
  */
 

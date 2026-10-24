@@ -70,7 +70,7 @@ function parseTerm(trimmed: string, ctx: ParseContext): FilterNode {
 	const op = operatorFor(name, rawOp, ctx)
 	if (op === null) return { kind: "const", value: true }
 	if (!filterableFields(entity, defects).includes(name)) {
-		/* Correct behaviour is to reject. The defect drops the term instead — the single most
+		/* Correct behavior is to reject. The defect drops the term instead — the single most
 		 * common real-world filter bug, and invisible to schema validation. */
 		if (defects.has("FILTER_IGNORED")) return { kind: "const", value: true }
 		throw new SqlError("invalid_filter", `field "${name}" is not filterable`)

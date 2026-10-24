@@ -76,8 +76,8 @@ describe("spec.declared-rate-limit-is-honored run", () => {
 		])
 		expect(outcome).toEqual({ kind: "asserted" })
 		expect(findings.findings.map((f) => [f.check, f.verdict, f.summary])).toEqual([
-			["spec.declared-rate-limit-is-honored", "SPEC_BUG", 'the declared "reads" rate limit is not honoured'],
-			["spec.declared-rate-limit-is-honored", "SPEC_BUG", 'the declared "writes" rate limit is not honoured'],
+			["spec.declared-rate-limit-is-honored", "SPEC_BUG", 'the declared "reads" rate limit is not honored'],
+			["spec.declared-rate-limit-is-honored", "SPEC_BUG", 'the declared "writes" rate limit is not honored'],
 		])
 		expect(findings.findings[0]?.detail).toContain('4 request(s) to the "reads" category returned 429')
 		expect(findings.findings[0]?.evidence).toHaveLength(3)
@@ -85,9 +85,9 @@ describe("spec.declared-rate-limit-is-honored run", () => {
 	})
 
 	it("groups a refusal with no category under unknown", async () => {
-		const { rateLimitCategory: _, ...uncategorised } = declaredRoom
-		const { findings } = await judge([sentTo("listWidgets", 429, uncategorised)])
-		expect(findings.findings[0]?.summary).toBe('the declared "unknown" rate limit is not honoured')
+		const { rateLimitCategory: _, ...uncategorized } = declaredRoom
+		const { findings } = await judge([sentTo("listWidgets", 429, uncategorized)])
+		expect(findings.findings[0]?.summary).toBe('the declared "unknown" rate limit is not honored')
 	})
 
 	it("ignores a 429 under a configured rate, or after oat's own bucket made the request wait", async () => {

@@ -273,7 +273,7 @@
       "added": [
         {
           "check": "invalidation.declared-route-changes",
-          "detail": "creating a row declares x-invalidate on \"GET /v1/projects/{project_id}/tables\", but that route returned a byte-identical body before and after the write. Either it serves a value derived from this entity and that value is stale — a denormalised counter or a cached projection nobody refreshed — or the declaration is wrong and every client following it is invalidating the wrong cache key.",
+          "detail": "creating a row declares x-invalidate on \"GET /v1/projects/{project_id}/tables\", but that route returned a byte-identical body before and after the write. Either it serves a value derived from this entity and that value is stale — a denormalized counter or a cached projection nobody refreshed — or the declaration is wrong and every client following it is invalidating the wrong cache key.",
           "entity": "row",
           "operations": [
             "row.create",

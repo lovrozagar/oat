@@ -32,7 +32,7 @@ describe("filter presets", () => {
 			neq: "neq",
 		})
 		expect(FILTER_PRESETS.equality.ops).toEqual({ eq: "eq" })
-		expect(FILTER_PRESETS.unrecognised.ops).toEqual({})
+		expect(FILTER_PRESETS.unrecognized.ops).toEqual({})
 	})
 
 	it("let only postgrest nest and and or", () => {

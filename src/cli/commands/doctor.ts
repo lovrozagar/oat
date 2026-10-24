@@ -4,11 +4,11 @@ import { report } from "../../report/console/report.ts"
 import { authStepOperationIds } from "../../runtime/scope/entities.ts"
 import type { Args } from "../flags.ts"
 import type { Writer } from "../writer.ts"
-import { modelled } from "./spec.ts"
+import { modeled } from "./spec.ts"
 
 /** `oat doctor`: what oat can and cannot test in the document, and why. Exits 1 on anything blocking. */
 export async function commandDoctor(writer: Writer, flags: Args["flags"]): Promise<number> {
-	const read = await modelled(writer, flags)
+	const read = await modeled(writer, flags)
 	if (typeof read === "number") return read
 	const { model, danglingRefs, externalRefs, config, configPath, removed, unsetEnv } = read
 	const output = report.doctor(model, {

@@ -44,11 +44,11 @@ describe("validation.content-type-enforced run", () => {
 		expect(sent[0]?.options.body).toMatch(/^name=/)
 	})
 
-	it("reports a backend bug when the mislabelled body is processed, naming the declared media type", async () => {
+	it("reports a backend bug when the mislabeled body is processed, naming the declared media type", async () => {
 		const { findings, outcome } = await probe({ status: 201 })
 		expect(outcome).toEqual({ kind: "finding", verdict: "BACKEND_BUG" })
 		const [finding] = findings.findings
-		expect(finding?.summary).toBe("a request labelled with an undeclared content type was processed")
+		expect(finding?.summary).toBe("a request labeled with an undeclared content type was processed")
 		expect(finding?.detail).toContain(
 			"declares application/json, but the same body sent as text/plain was processed (201)",
 		)

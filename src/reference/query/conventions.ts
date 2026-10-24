@@ -4,7 +4,7 @@ import type { Collation, SearchMode } from "../query-types.ts"
 
 export const SEARCH_MODES: readonly SearchMode[] = ["contains", "prefix"]
 
-/** Behaviour of a correct backend that varies between real APIs — see `ReferenceShape`. */
+/** Behavior of a correct backend that varies between real APIs — see `ReferenceShape`. */
 export interface QueryConventions {
 	/** Where nulls sort when the request does not say. */
 	nulls: "first" | "last"

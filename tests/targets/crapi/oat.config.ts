@@ -13,7 +13,7 @@ export default defineConfig({
 	seed: 42,
 	cohortSize: 4,
 	/*
-	 * create_order answers an acknowledgement ({ id, message, credit }) that echoes none of the
+	 * create_order answers an acknowledgment ({ id, message, credit }) that echoes none of the
 	 * submitted fields; oat seeds and judges the record it reads back by that id instead.
 	 */
 	ops: ["create_order", "get_orders", "get_order_byID"],
