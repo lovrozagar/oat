@@ -56,6 +56,19 @@ describe("principalProblems", () => {
 	it("reads recipes from security only when there is one", () => {
 		expect(principalProblems({ principals: { alpha: { tenant: "t" } }, security: [] }, schemes)).toEqual([])
 	})
+
+	it("wants every principal a scenario or its step sends as to be one the config declares", () => {
+		const scenarios = [
+			{ id: "peer", principal: "beta", steps: [{ operationId: "a" }, { operationId: "b", principal: "gamma" }] },
+			{ id: "own", steps: [{ operationId: "a", principal: "alpha" }, "raw"] },
+			{ id: "bare", principal: "alpha" },
+			"raw",
+		]
+		expect(principalProblems({ principals: { alpha: { tenant: "t" } }, scenarios }, schemes)).toEqual([
+			'scenarios.peer.principal names "beta", which principals does not declare',
+			'scenarios.peer.steps[1].principal names "gamma", which principals does not declare',
+		])
+	})
 })
 
 describe("principalMapProblems", () => {

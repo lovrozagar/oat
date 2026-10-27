@@ -119,3 +119,19 @@ describe("runScenarios when the run stops", () => {
 		expect(reads).toBe(2)
 	})
 })
+
+describe("runScenarios: a principal BLOCKED at sign-in", () => {
+	it("sends nothing for a scenario, or a step, that needs a principal BLOCKED at sign-in, and reports it BLOCKED", async () => {
+		const peer = scenario([{ operationId: "notes.list" }], { covers: ["notes.list"], id: "peer", principal: "beta" })
+		const step = scenario([{ operationId: "notes.list", principal: "beta" }], { covers: ["notes.list"], id: "step" })
+		const blocked = new Map([["beta", "auth.token answered 401"]])
+		const { input, sent } = stage(notesApi(notes()), { blocked, scenarios: [peer, step] })
+		await runScenarios(input)
+		expect(sent).toEqual([])
+		expect(input.grades.evidence.size).toBe(0)
+		expect(input.findings.findings.map((finding) => [finding.check, finding.verdict, finding.detail])).toEqual([
+			["scenario.peer", "BLOCKED", 'blocked by principal "beta" is BLOCKED: auth.token answered 401'],
+			["scenario.step", "BLOCKED", 'blocked by principal "beta" is BLOCKED: auth.token answered 401'],
+		])
+	})
+})

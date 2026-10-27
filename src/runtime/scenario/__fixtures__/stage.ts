@@ -106,6 +106,7 @@ export function stage(
 ): { input: ScenarioInput; sent: Sent[] } {
 	const { client, sent } = fakeClient(respond)
 	const base: ScenarioInput = {
+		blocked: new Map(),
 		checksRun: new Set(),
 		client,
 		defaultPrincipal: "alpha",

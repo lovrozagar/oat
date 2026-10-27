@@ -177,7 +177,28 @@ export function principalProblems(config: Config, schemes: ReadonlySet<string>, 
 						? [...overrideSchemeProblems(id, entry, schemes), ...freshProblems(id, entry, against)]
 						: [],
 				)
-	return [...principalMapProblems(config), ...documented]
+	return [...principalMapProblems(config), ...documented, ...scenarioPrincipalProblems(config, entries)]
+}
+
+/* A raw scenario or step that names a principal to send as. */
+type NamesPrincipal = { id?: unknown; principal?: unknown; steps?: unknown }
+
+/* Every principal a scenario or one of its steps sends as must be declared: a run cannot sign in an unknown id. */
+function scenarioPrincipalProblems(config: Config, entries: Array<[string, unknown]> | string): string[] {
+	if (typeof entries === "string" || !Array.isArray(config.scenarios)) return []
+	const declared = new Set(entries.map(([id]) => id))
+	const unknown = (path: string, named: NamesPrincipal): string[] =>
+		typeof named.principal === "string" && !declared.has(named.principal)
+			? [`${path}.principal names "${named.principal}", which principals does not declare`]
+			: []
+	return config.scenarios.filter(isRecord).flatMap((scenario: NamesPrincipal) => {
+		const path = `scenarios.${String(scenario.id)}`
+		const steps = Array.isArray(scenario.steps) ? scenario.steps : []
+		return [
+			...unknown(path, scenario),
+			...steps.flatMap((step, index) => (isRecord(step) ? unknown(`${path}.steps[${index}]`, step) : [])),
+		]
+	})
 }
 
 /* What replaces each top-level key 0.25.0 removed. */

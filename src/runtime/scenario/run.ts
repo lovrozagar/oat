@@ -21,6 +21,7 @@ export async function runScenarios(input: ScenarioInput): Promise<void> {
 		if (graded.length === 0 && !reaches) continue
 		const check = scenarioCheckId(scenario)
 		input.checksRun.add(check)
+		if (blockedBy(input, scenario, { check, graded })) continue
 		const run = startScenario(input, scenario, sleep)
 		const ended = await runSteps(run)
 		/* Stopped from outside: what completed is graded; nothing unreached is a verdict. */
@@ -30,6 +31,32 @@ export async function runScenarios(input: ScenarioInput): Promise<void> {
 		}
 		gradeScenario(run, graded, ended)
 	}
+}
+
+/*
+ * A scenario that sends as a principal BLOCKED at sign-in, itself or in a step, is not run: it is
+ * BLOCKED by that principal, and what it covers stays ungraded. True when it was.
+ */
+function blockedBy(
+	input: ScenarioInput,
+	scenario: Scenario,
+	at: { check: string; graded: readonly string[] },
+): boolean {
+	const named = [
+		scenario.principal,
+		...scenario.steps.map((step) => ("principal" in step ? step.principal : undefined)),
+	]
+	const principal = named.find((id) => id !== undefined && input.blocked.has(id))
+	if (principal === undefined) return false
+	const cause = `principal "${principal}" is BLOCKED: ${input.blocked.get(principal) as string}`
+	input.findings
+		.attributed([...at.graded])
+		.ownedBy(at.check)
+		.blocked(at.check, scenario.id, {
+			cause,
+			summary: `scenario "${scenario.id}" sends as a principal that is BLOCKED`,
+		})
+	return true
 }
 
 /** True when a step of the scenario calls an operation in scope. */

@@ -26,6 +26,8 @@ export interface ScenarioInput {
 	inScope: (operationId: string) => boolean
 	mode: "full" | "targeted"
 	principals: ReadonlyMap<string, ScenarioPrincipal>
+	/** Configured principals whose sign-in was refused, with why: a scenario that needs one cannot run. */
+	blocked: ReadonlyMap<string, string>
 	defaultPrincipal: string
 	outOfBand?: Partial<BackoffConfig>
 	originClients?: ReadonlyMap<string, OriginClient>
