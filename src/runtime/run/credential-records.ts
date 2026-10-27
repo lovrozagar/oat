@@ -16,6 +16,7 @@ import { fillPath } from "../fill-path.ts"
 import { deletedEarlierIn, deleteOperationFor, readPathOf } from "../teardown/routes.ts"
 import { listing } from "../teardown/still-listed.ts"
 import type { Disposable } from "../teardown/types.ts"
+import { recordScope } from "./record-scope.ts"
 
 export interface RecordsWiring {
 	model: SpecModel
@@ -46,22 +47,22 @@ function operationsOf({ model }: RecordsWiring, record: CredentialRecord): Opera
 	return remove === null || remove === revoke ? [revoke] : [remove, revoke]
 }
 
-function scopeOf(wiring: RecordsWiring, record: CredentialRecord): Record<string, string> {
-	return { ...wiring.scopeOf(record.as.principal), ...record.scope }
+/* What `op` fills its path from for the record: the principal's bindings, the record's own, and its identity last. */
+function scopeOf(wiring: RecordsWiring, record: CredentialRecord, op: OperationModel): Record<string, string> {
+	return recordScope(wiring.model, op, { ...wiring.scopeOf(record.as.principal), ...record.scope })
 }
 
 /* The DELETE paths that remove the record. One with no path parameter names no record of its own. */
 function removersOf(wiring: RecordsWiring, record: CredentialRecord): string[] {
-	const scope = scopeOf(wiring, record)
 	return operationsOf(wiring, record).flatMap((op) =>
-		op.method !== "DELETE" || op.pathParams.length === 0 ? [] : (filled(op.path, scope) ?? []),
+		op.method !== "DELETE" || op.pathParams.length === 0 ? [] : (filled(op.path, scopeOf(wiring, record, op)) ?? []),
 	)
 }
 
 /* The record as teardown names one: its entity and the id its own path takes last. */
 function disposableOf(wiring: RecordsWiring, record: CredentialRecord): Disposable | null {
 	const [op] = operationsOf(wiring, record) as [OperationModel]
-	const scope = scopeOf(wiring, record)
+	const scope = scopeOf(wiring, record, op)
 	const id = scope[op.pathParams.at(-1) ?? ""]
 	if (op.entity === null || id === undefined) return null
 	return { entity: op.entity, id, owner: { id: record.as.principal }, scope }

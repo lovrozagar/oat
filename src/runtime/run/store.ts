@@ -24,6 +24,7 @@ import type { OriginClient } from "../steps/request.ts"
 import { stepRunner } from "../steps/runner.ts"
 import type { Loaded, LoadedOrigin } from "./context.ts"
 import { credentialRecords } from "./credential-records.ts"
+import { recordScope } from "./record-scope.ts"
 import { boundOf } from "./identity.ts"
 import type { RunNetwork } from "./network.ts"
 
@@ -89,7 +90,8 @@ function runPorts(loaded: Loaded, wiring: PortWiring): CredentialPorts {
 				noted(async () => {
 					/* Validation refuses a recipe naming an operation the document lacks. */
 					const op = model.byOperationId.get(input.operationId) as OperationModel
-					const path = fillPath(op.path, { ...wiring.scopeOf(input.as.principal), ...input.scope })
+					const scope = recordScope(model, op, { ...wiring.scopeOf(input.as.principal), ...input.scope })
+					const path = fillPath(op.path, scope)
 					const body = input.body === undefined ? {} : { body: input.body }
 					/* A value of its own is the one session a revoke ends: sent as the principal's, exactly that value. */
 					const as = input.value === undefined ? input.as : { ...input.as, value: input.value }

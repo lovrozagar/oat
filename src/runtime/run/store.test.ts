@@ -113,6 +113,19 @@ describe("runStore: operations", () => {
 		).toEqual(["Bearer alpha-key", "Bearer alpha-key"])
 	})
 
+	it("revokes a minted key at its own path when the parameter there is named unlike any answer field", async () => {
+		const options = optionsFor(keysApi(204, { keyParam: "api_key_id" }), {
+			principals: { alpha: { scope: { project_id: "p1" } } },
+			security: MINTED,
+		})
+		const ctx = await connected(options)
+		await ctx.store.acquire({ principal: "alpha", scheme: "key" })
+		expect(await ctx.store.revokeAll()).toEqual([])
+		expect(options.seen.filter((request) => request.method === "DELETE").map((request) => request.path)).toEqual([
+			"/projects/p1/keys/1",
+		])
+	})
+
 	it("sends as an invited delegate from the delegate's own scope, never the owner's, once it adopts a credential", async () => {
 		const principals = { alpha: { scope: { project_id: "p1" } }, delegate: { scope: { project_id: "p2" } } }
 		const options = optionsFor(overriding(keysApi(), delegateKeys), { principals, security: MINTED })

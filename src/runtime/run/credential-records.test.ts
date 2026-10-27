@@ -106,6 +106,15 @@ describe("credentialRecords: removed", () => {
 		expect(records.removed(TOKEN)).toBe(true)
 	})
 
+	it("addresses a record its mint answered only as `id`, whatever its own path calls the parameter", async () => {
+		const answered = recordOf("keys.delete", { id: "k7" })
+		const { client, records, sent } = recordsOver(() => ({ status: 404 }))
+		await client.request("DELETE", "/keys/k7", { as: { anonymous: true } })
+		expect(records.removed(answered)).toBe(false)
+		expect(await records.gone(answered)).toBe(true)
+		expect(sent.map((request) => `${request.method} ${request.path}`)).toEqual(["DELETE /keys/k7", "GET /keys/k7"])
+	})
+
 	it("is never removed by a path that names no record, or one its scope cannot fill", async () => {
 		const { client, records } = recordsOver(() => ({ status: 204 }))
 		await client.request("DELETE", "/session", { as: { anonymous: true } })

@@ -11,19 +11,24 @@ import { notesApi, notesDoc } from "./api.ts"
 const projectParam = { in: "path", name: "project_id", required: true, schema: { type: "string" } }
 const ok = { "200": { description: "ok" } }
 
-const keyParams = [projectParam, { in: "path", name: "id", required: true, schema: { type: "string" } }]
+/** How the keys are documented: a read of each key, and the name of the path parameter a key is addressed by. */
+export interface KeysShape {
+	readable?: boolean
+	keyParam?: string
+}
 
 /**
  * The notes document with minted project keys, an operation only a key opens, and an OAuth 2 token
- * URL. `readable` documents a read of each key.
+ * URL. `readable` documents a read of each key; `keyParam` names its path parameter (default `id`).
  */
-export function keysDoc({ readable = false }: { readable?: boolean } = {}): OpenApiDocument {
+export function keysDoc({ readable = false, keyParam = "id" }: KeysShape = {}): OpenApiDocument {
+	const keyParams = [projectParam, { in: "path", name: keyParam, required: true, schema: { type: "string" } }]
 	const read = { get: { operationId: "keys.get", parameters: keyParams, responses: ok } }
 	const doc = notesDoc({
 		"/projects/{project_id}/keys": {
 			post: { operationId: "keys.create", parameters: [projectParam], responses: { "201": { description: "made" } } },
 		},
-		"/projects/{project_id}/keys/{id}": {
+		[`/projects/{project_id}/keys/{${keyParam}}`]: {
 			delete: { operationId: "keys.revoke", parameters: keyParams, responses: { "204": { description: "gone" } } },
 			...(readable ? read : {}),
 		},
@@ -51,8 +56,9 @@ export const MINTED: SecurityConfig = {
  * Mints `k<n>` (id n) for project p1, turns `k1` away, revokes with `revoke`, and issues an OAuth 2
  * token. A key already deleted answers its DELETE 400; `readable` reads a held key 200 and any other 404.
  */
-export function keysApi(revoke = 204, { readable = false }: { readable?: boolean } = {}): Responder {
-	const doc = keysDoc({ readable })
+export function keysApi(revoke = 204, shape: KeysShape = {}): Responder {
+	const { readable = false } = shape
+	const doc = keysDoc(shape)
 	const notes = notesApi(doc)
 	const keys = projectKeys(revoke, readable)
 	return (method, path, request) => {
