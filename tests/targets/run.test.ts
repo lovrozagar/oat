@@ -4,7 +4,16 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { ensureVendored } from "../support/vendored.ts"
-import { compose, missing, runTarget, unexpected, type Target, TARGETS_DIR, type TargetRun } from "./target.ts"
+import {
+	compose,
+	missing,
+	runTarget,
+	targetsAsked,
+	unexpected,
+	type Target,
+	TARGETS_DIR,
+	type TargetRun,
+} from "./target.ts"
 
 /*
  * oat against real APIs: each target's stack up from pinned images, prepared as a fresh install
@@ -13,7 +22,7 @@ import { compose, missing, runTarget, unexpected, type Target, TARGETS_DIR, type
  * positive or a defect nobody judged. `OAT_TARGETS=keycloak,vampi` runs some of them.
  */
 
-const asked = process.env["OAT_TARGETS"]?.split(",").filter(Boolean)
+const asked = targetsAsked(process.env["OAT_TARGETS"])
 const names = readdirSync(TARGETS_DIR, { withFileTypes: true })
 	.filter((entry) => entry.isDirectory() && existsSync(join(TARGETS_DIR, entry.name, "target.ts")))
 	.map((entry) => entry.name)

@@ -44,6 +44,18 @@ export interface ExpectedFinding {
 
 export const TARGETS_DIR: string = import.meta.dirname
 
+/**
+ * The targets `OAT_TARGETS` names, or `undefined` for every target: unset, or a list that names none,
+ * as a workflow dispatch with its input left empty sends.
+ */
+export function targetsAsked(value: string | undefined): string[] | undefined {
+	const named = (value ?? "")
+		.split(",")
+		.map((name) => name.trim())
+		.filter(Boolean)
+	return named.length === 0 ? undefined : named
+}
+
 /** `docker compose` on one target's stack, as its own project; throws with the output on a failure. */
 export function compose(name: string, args: readonly string[]): string {
 	const file = join(TARGETS_DIR, name, "compose.yml")
