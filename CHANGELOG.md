@@ -92,6 +92,16 @@ See [docs/migrating-0.25.md](docs/migrating-0.25.md) for each change and what to
 - A recipe for a scheme only a secondary origin declares, mapped there with `origins[].security`,
   is accepted, acquired once for the run and sent in that origin scheme's place, in the recipe's
   own format. A recipe no document maps is refused with every origin's schemes named.
+- A scenario that names a principal BLOCKED at sign-in is reported BLOCKED, its operations stay
+  ungraded, and the run goes on to its report. It crashed the run as a principal "which is not
+  configured" and wrote no report. A scenario or step principal the config does not declare is now
+  refused at load, so `doctor` and `plan` catch it too.
+- A value a scenario step keeps whole is sent as it is: `{name}`-shaped text inside it, such as
+  Stripe's `{CHECKOUT_SESSION_ID}` in a success URL, is never read as a placeholder or refused as
+  unfilled.
+- A client-chosen identity is reserved before the first create, and the identities a seed lists are
+  taken at once. Two creates could draw one id, and against a create that overwrites the record
+  holding it, the second silently replaced the first.
 - A password reset, recovery or change is never read as a sign-up; no automatic write changes how a
   principal signs in.
 - A malformed `x-*` tag, an unresolvable `$ref` or a schema oat cannot generate from is a reported
