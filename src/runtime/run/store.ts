@@ -11,6 +11,7 @@
 
 import type { Client } from "../../client/client.ts"
 import type { CredentialPorts, Hop, StepAnswer } from "../../credentials/ports.ts"
+import { type OriginSchemes, recipeSchemes } from "../../credentials/origin-recipes.ts"
 import { createStore, type CredentialStore } from "../../credentials/store.ts"
 import { signupOf } from "../../credentials/signup.ts"
 import { isNetworkError } from "../../errors/network.ts"
@@ -21,7 +22,7 @@ import { resolveBackoff } from "../poll.ts"
 import { answerOf } from "../steps/engine.ts"
 import type { OriginClient } from "../steps/request.ts"
 import { stepRunner } from "../steps/runner.ts"
-import type { Loaded } from "./context.ts"
+import type { Loaded, LoadedOrigin } from "./context.ts"
 import { credentialRecords } from "./credential-records.ts"
 import { boundOf } from "./identity.ts"
 import type { RunNetwork } from "./network.ts"
@@ -40,6 +41,15 @@ export interface StoreWiring {
 	clients: () => RunClients
 }
 
+/** Each secondary origin's mapping and the schemes of its document as the run loaded it, in config order. */
+export function originSchemes(loaded: Pick<Loaded, "options" | "origins">): OriginSchemes[] {
+	/* Load read and modeled every declared origin. */
+	return (loaded.options.origins ?? []).map((origin) => ({
+		mapping: origin.security,
+		schemes: (loaded.origins.get(origin.id) as LoadedOrigin).model.schemes,
+	}))
+}
+
 /** The run's store: its own, or the primary run's when this run is a secondary origin's. */
 export function runStore(loaded: Loaded, wiring: StoreWiring): CredentialStore {
 	const { options, model } = loaded
@@ -47,7 +57,8 @@ export function runStore(loaded: Loaded, wiring: StoreWiring): CredentialStore {
 	const store: CredentialStore = createStore({
 		ports: runPorts(loaded, { ...wiring, scopeOf: (principal) => boundOf(store.identityOf(principal)).scope }),
 		principals: options.principals,
-		schemes: model.schemes,
+		/* A recipe only an origin's scheme uses is acquired by that scheme. */
+		schemes: recipeSchemes(model.schemes, originSchemes(loaded)),
 		security: options.security ?? {},
 		...signupOf(model),
 	})

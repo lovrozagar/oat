@@ -17,6 +17,10 @@ import {
 } from "./__fixtures__/api.ts"
 import { keysApi, MINTED } from "./__fixtures__/keys.ts"
 import { seenValue } from "../contract/params.ts"
+import { buildModel } from "../../spec/graph/build.ts"
+import { cloudflare } from "../../spec/security/__fixtures__/documents.ts"
+import type { LoadedOrigin } from "./context.ts"
+import { originSchemes } from "./store.ts"
 
 /* The run's one store, and the ports it sends through: the step engine, the primary client, a token form. */
 
@@ -151,9 +155,21 @@ describe("runStore: tokens and hooks", () => {
 	it("hands a secondary origin's run the primary's store", async () => {
 		const primary = await connected(optionsFor(notesApi()))
 		const origin = await connected(
-			optionsFor(notesApi(), { sharedCredentials: { mapping: { bearer: "bearer" }, store: primary.store } }),
+			optionsFor(notesApi(), {
+				sharedCredentials: { mapping: { bearer: "bearer" }, originOnly: new Set(), store: primary.store },
+			}),
 		)
 		expect(origin.store).toBe(primary.store)
+	})
+})
+
+describe("originSchemes", () => {
+	it("pairs each declared origin's mapping with its loaded document's schemes, in config order", () => {
+		const cf = { doc: cloudflare, model: buildModel(cloudflare) } as LoadedOrigin
+		const origin = { baseUrl: "http://cf.test", id: "cf", security: { api_token: "cfToken" }, spec: "cf.json" }
+		const loaded = { options: optionsFor(notesApi(), { origins: [origin] }), origins: new Map([["cf", cf]]) }
+		expect(originSchemes(loaded)).toEqual([{ mapping: { api_token: "cfToken" }, schemes: cf.model.schemes }])
+		expect(originSchemes({ options: optionsFor(notesApi()), origins: new Map() })).toEqual([])
 	})
 })
 

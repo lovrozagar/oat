@@ -43,6 +43,8 @@ export interface CredentialSourceOptions {
 	principals: PrincipalsConfig
 	/** A secondary origin's `origins[].security`: origin scheme to the primary scheme whose credential it sends. */
 	mapping?: Readonly<Record<string, string>>
+	/** The recipes no primary scheme declares: an origin's scheme is theirs, so their format and placements apply there. */
+	originOnly?: ReadonlySet<string>
 }
 
 const ANONYMOUS: Resolution = { kind: "anonymous" }
@@ -160,10 +162,16 @@ function add(sending: Sending, scheme: string, placed: { sends: Sends; secrets: 
 
 type Placed = { sends: Sends; secrets: PlacedSecrets } | { unsatisfied: string }
 
-/* The store placed it by the primary scheme; an origin places the same value by its own. */
+/*
+ * The store placed it by the primary scheme; an origin places the same value by its own, with the recipe's
+ * format and placements only when the recipe is for an origin's scheme rather than a primary one.
+ */
 function placeHeld(ctx: CredentialSourceOptions, scheme: string, credential: Credential): Placed {
 	if (ctx.mapping === undefined) return credential
-	const placed = place(ctx.model.schemes.get(scheme), { name: scheme, recipe: {}, value: credential.value })
+	const primary = primaryOf(ctx, scheme) as string
+	/* A held credential is one the principal had a recipe for. */
+	const recipe = ctx.originOnly?.has(primary) === true ? (own(ctx.security, primary) as Partial<Recipe>) : {}
+	const placed = place(ctx.model.schemes.get(scheme), { name: scheme, recipe, value: credential.value })
 	if ("unsatisfied" in placed) return placed
 	const values = [...new Set([...credential.secrets.values, ...placed.secrets.values])]
 	return { secrets: { ...placed.secrets, values }, sends: placed.sends }

@@ -49,7 +49,7 @@ describe("modeled", () => {
 		const misfit = notesConfig(folder(), { origins, security: { nope: { static: "x" } } })
 		expect(await modeled(writer, { config: misfit })).toBe(2)
 		expect(writer.text()).toBe(
-			"the config's credentials do not fit the document:\n  security.nope names no scheme in the document. The document declares: bearer\n",
+			"the config's credentials do not fit the document:\n  security.nope names no scheme in the document. The document declares: bearer; origins.cdn declares: bearer\n",
 		)
 	})
 })

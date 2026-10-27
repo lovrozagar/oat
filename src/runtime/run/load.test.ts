@@ -113,7 +113,7 @@ describe("load, the secondary origins and the credentials config", () => {
 
 	it("leaves a secondary origin's run unchecked: the primary checked the config against its document", async () => {
 		const primary = await connected(optionsFor(notesApi()))
-		const shared = { mapping: {}, store: primary.store }
+		const shared = { mapping: {}, originOnly: new Set<string>(), store: primary.store }
 		const loaded = await load(
 			optionsFor(notesApi(), { security: { nope: { static: "x" } }, sharedCredentials: shared }),
 		)

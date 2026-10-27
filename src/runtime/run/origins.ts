@@ -5,12 +5,14 @@ import { operationResolver } from "../../spec/graph/resolver.ts"
 import type { OriginClient } from "../steps/request.ts"
 import { Client } from "../../client/client.ts"
 import { createCredentialSource } from "../../client/credentials.ts"
+import { originOnlyRecipes } from "../../credentials/origin-recipes.ts"
 import type { NetworkClientOptions } from "../../client/types.ts"
 import type { Exchange } from "../exchange.ts"
 import type { Redactor } from "../../security/redact.ts"
 import { RateLimiter } from "../rate-limit/limiter.ts"
 import type { ScopeReport } from "../scope/types.ts"
 import type { Loaded, LoadedOrigin, RunContext } from "./context.ts"
+import { originSchemes } from "./store.ts"
 import type { RunOptions, RunResult } from "./types.ts"
 
 /** How each origin's client reports and recovers: the same as the primary's. */
@@ -31,6 +33,7 @@ export interface OriginWiring {
 export function loadOriginClients(loaded: Loaded, wiring: OriginWiring): Map<string, OriginClient> {
 	const { options, hooks, progress, fence } = loaded
 	const { store } = wiring
+	const originOnly = originOnlyRecipes(loaded.model.schemes, originSchemes(loaded))
 	const clients = new Map<string, OriginClient>()
 	for (const origin of options.origins ?? []) {
 		/* Load read and modeled every declared origin. */
@@ -38,6 +41,7 @@ export function loadOriginClients(loaded: Loaded, wiring: OriginWiring): Map<str
 		const credentials = createCredentialSource({
 			mapping: origin.security ?? {},
 			model,
+			originOnly,
 			principals: store.principals,
 			security: options.security ?? {},
 			store,
@@ -99,6 +103,7 @@ export interface OriginRuns {
  */
 export async function runSecondaryOrigins(ctx: RunContext, runs: OriginRuns): Promise<void> {
 	const { options, scope } = ctx
+	const originOnly = originOnlyRecipes(ctx.model.schemes, originSchemes(ctx))
 	for (const origin of options.origins ?? []) {
 		/* Targets were resolved against every origin up front; an origin none of them name has
 		 * nothing to grade, and running it anyway is the cost --ops exists to skip. */
@@ -114,7 +119,7 @@ export async function runSecondaryOrigins(ctx: RunContext, runs: OriginRuns): Pr
 			scenarios: (options.scenarios ?? [])
 				.filter((scenario) => scenario.origin === origin.id)
 				.map(({ origin: _origin, ...scenario }) => scenario),
-			sharedCredentials: { mapping: origin.security ?? {}, store: ctx.store },
+			sharedCredentials: { mapping: origin.security ?? {}, originOnly, store: ctx.store },
 			skipPrincipalTeardown: true,
 			spec: origin.spec,
 			...originHooks(options.hooks),

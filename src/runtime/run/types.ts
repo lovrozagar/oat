@@ -101,7 +101,12 @@ export interface RunOptions {
 	 * signed in, and the origin's `security` mapping. The primary validated the config against this
 	 * document, and the primary revokes what the store minted.
 	 */
-	sharedCredentials?: { store: CredentialStore; mapping: Readonly<Record<string, string>> }
+	sharedCredentials?: {
+		store: CredentialStore
+		mapping: Readonly<Record<string, string>>
+		/** The recipes no primary scheme declares, whose format and placements are an origin scheme's. */
+		originOnly: ReadonlySet<string>
+	}
 	/** Global filter catalog defaults, and the filter grammar when oat cannot infer it. */
 	query?: QueryConfig
 	/** Per-entity overlays. */

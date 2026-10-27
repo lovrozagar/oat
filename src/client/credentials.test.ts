@@ -5,12 +5,17 @@ import type { CredentialKey, Held } from "../credentials/store.ts"
 import { buildModel } from "../spec/graph/build.ts"
 import { anyrow, cloudflare } from "../spec/security/__fixtures__/documents.ts"
 import type { OpenApiDocument } from "../spec/types.ts"
+import type { SecurityScheme } from "../spec/security/schemes.ts"
 import type { Exchange } from "../runtime/exchange.ts"
 import type { Resolution, Sending } from "./credential-source.ts"
 import { type CredentialStorePort, createCredentialSource } from "./credentials.ts"
 
 /* A store that issues `<principal>-<scheme>-<n>` per renewal and records every call. */
-function fakeStore(model: ReturnType<typeof buildModel>, security: SecurityConfig, blocked: Set<string> = new Set()) {
+function fakeStore(
+	model: Pick<ReturnType<typeof buildModel>, "schemes">,
+	security: SecurityConfig,
+	blocked: Set<string> = new Set(),
+) {
 	const calls: string[] = []
 	const issued = new Map<string, number>()
 	const held = (key: CredentialKey): Held => {
@@ -291,30 +296,32 @@ describe("createCredentialSource: a dedicated credential's probe principal", () 
 	})
 })
 
+/* A secondary origin's document: fileKey and other declared, ghost only named. */
+const files = {
+	components: {
+		securitySchemes: {
+			fileKey: { in: "query", name: "k", type: "apiKey" },
+			other: { scheme: "bearer", type: "http" },
+		},
+	},
+	info: { title: "files", version: "1" },
+	openapi: "3.1.0",
+	paths: {
+		"/files": { get: { operationId: "file.list", responses: {}, security: [{ fileKey: [] }] } },
+		"/ghost": { get: { operationId: "ghost.list", responses: {}, security: [{ ghost: [] }] } },
+		"/other": { get: { operationId: "other.list", responses: {}, security: [{ other: [] }] } },
+	},
+} as unknown as OpenApiDocument
+
+/* The origin's adapter, mapping fileKey and ghost to the primary's jwt. */
+function originSource() {
+	const { calls, store } = fakeStore(buildModel(anyrow), security)
+	const model = buildModel(files)
+	const mapping = { fileKey: "jwt", ghost: "jwt" }
+	return { calls, source: createCredentialSource({ mapping, model, principals, security, store }) }
+}
+
 describe("createCredentialSource: a secondary origin", () => {
-	const files = {
-		components: {
-			securitySchemes: {
-				fileKey: { in: "query", name: "k", type: "apiKey" },
-				other: { scheme: "bearer", type: "http" },
-			},
-		},
-		info: { title: "files", version: "1" },
-		openapi: "3.1.0",
-		paths: {
-			"/files": { get: { operationId: "file.list", responses: {}, security: [{ fileKey: [] }] } },
-			"/ghost": { get: { operationId: "ghost.list", responses: {}, security: [{ ghost: [] }] } },
-			"/other": { get: { operationId: "other.list", responses: {}, security: [{ other: [] }] } },
-		},
-	} as unknown as OpenApiDocument
-
-	function originSource() {
-		const { calls, store } = fakeStore(buildModel(anyrow), security)
-		const model = buildModel(files)
-		const mapping = { fileKey: "jwt", ghost: "jwt" }
-		return { calls, source: createCredentialSource({ mapping, model, principals, security, store }) }
-	}
-
 	it("sends the mapped primary credential, placed where the origin's scheme puts it", async () => {
 		const { calls, source } = originSource()
 		const placed = sending(
@@ -341,5 +348,28 @@ describe("createCredentialSource: a secondary origin", () => {
 		const { source } = originSource()
 		const resolution = await source.resolve({ route: ROUTE, actor: { principal: "alpha" }, operationId: "ghost.list" })
 		expect(resolution).toEqual({ kind: "unsatisfied", reason: 'the document declares no "ghost" scheme' })
+	})
+})
+
+describe("createCredentialSource: a recipe only an origin's scheme is for", () => {
+	it("places a recipe only the origin's scheme is for in that recipe's own format", async () => {
+		const model = buildModel(files)
+		const ownSecurity: SecurityConfig = { fileToken: { format: "Token {credential}", static: "s" } }
+		const { store } = fakeStore(
+			{ schemes: new Map([["fileToken", model.schemes.get("other") as SecurityScheme]]) },
+			ownSecurity,
+		)
+		const source = createCredentialSource({
+			mapping: { other: "fileToken" },
+			model,
+			originOnly: new Set(["fileToken"]),
+			principals,
+			security: ownSecurity,
+			store,
+		})
+		const placed = sending(
+			await source.resolve({ route: ROUTE, actor: { principal: "alpha" }, operationId: "other.list" }),
+		)
+		expect(placed.sends["other"]?.headers).toEqual({ Authorization: "Token alpha-fileToken-1" })
 	})
 })

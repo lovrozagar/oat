@@ -202,6 +202,36 @@ describe("secondary origins", () => {
 		])
 		expect(problems({ origins: [{ id: "cdn", security: { jwt: "jwt" } }] }, ANYROW, { cdn })).toEqual([])
 	})
+
+	it("accept a recipe only an origin's mapped scheme declares, a principal's override of it included", () => {
+		const config = {
+			origins: [{ id: "cf", security: { api_token: "cfToken" } }],
+			principals: { alpha: { ...alpha, security: { cfToken: { static: "mine" } } } },
+			security: { cfToken: { static: "t" }, jwt: { login } },
+		}
+		expect(problems(config, ANYROW, { cf: view(cloudflare) })).toEqual([])
+	})
+
+	it("check that recipe against the origin's scheme, scopes an origin asks for included", () => {
+		const origins = [{ id: "cf", security: { api_key: "cfKey" } }]
+		const oauth2 = { clientId: "c", flow: "clientCredentials" }
+		expect(
+			problems({ origins, security: { cfKey: { oauth2 }, jwt: { login } } }, ANYROW, { cf: view(cloudflare) }),
+		).toEqual(["security.cfKey.oauth2 needs an oauth2 scheme; api_key is apiKey"])
+		const mint = { body: { scopes: "{scopes}" }, from: "$.k", operationId: "zones.list", with: "api_token" }
+		const scoped = {
+			origins: [{ id: "rows", security: { apiKey: "rowKey" } }],
+			security: { api_token: { static: "t" }, rowKey: { mint } },
+		}
+		expect(problems(scoped, view(cloudflare), { rows: view({ ...anyrow, security: [] }) })).toEqual([])
+	})
+
+	it("name every origin's schemes for a recipe no document maps", () => {
+		const config = { origins: [{ id: "cf" }], security: { cfToken: { static: "t" }, jwt: { login } } }
+		expect(problems(config, ANYROW, { cf: view(cloudflare) })).toEqual([
+			"security.cfToken names no scheme in the document. The document declares: apiKey, jwt; origins.cf declares: api_email, api_key, api_token",
+		])
+	})
 })
 
 describe("security, at the edges", () => {

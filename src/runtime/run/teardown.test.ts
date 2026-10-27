@@ -243,7 +243,10 @@ describe("revokeCredentials", () => {
 		const options = optionsFor(keysApi(), { principals: { alpha: { scope: { project_id: "p1" } } }, security: MINTED })
 		const ctx = await contextOf(options)
 		await ctx.client.request("GET", "/secure", AS_ALPHA)
-		const shared = { ...ctx, options: { ...ctx.options, sharedCredentials: { mapping: {}, store: ctx.store } } }
+		const shared = {
+			...ctx,
+			options: { ...ctx.options, sharedCredentials: { mapping: {}, originOnly: new Set<string>(), store: ctx.store } },
+		}
 		await revokeCredentials(shared)
 		expect(options.seen.filter((request) => request.method === "DELETE")).toEqual([])
 		await revokeCredentials(ctx)

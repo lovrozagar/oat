@@ -109,7 +109,7 @@ describe("runSecondaryOrigins", () => {
 			maxRps: 5,
 			redact: { headers: ["x-tester-key"] },
 			security: { bearer: { static: "alpha-key" } },
-			sharedCredentials: { mapping: { bearer: "bearer" }, store: ctx.store },
+			sharedCredentials: { mapping: { bearer: "bearer" }, originOnly: new Set(), store: ctx.store },
 			skipPrincipalTeardown: true,
 			spec: OTHER.spec,
 		})

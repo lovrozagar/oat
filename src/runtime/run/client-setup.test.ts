@@ -115,7 +115,7 @@ describe("connect: the store", () => {
 	it("resolves a secondary origin's run over the primary's store, by the origin's mapping", async () => {
 		const primary = await connected(optionsFor(notesApi()))
 		const options = optionsFor(notesApi(), {
-			sharedCredentials: { mapping: { bearer: "bearer" }, store: primary.store },
+			sharedCredentials: { mapping: { bearer: "bearer" }, originOnly: new Set(), store: primary.store },
 		})
 		const run = await connected(options)
 		await run.client.get("/notes", AS_ALPHA)

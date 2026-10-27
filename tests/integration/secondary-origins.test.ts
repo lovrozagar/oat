@@ -1,5 +1,6 @@
 import { join } from "node:path"
 import { afterAll, describe, expect, it } from "vitest"
+import { SECURITY } from "../../src/conformance/matrix/principals.ts"
 import { createMemoryServer } from "../../src/reference/http/engines.ts"
 import { EXIT } from "../../src/runtime/exit.ts"
 import { latestJournal, latestReport, oat, referenceConfig, tempDirs } from "../support/cli-run.ts"
@@ -79,6 +80,34 @@ describe("a run over a primary and a secondary origin", () => {
 		expect(code).toBe(EXIT.clean)
 		expect((await latestReport(runs)).scope.originsSkipped).toEqual(["cdn"])
 		expect((await latestJournal(runs)).some((line) => line.url.startsWith(cdnUrl))).toBe(false)
+	}, 60_000)
+})
+
+describe("a recipe only an origin's scheme uses", () => {
+	it("is acquired on the primary and sent where the origin's scheme places it, in its own format", async () => {
+		const dir = await dirs.make()
+		const server = await createMemoryServer({ defects: [] })
+		try {
+			/* One backend twice: the primary's document drops apiKey, the origin's drops jwt and keeps apiKey. */
+			const origin = {
+				baseUrl: server.url,
+				id: "cdn",
+				overlay: { securitySchemes: { jwt: null } },
+				security: { apiKey: "cdnKey" },
+				spec: `${server.url}/v1/openapi/spec`,
+			}
+			const config = await referenceConfig(dir, server.url, {
+				origins: [origin],
+				overlay: { securitySchemes: { apiKey: null } },
+				security: { cdnKey: SECURITY["apiKey"], jwt: SECURITY["jwt"] },
+			})
+			const runs = join(dir, "runs")
+			const { code, out } = await oat(["run", "--config", config, "--out", runs, "--ops", "cdn:table.list", "--quiet"])
+			expect(out).toMatch(/✓ cdn:table\.list\s+passed/)
+			expect(code).toBe(EXIT.clean)
+		} finally {
+			await server.close()
+		}
 	}, 60_000)
 })
 

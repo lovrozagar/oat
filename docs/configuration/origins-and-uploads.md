@@ -25,7 +25,7 @@ export default defineConfig({
 })
 ```
 
-Each origin's document is read once, at load, and the config is checked against it too. An origin scheme sends a primary recipe's credential only where `origins[].security` maps it (`{ <origin scheme>: <primary scheme> }`); an unmapped scheme sends nothing, and an origin scheme that shares a name with a primary recipe must be mapped. The same principals run the matrix against that document. Login steps may set `origin: "cdn"` to send one hop to a named origin.
+Each origin's document is read once, at load, and the config is checked against it too. An origin scheme sends a recipe's credential only where `origins[].security` maps it (`{ <origin scheme>: <recipe> }`); an unmapped scheme sends nothing, and an origin scheme that shares a name with a primary recipe must be mapped. A recipe is usually a primary scheme's. It may instead name a scheme only an origin declares, mapped there: oat checks it against that origin scheme, acquires it once for the run, and sends it in that scheme's place with the recipe's own `format` and `placements`. When two origins map the same such recipe, the first in `origins` names its scheme. The same principals run the matrix against that document. Login steps may set `origin: "cdn"` to send one hop to a named origin.
 
 Do not merge CDN routes into the API gateway document.
 

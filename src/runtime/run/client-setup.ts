@@ -33,7 +33,7 @@ export function connect(loaded: Loaded): Connected {
 	const network = createRunNetwork(loaded)
 	/* The ports reach the clients only when they send, by which time both exist. */
 	const store = runStore(loaded, { clients: () => ({ client, origins: originClients }), network, redactor })
-	const mapping = options.sharedCredentials?.mapping
+	const shared = options.sharedCredentials
 	const client = new Client({
 		baseUrl: options.baseUrl,
 		credentials: createCredentialSource({
@@ -41,7 +41,7 @@ export function connect(loaded: Loaded): Connected {
 			principals: store.principals,
 			security: options.security ?? {},
 			store,
-			...(mapping === undefined ? {} : { mapping }),
+			...(shared === undefined ? {} : { mapping: shared.mapping, originOnly: shared.originOnly }),
 		}),
 		fence,
 		headers: options.globalHeaders ?? {},
