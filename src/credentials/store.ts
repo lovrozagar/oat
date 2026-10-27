@@ -1,5 +1,6 @@
 import { messageOf } from "../errors/message.ts"
 import { expiresAtOf } from "./expiry.ts"
+import { own } from "./effective.ts"
 import { acquireDedicated } from "./dedicated.ts"
 import { acquireRecipe, recipeKind } from "./recipes/acquire.ts"
 import { RefusedAnswer } from "./recipes/answer.ts"
@@ -126,10 +127,12 @@ async function renewEntry(ctx: StoreCtx, plan: Plan, held: Entry): Promise<Held>
 
 /*
  * A credential with no refresh of its own is renewed by acquiring afresh through its recipe, unless
- * that would run the signup again: then it fails closed, never registering a second account.
+ * that would register the account again (its login calls the signup, or the principal is one the run
+ * `created` by its login): then it fails closed, never registering a second account.
  */
 async function renewal(ctx: StoreCtx, plan: Plan, held: Entry): Promise<Settled> {
-	const signup = signsUp(plan.recipe, ctx.options.signup)
+	const created = recipeKind(plan.recipe) === "login" && own(ctx.principals, plan.principal)?.created === true
+	const signup = created || signsUp(plan.recipe, ctx.options.signup)
 	if (held.issued.refresh === undefined && signup) {
 		return blockPair(ctx, plan, `renewing ${plan.principal}/${plan.scheme} would sign up again; declare a refresh`)
 	}
@@ -171,9 +174,11 @@ async function adopt(ctx: StoreCtx, input: Adopting): Promise<Held> {
 	if ("blocked" in plan) return plan
 	const { value } = input
 	if (value === "") return { blocked: blockedBy("adopt", plan, new Error("an empty value is no credential")) }
+	const replaced = await ctx.entries.get(plan.id)
+	const session = replaced === undefined || "blocked" in replaced ? {} : { replaced: replaced.issued.refresh }
 	let entry: Entry
 	try {
-		entry = record(ctx, plan, heldIssue(ctx, plan, { scope: input.scope ?? {}, value }))
+		entry = record(ctx, plan, heldIssue(ctx, plan, { scope: input.scope ?? {}, value, ...session }))
 	} catch (error) {
 		return { blocked: blockedBy("adopt", plan, error) }
 	}
@@ -186,7 +191,7 @@ async function adopt(ctx: StoreCtx, input: Adopting): Promise<Held> {
 function heldIssue(
 	ctx: StoreCtx,
 	plan: Plan,
-	held: { value: string; scope: Readonly<Record<string, string>> },
+	held: { value: string; scope: Readonly<Record<string, string>>; replaced?: Issued["refresh"] },
 ): Issued {
 	if (recipeKind(plan.recipe) === "login") return heldLogin(acquireCtx(ctx, plan), held, plan.recipe)
 	const { value } = held

@@ -185,11 +185,11 @@ describe("createStore: refresh outcomes", () => {
 		expect([valueOf(held), recorded.runs.length]).toEqual(["ann-1", 1])
 	})
 
-	it("signs in once more when the declared refresh fails, and renews from that session", async () => {
-		const { recorded, store } = harness({ refresh: new Set(["ann"]) })
-		await store.acquire({ principal: "ann", scheme: "jwt" })
-		expect(valueOf(await store.refresh({ principal: "ann", scheme: "jwt", sentValue: "ann-1" }))).toBe("ann-2")
-		expect(valueOf(await store.acquire({ principal: "ann", scheme: "jwt", scopes: ["other"] }))).toBe("ann-2")
+	it("signs in once more when the declared refresh fails, and renews from that session, for an account it did not create", async () => {
+		const { recorded, store } = harness({ refresh: new Set(["cy"]) })
+		await store.acquire({ principal: "cy", scheme: "jwt" })
+		expect(valueOf(await store.refresh({ principal: "cy", scheme: "jwt", sentValue: "cy-1" }))).toBe("cy-2")
+		expect(valueOf(await store.acquire({ principal: "cy", scheme: "jwt", scopes: ["other"] }))).toBe("cy-2")
 		expect(recorded.runs.map((run) => "operationId" in run.steps[0]! && run.steps[0].operationId)).toEqual([
 			"auth.login",
 			"auth.refresh",
@@ -199,19 +199,19 @@ describe("createStore: refresh outcomes", () => {
 
 	it("blocks that principal × scheme when the login after a failed refresh fails too, while others carry on", async () => {
 		const login = new Set<string>()
-		const { recorded, store } = harness({ login, refresh: new Set(["ann"]) })
-		await store.acquire({ principal: "ann", scheme: "jwt" })
-		login.add("ann")
+		const { recorded, store } = harness({ login, refresh: new Set(["cy"]) })
+		await store.acquire({ principal: "cy", scheme: "jwt" })
+		login.add("cy")
 		/* The reason names the renewal and both refusals, never reading like a first sign-in that failed. */
 		const blocked = {
 			blocked:
-				"renewal for ann/jwt: the refresh failed (refresh token reused), then acquiring afresh failed (auth step 1 answered 401)",
+				"renewal for cy/jwt: the refresh failed (refresh token reused), then acquiring afresh failed (auth step 1 answered 401)",
 		}
-		expect(await store.refresh({ principal: "ann", scheme: "jwt", sentValue: "ann-1" })).toEqual(blocked)
-		expect(await store.refresh({ principal: "ann", scheme: "jwt", sentValue: "ann-1" })).toEqual(blocked)
-		expect(await store.acquire({ principal: "ann", scheme: "jwt", scopes: ["other"] })).toEqual(blocked)
+		expect(await store.refresh({ principal: "cy", scheme: "jwt", sentValue: "cy-1" })).toEqual(blocked)
+		expect(await store.refresh({ principal: "cy", scheme: "jwt", sentValue: "cy-1" })).toEqual(blocked)
+		expect(await store.acquire({ principal: "cy", scheme: "jwt", scopes: ["other"] })).toEqual(blocked)
 		expect(recorded.runs).toHaveLength(3)
-		expect(valueOf(await store.acquire({ principal: "cy", scheme: "jwt" }))).toBe("cy-2")
+		expect(valueOf(await store.acquire({ principal: "ann", scheme: "jwt" }))).toBe("ann-2")
 	})
 
 	it("re-mints a credential with no refresh of its own, and blocks every scope set when that fails", async () => {

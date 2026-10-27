@@ -144,16 +144,24 @@ function renewable(ctx: AcquireCtx, issuing: Issuing, issued: Issued): Issued {
 /**
  * A login credential the run was handed rather than signed in for, a signup's answer or an
  * invite's: it renews by the recipe's declared refresh from `held.scope` (a `refresh_token`, say),
- * as a signed-in one does from what its steps saved. With no refresh declared, the store signs in again.
+ * as a signed-in one does from what its steps saved. When that refresh reads a value `held.scope`
+ * lacks, it renews as `held.replaced`, the session it took the place of, whose steps saved those
+ * values; with no such session, that refresh fails naming the value. With no refresh declared, the
+ * store signs in again.
  */
 export function heldLogin(
 	ctx: AcquireCtx,
-	held: { value: string; scope: Readonly<Record<string, string>> },
+	held: { value: string; scope: Readonly<Record<string, string>>; replaced?: Issued["refresh"] },
 	options: Partial<Recipe>,
 ): Issued {
 	const { value } = held
 	const expiresAt = expiresAtOf({ body: undefined, expiresIn: options.expiresIn, now: ctx.now(), value })
 	const ran = { answer: { body: undefined, cookies: {}, headers: {}, status: 200 }, scope: { ...held.scope } }
+	const given = [...Object.keys(held.scope), "credential"]
+	const { refresh } = options
+	if (held.replaced !== undefined && refresh !== undefined && unfilledIn(refresh.steps, given) !== undefined) {
+		return { expiresAt, refresh: held.replaced, value }
+	}
 	return renewable(ctx, { login: options.login as LoginRecipe, options, ran }, { expiresAt, value })
 }
 
