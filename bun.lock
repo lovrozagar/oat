@@ -13,7 +13,7 @@
         "@clack/prompts": "^0.11.0",
         "@commitlint/cli": "21.2.4",
         "@commitlint/config-conventional": "21.2.4",
-        "@lovrozagar/grunt": "0.11.2",
+        "@lovrozagar/grunt": "0.12.0",
         "@types/node": "^22.10.0",
         "@vitest/coverage-v8": "4.1.10",
         "fast-check": "4.10.2",
@@ -110,7 +110,7 @@
 
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
 
-    "@lovrozagar/grunt": ["@lovrozagar/grunt@0.11.2", "", { "dependencies": { "@clack/prompts": "^0.11.0", "cross-spawn": "^7.0.6", "smol-toml": "^1.8.0" }, "bin": { "grunt": "bin/grunt.js" } }, "sha512-Bbv928IPeLBQUkqlP5CMLP+oCmfuYsvq1dwq7EmsQEXlyxFLICVDx4+BlAo+NICwGUyqBnvGY9M3p0PbiPKlBQ=="],
+    "@lovrozagar/grunt": ["@lovrozagar/grunt@0.12.0", "", { "dependencies": { "@clack/prompts": "^0.11.0", "cross-spawn": "^7.0.6", "smol-toml": "^1.8.0" }, "bin": { "grunt": "bin/grunt.js" } }, "sha512-/871aFFJE5mhu7/vHPrEchpk9UcdKQZfEwH/dEFAKvsFTMog6jxg/wfHJ464hMNUK65U4gz4ckSA1NuIapZRvw=="],
 
     "@modelcontextprotocol/client": ["@modelcontextprotocol/client@2.3.1", "", { "dependencies": { "@modelcontextprotocol/core": "2.3.1", "cross-spawn": "^7.0.5", "eventsource": "^3.0.2", "eventsource-parser": "^3.0.8", "jose": "^6.1.3", "pkce-challenge": "^5.0.0", "zod": "^4.2.0" } }, "sha512-mIGZXpHsjnZ6lD+gD/WCMpR5k8yVQQ8nNFH1N0Srf7AvnwTUMYD6pvTY8ng2+He5FfV7YMZLmrjL7cLa/cc3dQ=="],
 

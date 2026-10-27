@@ -99,7 +99,7 @@
 		"@clack/prompts": "^0.11.0",
 		"@commitlint/cli": "21.2.4",
 		"@commitlint/config-conventional": "21.2.4",
-		"@lovrozagar/grunt": "0.11.2",
+		"@lovrozagar/grunt": "0.12.0",
 		"@types/node": "^22.10.0",
 		"@vitest/coverage-v8": "4.1.10",
 		"fast-check": "4.10.2",
