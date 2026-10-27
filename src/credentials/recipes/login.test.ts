@@ -238,6 +238,57 @@ describe("acquireLogin: refresh", () => {
 	})
 })
 
+describe("acquireLogin: a saved credential", () => {
+	it("takes the credential a step saved over `from`, the latest save winning, as a verify link's cookie", async () => {
+		const verified: LoginRecipe = {
+			from: "$.access_token",
+			steps: [
+				{ operationId: "auth.register", saveAs: { credential: "$.access_token" } },
+				{ outOfBand: { address: "{principal.email}", as: "verifyLink", kind: "link" } },
+				{ method: "GET", path: "{verifyLink}", saveAs: { credential: "cookie:sid" } },
+			],
+		}
+		const { ports } = fakePorts({
+			run: () => Promise.resolve({ answer: answerOf({ access_token: "stale" }), scope: { credential: "sid-1" } }),
+		})
+		expect((await acquireLogin(ctxOf(ports), verified, {})).value).toBe("sid-1")
+	})
+
+	it("takes an out-of-band credential over `from`", async () => {
+		const mailed: LoginRecipe = {
+			from: "$.token",
+			steps: [{ outOfBand: { address: "{principal.email}", as: "credential", kind: "otp" } }],
+		}
+		const { ports } = fakePorts({
+			run: () => Promise.resolve({ answer: answerOf({ token: "t1" }), scope: { credential: "mailed" } }),
+		})
+		expect((await acquireLogin(ctxOf(ports), mailed, {})).value).toBe("mailed")
+	})
+})
+
+/* A login, then one refresh by `refreshSteps` whose runner leaves `renewed` in scope. */
+function refreshOf(refreshSteps: [AuthStep, ...AuthStep[]], renewed: Record<string, string>) {
+	const answers = [
+		{ answer: answerOf({ token: "t1" }), scope: {} },
+		{ answer: answerOf({ access: "t2" }), scope: renewed },
+	]
+	const { ports } = fakePorts({ run: () => Promise.resolve(answers.shift() as (typeof answers)[0]) })
+	return acquireLogin(ctxOf(ports), login, { refresh: { from: "$.access", steps: refreshSteps } })
+}
+
+describe("acquireLogin: refresh and a saved credential", () => {
+	it("takes the credential a refresh step saved over its `from`", async () => {
+		const saving: [AuthStep, ...AuthStep[]] = [{ operationId: "auth.refresh", saveAs: { credential: "cookie:sid" } }]
+		const first = await refreshOf(saving, { credential: "sid-2" })
+		expect((await (first.refresh as () => Promise<typeof first>)()).value).toBe("sid-2")
+	})
+
+	it("reads `from` when no refresh step saves one, though its scope still carries the old credential", async () => {
+		const first = await refreshOf([{ operationId: "auth.refresh" }], { credential: "t1" })
+		expect((await (first.refresh as () => Promise<typeof first>)()).value).toBe("t2")
+	})
+})
+
 describe("acquireLogin: refresh as a probe", () => {
 	it("sends a refresh meant to be refused as a probe hop", async () => {
 		const { ports, recorded } = fakePorts({

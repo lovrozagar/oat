@@ -13,8 +13,8 @@ import type { AcquireCtx, Issued } from "./types.ts"
 
 /*
  * Sign in by running the recipe's steps through the run's step runner, once: a failed login is
- * reported, never retried. The credential is at `from` in the last answer, or a scope key a step
- * saved. `claims` binds token claims or answer paths into the principal's identity. A recipe `refresh` runs its steps
+ * reported, never retried. The credential is what a step saved as `credential` (its latest save, an
+ * out-of-band `as` included), else at `from` in the last answer, or a scope key a step saved. `claims` binds token claims or answer paths into the principal's identity. A recipe `refresh` runs its steps
  * with the scope the last run bound plus `credential`, so a rotated refresh token carries forward. A
  * declared `revoke` ends the session by sending exactly its value to that operation. Steps that
  * read a `{name}` nothing fills are refused before anything is sent, naming it. Each identity value a
@@ -37,7 +37,7 @@ export async function acquireLogin(ctx: AcquireCtx, login: LoginRecipe, options:
 			options,
 			ran: await run(ctx, login.steps, { scope: {}, secrets: secretsOf(login, options), what: "login" }),
 		},
-		login.from,
+		login,
 	)
 }
 
@@ -85,9 +85,19 @@ function secretsOf(login: LoginRecipe, options: Partial<Recipe>): string[] {
 	return [...new Set([login.from, ...(options.refresh === undefined ? [] : [options.refresh.from]), ...saved])]
 }
 
-function issue(ctx: AcquireCtx, issuing: Issuing, from: string): Issued {
+/* A step that saves `credential` names the credential itself; `from` is read only when none does. */
+function savesCredential(steps: readonly AuthStep[]): boolean {
+	return steps.some((step) =>
+		"outOfBand" in step ? step.outOfBand.as === "credential" : step.saveAs?.["credential"] !== undefined,
+	)
+}
+
+function issue(ctx: AcquireCtx, issuing: Issuing, read: { from: string; steps: readonly AuthStep[] }): Issued {
 	const { login, options, ran } = issuing
-	const value = readAnswer(ran.answer, from) ?? ran.scope[from]
+	const { from } = read
+	const value = savesCredential(read.steps)
+		? ran.scope["credential"]
+		: (readAnswer(ran.answer, from) ?? ran.scope[from])
 	if (value === undefined || value === "") {
 		const type = describeAnswerType(ran.answer.headers)
 		throw new Error(`login for "${ctx.principal.id}" answered no credential at ${from} (${type})`)
@@ -126,7 +136,7 @@ function renewable(ctx: AcquireCtx, issuing: Issuing, issued: Issued): Issued {
 		const scope = { ...issuing.ran.scope, credential: issued.value }
 		const secrets = secretsOf(issuing.login, issuing.options)
 		const renewed = await run(ctx, refresh.steps, { scope, secrets, what: "refresh", ...hop })
-		return issue(ctx, { ...issuing, ran: renewed }, refresh.from)
+		return issue(ctx, { ...issuing, ran: renewed }, refresh)
 	}
 	return issued
 }
