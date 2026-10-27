@@ -1,4 +1,7 @@
 {
+  "account.delete": [
+    "DELETE /v1/signups/disp_35 [Authorization] → 204"
+  ],
   "account.update": [
     "PUT /v1/me/account [Authorization,content-type] → 200"
   ],
@@ -27,7 +30,8 @@
     "POST /v1/auth/login [content-type] → 401"
   ],
   "auth.logout": [
-    "POST /v1/logout [Authorization] → 200"
+    "POST /v1/logout [Authorization] → 200",
+    "POST /v1/logout [Authorization] → 401"
   ],
   "auth.refresh": [
     "POST /v1/auth/refresh [content-type] → 200",

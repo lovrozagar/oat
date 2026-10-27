@@ -29,7 +29,7 @@ export interface Settled {
 }
 
 /**
- * The run's last writes: the journal flushed. Returns the principals as they stand for
+ * The run's last writes, once its closing calls are sent: the journal flushed. Returns the principals as they stand for
  * `principals.json`, the BLOCKED ones with why, holding no credential
  * value; the values come back only when the run was asked to keep them.
  */

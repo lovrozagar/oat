@@ -65,9 +65,10 @@ async function runConnected(connected: Connected): Promise<RunResult> {
 	await unwind(ctx)
 	serverErrors(ctx)
 	reportUnremovable(ctx)
-	const settled = await settle(ctx)
 	const coverage = scopeReport(ctx)
 	await closeOut(ctx, { coverage, runOrigin: run })
+	/* After the last calls, so they are journaled and the principals are snapshot as those calls left them. */
+	const settled = await settle(ctx)
 	ctx.progress.tick({ message: "done", phase: "done", requests: ctx.progress.requests })
 	return finalResult(ctx, settled, coverage)
 }

@@ -40,7 +40,10 @@ describe("--keep-fixtures", () => {
 		expect(kept.text).not.toContain("cleaned up")
 		expect(kept.text).toMatch(/left \d+ created record\(s\) in place: teardown did not run/)
 		expect((await latestReport(kept.runs)).teardown).toBeUndefined()
-		expect((await latestJournal(kept.runs)).filter((line) => line.phase === "teardown")).toEqual([])
+		/* Its keys and sessions still end, as without the flag: only keepCredentials keeps those. */
+		const closing = new Set(["apiKey.revoke", "auth.logout"])
+		const tornDown = (await latestJournal(kept.runs)).filter((line) => line.phase === "teardown")
+		expect(tornDown.filter((line) => !closing.has(line.operationId ?? ""))).toEqual([])
 		const afterKept = await server.snapshot()
 		const left = leftBehind(empty, afterKept)
 		expect(left.length).toBeGreaterThan(0)
