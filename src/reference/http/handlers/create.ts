@@ -120,9 +120,28 @@ async function replayed(
 
 /*
  * Under the client-ids shape the table's id is the client's to choose: a taken one is a 409.
- * CLIENT_ID_IGNORED keeps the id the server issued and still acknowledges; CLIENT_ID_OVERWRITES
- * replaces the tenant's record that holds the id and says so with a 200.
+ * CLIENT_ID_IGNORED stores the record under an id of the server's own and still acknowledges. It
+ * counts down from the top of the range by the entity's own creates, the first free one: drawn from
+ * the sequence every entity shares, it would move with other entities' writes, and whether a later
+ * chosen id names it, so what a run grades, would depend on which lane the server answered first.
+ * CLIENT_ID_OVERWRITES replaces the tenant's record that holds the id and says so with a 200.
  */
+/* The first free id counted down from the top of the range by the entity's own creates; the issued one when none is free. */
+async function ownId(
+	state: ReferenceState,
+	entity: EntityCall["entity"],
+	{ range, record }: { range: { min: number; max: number }; record: Row },
+): Promise<void> {
+	for (let own = range.max + 1 - state.ids.countOf(entity); own >= range.min;) {
+		if ((await state.store.byId(entity, own)) === null) {
+			state.ids.renumber(entity, record[entity.identity], own)
+			record[entity.identity] = own
+			return
+		}
+		own = range.max + 1 - state.ids.countOf(entity)
+	}
+}
+
 async function clientChosenId(
 	state: ReferenceState,
 	call: EntityCall,
@@ -139,7 +158,10 @@ async function clientChosenId(
 			`field "${entity.identity}" must be an integer from ${range.min} to ${range.max}`,
 		)
 	}
-	if (state.defects.has("CLIENT_ID_IGNORED")) return undefined
+	if (state.defects.has("CLIENT_ID_IGNORED")) {
+		await ownId(state, entity, { range, record: made.record })
+		return undefined
+	}
 	made.record[entity.identity] = chosen
 	const holder = await state.store.byId(entity, chosen)
 	if (holder === null) return undefined

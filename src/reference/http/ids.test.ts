@@ -66,3 +66,16 @@ describe("Ids", () => {
 		expect(ids.next({ ...TABLE, identity: "missing" })).toBe("table_000001")
 	})
 })
+
+describe("Ids: renumber", () => {
+	it("names the record by the id it was stored under, once serving, and leaves another id alone", () => {
+		const ids = new Ids()
+		ids.serve()
+		const first = ids.next(TABLE)
+		const second = ids.next(TABLE)
+		ids.renumber(TABLE, first, 1001)
+		ids.renumber(TABLE, "absent", 1002)
+		ids.renumber({ ...TABLE, name: "never-issued" }, first, 1003)
+		expect(ids.caused).toEqual({ [TABLE.name]: ["1001", String(second)] })
+	})
+})

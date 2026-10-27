@@ -180,3 +180,29 @@ describe("a client-chosen id", () => {
 		expect((await call("POST", "/v1/projects/proj_beta/tables", theirs)).status).toBe(409)
 	})
 })
+
+describe("a create the server stores under an id of its own, under CLIENT_ID_IGNORED", () => {
+	it("counts its own ids down from the top of the range under CLIENT_ID_IGNORED, whatever else was written", async () => {
+		const { call } = await api({ defects: ["CLIENT_ID_IGNORED"], shape: "client-ids" })
+		await call("POST", TABLES, { body: { id: 42, name: "first" } })
+		await call("POST", "/v1/projects/proj_alpha/jobs", { body: { kind: "export", name: "between" } })
+		await call("POST", TABLES, { body: { id: 43, name: "second" } })
+		const listed = (await call("GET", TABLES)).body["tables"] as Array<{ id: number; name: string }>
+		const idOf = (name: string) => listed.find((row) => row.name === name)?.id
+		expect([idOf("first"), idOf("second")]).toEqual([999, 998])
+		expect((await call("GET", `${TABLES}/999`)).body).toMatchObject({ name: "first" })
+	})
+
+	it("skips an id a record already holds, and keeps the issued one once the range has none left", async () => {
+		const { call, state } = await api({ defects: ["CLIENT_ID_IGNORED"], shape: "client-ids" })
+		/* A copy: the shape is the catalog's, shared with every other reference. */
+		Object.assign(state, { shape: { ...state.shape, clientIds: { max: 999, min: 998 } } })
+		await state.store.insert(state.table, { id: 999, name: "held", project_id: "proj_alpha" })
+		await call("POST", TABLES, { body: { id: 998, name: "skips" } })
+		await call("POST", TABLES, { body: { id: 998, name: "none left" } })
+		const listed = (await call("GET", TABLES)).body["tables"] as Array<{ id: number; name: string }>
+		const idOf = (name: string) => listed.find((row) => row.name === name)?.id
+		expect(idOf("skips")).toBe(998)
+		expect(idOf("none left")).toBeLessThan(998)
+	})
+})

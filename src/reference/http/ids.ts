@@ -18,6 +18,8 @@ export class Ids {
 	private sequence = 0
 	/** Per entity, how many uuids it has drawn. */
 	private readonly drawn = new Map<string, number>()
+	/** Per entity, how many ids it has counted for itself. */
+	private readonly counted = new Map<string, number>()
 	private serving = false
 
 	/** From here on every issued id and stored record is one a client caused: the ids a run may ledger. */
@@ -41,6 +43,20 @@ export class Ids {
 
 	note(entity: EntityDef, id: unknown): void {
 		this.noteNamed(entity.name, id)
+	}
+
+	/** The entity's own next count, from 1: what no other entity's writes move. */
+	countOf(entity: EntityDef): number {
+		const count = (this.counted.get(entity.name) ?? 0) + 1
+		this.counted.set(entity.name, count)
+		return count
+	}
+
+	/** The id `from` the server issued is `to` instead: what a client's run caused names the record it stored. */
+	renumber(entity: EntityDef, from: unknown, to: unknown): void {
+		const caused = this.caused[entity.name]
+		const at = caused?.lastIndexOf(String(from)) ?? -1
+		if (caused !== undefined && at >= 0) caused[at] = String(to)
 	}
 
 	/** Like `note`, for what the server issues outside the entity model, such as an API key. */
