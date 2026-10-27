@@ -25,3 +25,40 @@ describe("interpolate", () => {
 		expect(interpolate(7, {})).toBe(7)
 	})
 })
+
+describe("interpolate, with kept values", () => {
+	it("replaces a field that is exactly `{name}` of a kept value, anywhere, and fills the rest from scope", () => {
+		const kept = new Map<string, unknown>([
+			["credential", { id: "c1" }],
+			["count", 3],
+			["user-rep", { id: "u1" }],
+		])
+		const bytes = new Uint8Array([1, 2])
+		expect(
+			interpolate(
+				{
+					bytes,
+					list: ["{count}", "{other}", "x {count}"],
+					nested: { value: "{credential}" },
+					none: null,
+					on: true,
+					user: "{user-rep}",
+				},
+				{ count: "3" },
+				kept,
+			),
+		).toEqual({
+			bytes,
+			list: [3, "{other}", "x 3"],
+			nested: { value: { id: "c1" } },
+			none: null,
+			on: true,
+			user: { id: "u1" },
+		})
+	})
+
+	it("never reads text inside a kept value as a placeholder", () => {
+		const event = { url: "https://pay.test/?session={CHECKOUT_SESSION_ID}&org={org}" }
+		expect(interpolate("{event}", { org: "o1" }, new Map([["event", event]]))).toBe(event)
+	})
+})

@@ -10,7 +10,7 @@ import type { Exchange } from "../exchange.ts"
 import { blamed, ScenarioStopped, StepFailure } from "./failure.ts"
 import { durationMs, nextPollWait } from "./poll.ts"
 import { record } from "./record.ts"
-import { principalOf, withObjects } from "./state.ts"
+import { principalOf } from "./state.ts"
 import type { ScenarioRun } from "./types.ts"
 import { stepOperation } from "./validate.ts"
 import { holds, type Want, wantsOf } from "./want.ts"
@@ -47,12 +47,7 @@ async function send(
 	at: { step: ScenarioRequestStep; index: number; stepOp: string | undefined },
 ): Promise<{ exchange: Exchange; request: Resolved }> {
 	const { step, stepOp } = at
-	const request = await resolveRequest(
-		run.context,
-		step.body === undefined ? step : { ...step, body: withObjects(run.objects, step.body) },
-		run.scope,
-		at.index,
-	)
+	const request = await resolveRequest(run.context, step, run.scope, at.index)
 	const exchange = await request.client.request(request.method, request.path, {
 		...(request.body === undefined ? {} : { body: request.body }),
 		...(request.contentType === undefined ? {} : { contentType: request.contentType }),

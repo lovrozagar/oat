@@ -8,7 +8,6 @@ import { interpolate } from "../steps/interpolate.ts"
 import { resolveOutOfBandValue, triggerSentAt } from "../steps/out-of-band.ts"
 import { StepFailure } from "./failure.ts"
 import { requestStep } from "./request.ts"
-import { withObjects } from "./state.ts"
 import type { ScenarioRun } from "./types.ts"
 import { isExternal, isOutOfBand } from "./validate.ts"
 
@@ -41,7 +40,7 @@ async function externalStep(run: ScenarioRun, step: ExternalStep, index: number)
 	}
 	const value = await hooks.external(
 		step.external,
-		interpolate(withObjects(run.objects, step.input ?? {}), run.scope) as Record<string, unknown>,
+		interpolate(step.input ?? {}, run.scope, run.objects) as Record<string, unknown>,
 	)
 	if (value === null || value === "") {
 		throw new StepFailure(`hooks.external("${step.external}") returned nothing`, [], [])

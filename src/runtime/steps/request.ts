@@ -29,6 +29,8 @@ export interface StepContext {
 	principalId: string
 	outOfBand?: Partial<BackoffConfig>
 	originClients?: ReadonlyMap<string, OriginClient>
+	/** Values a scenario keeps whole: a field that is exactly `{name}` of one sends it as it is. */
+	kept?: ReadonlyMap<string, unknown>
 }
 
 /** The request a step sends, and the client it goes through. */
@@ -61,7 +63,7 @@ export async function resolveRequest(
 	index: number,
 ): Promise<ResolvedRequest> {
 	const target = targetOf(ctx, step, index)
-	const fill = (value: unknown): unknown => filled(value, scope, index)
+	const fill = (value: unknown): unknown => filled(value, { index, kept: ctx.kept ?? new Map(), scope })
 	/* Two shapes, distinguished structurally: name an operation from the document, or give a raw
 	 * method and path for an endpoint the document does not describe. */
 	if (isOperationStep(step)) {
@@ -101,12 +103,16 @@ export async function resolveRequest(
 
 /*
  * A `{name}` the step writes that nothing fills would reach the backend as written and read as its
- * fault. Read from the step, not from what it sends: a bound value may hold `{id}`-shaped text, a
- * saved URL template say, and is sent as it is.
+ * fault. Read from the step, not from what it sends: a bound value or a kept object may hold
+ * `{id}`-shaped text, a saved URL template say, and is sent as it is.
  */
-function filled(value: unknown, scope: Record<string, string>, index: number): unknown {
-	const name = placeholderNames(value).find((each) => scope[each] === undefined)
-	if (name === undefined) return interpolate(value, scope)
+function filled(
+	value: unknown,
+	at: { scope: Record<string, string>; kept: ReadonlyMap<string, unknown>; index: number },
+): unknown {
+	const { index, kept, scope } = at
+	const name = placeholderNames(value).find((each) => scope[each] === undefined && !kept.has(each))
+	if (name === undefined) return interpolate(value, scope, kept)
 	throw new Error(
 		`oat: step ${index + 1}'s placeholder {${name}} has no value: no bind, saveAs or earlier step fills it`,
 	)

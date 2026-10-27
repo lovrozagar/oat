@@ -1,10 +1,9 @@
 /**
  * A scenario's running state: the principal it sends as, its scope, and the values its steps
- * keep whole.
+ * keep whole, which its requests and external inputs send as they are.
  */
 
 import type { Scenario } from "../../config/types/steps.ts"
-import { isBytes, WHOLE_PLACEHOLDER } from "../../config/types/placeholder.ts"
 import type { ScenarioInput, ScenarioPrincipal, ScenarioRun } from "./types.ts"
 
 /** The configured principal `id`; a scenario that names another is refused. */
@@ -22,18 +21,21 @@ export function startScenario(
 ): ScenarioRun {
 	const principal = scenario.principal ?? input.defaultPrincipal
 	const own = principalOf(input, scenario, principal)
+	/* One map: what a step keeps, every later step's request and input send whole. */
+	const objects = new Map<string, unknown>()
 	return {
 		calls: new Map(),
 		context: {
 			client: input.client,
 			hooks: input.hooks,
+			kept: objects,
 			model: input.model,
 			principalId: principal,
 			...(input.originClients === undefined ? {} : { originClients: input.originClients }),
 			...(input.outOfBand === undefined ? {} : { outOfBand: input.outOfBand }),
 		},
 		input,
-		objects: new Map(),
+		objects,
 		observations: new Map(),
 		principal,
 		scenario,
@@ -42,18 +44,4 @@ export function startScenario(
 		sent: [],
 		sleep,
 	}
-}
-
-/** `value` with every field that is exactly `{name}` of a kept value replaced by that value. */
-export function withObjects(objects: ReadonlyMap<string, unknown>, value: unknown): unknown {
-	if (typeof value === "string") {
-		const name = WHOLE_PLACEHOLDER.exec(value)?.[1]
-		return name !== undefined && objects.has(name) ? objects.get(name) : value
-	}
-	if (Array.isArray(value)) return value.map((item) => withObjects(objects, item))
-	if (isBytes(value)) return value
-	if (value !== null && typeof value === "object") {
-		return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, withObjects(objects, item)]))
-	}
-	return value
 }

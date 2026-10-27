@@ -66,6 +66,21 @@ describe("runStep: an external step", () => {
 		expect(run.scope).toMatchObject({ grant: ' {"id":"c1"}', raw: "{not json", word: "plain" })
 	})
 
+	it("sends a kept object whole as written, `{name}`-shaped text in it included, as a body and as input", async () => {
+		const event = { id: "evt_1", url: "https://pay.test/done?session={CHECKOUT_SESSION_ID}&org={org}" }
+		const inputs: unknown[] = []
+		const external = async (name: string, input: Record<string, unknown>) => {
+			inputs.push(input)
+			return name === "stripe" ? JSON.stringify(event) : "ok"
+		}
+		const run = runOf(notes(), { hooks: { external } })
+		await runStep(run, { as: "replay", external: "stripe" }, 0)
+		await runStep(run, { body: "{replay}", operationId: "notes.create" }, 1)
+		await runStep(run, { as: "seen", external: "check", input: { event: "{replay}" } }, 2)
+		expect(run.requests[0]?.options.body).toEqual(event)
+		expect(inputs[1]).toEqual({ event })
+	})
+
 	it("fails without the hook, or when it returns nothing", async () => {
 		await expect(runStep(runOf(notes()), { as: "x", external: "pay" }, 2)).rejects.toThrow(
 			new StepFailure('step 3 needs hooks.external for "pay"', [], []),

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { notesApi, notes, scenario, stage } from "./__fixtures__/stage.ts"
-import { principalOf, startScenario, withObjects } from "./state.ts"
+import { principalOf, startScenario } from "./state.ts"
 
 describe("principalOf", () => {
 	it("is the configured principal, and refuses one that is not", () => {
@@ -20,7 +20,15 @@ describe("startScenario", () => {
 		const run = startScenario(input, scenario([]), sleep)
 		expect(run.principal).toBe("alpha")
 		expect(run.scope).toEqual({ org: "o1" })
-		expect(run.context).toEqual({ client: input.client, hooks: input.hooks, model: input.model, principalId: "alpha" })
+		expect(run.context).toEqual({
+			client: input.client,
+			hooks: input.hooks,
+			kept: run.objects,
+			model: input.model,
+			principalId: "alpha",
+		})
+		/* The steps' requests read the very map the steps keep values in. */
+		expect(run.context.kept).toBe(run.objects)
 		expect(run.sleep).toBe(sleep)
 	})
 
@@ -30,34 +38,5 @@ describe("startScenario", () => {
 		const run = startScenario(input, scenario([], { principal: "beta" }), async () => undefined)
 		expect([run.principal, run.scope]).toEqual(["beta", {}])
 		expect(run.context).toMatchObject({ originClients, outOfBand: { attempts: 2 }, principalId: "beta" })
-	})
-})
-
-describe("withObjects", () => {
-	it("replaces a field that is exactly `{name}` of a kept value, anywhere", () => {
-		const kept = new Map<string, unknown>([
-			["credential", { id: "c1" }],
-			["count", 3],
-			["user-rep", { id: "u1" }],
-		])
-		const bytes = new Uint8Array([1, 2])
-		expect(
-			withObjects(kept, {
-				bytes,
-				list: ["{count}", "{other}", "x {count}"],
-				nested: { value: "{credential}" },
-				none: null,
-				on: true,
-				user: "{user-rep}",
-			}),
-		).toEqual({
-			bytes,
-			list: [3, "{other}", "x {count}"],
-			nested: { value: { id: "c1" } },
-			none: null,
-			on: true,
-			user: { id: "u1" },
-		})
-		expect(withObjects(kept, bytes)).toBe(bytes)
 	})
 })
