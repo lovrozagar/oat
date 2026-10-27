@@ -67,12 +67,12 @@ describe("the workflows", () => {
 		expect(changelog).toContain("timeout-minutes:")
 	})
 
-	it("run the packed package end to end in CI, and the real-API targets on demand only", () => {
+	it("run the packed package end to end in CI, and the real-API targets nightly and on demand", () => {
 		expect(jobs(workflow("ci.yml")).get("e2e")).toContain("bun run test:e2e")
 		expect(existsSync(join(ROOT, ".github", "workflows", "targets.yml"))).toBe(true)
 		const targets = workflow("targets.yml")
-		/* No schedule until a dispatched run proves the five stacks fit a runner (crAPI peaked near 16 GB). */
-		expect(targets).not.toContain("schedule:")
+		/* Run 40569216175 showed the five stacks fit a standard runner, so the targets run nightly too. */
+		expect(targets).toContain('- cron: "17 3 * * *"')
 		expect(targets).toContain("workflow_dispatch:")
 		expect(targets).toContain("bun run test:targets")
 	})
