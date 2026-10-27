@@ -225,6 +225,16 @@ describe("createOne, a client-chosen identity", () => {
 		expect(taken.has(ids[0] as string)).toBe(true)
 	})
 
+	it("reserves its identity before the first create, so a second ancestor never sends one the run holds", async () => {
+		const taken = new Set<string>()
+		const run = seeding(answering(201, 201), CLIENT_ID, { taken: () => taken })
+		await createOne(run.createOp, run.seeding, scope)
+		await createOne(run.createOp, run.seeding, scope)
+		const ids = run.sent.map((request) => String((request.options.body as { id: unknown }).id))
+		expect(new Set(ids).size).toBe(2)
+		expect(ids.every((id) => taken.has(id))).toBe(true)
+	})
+
 	it("records the gap after three refusals, adopting nothing and sending no fourth create", async () => {
 		const run = seeding(answering(409, 409, 409, 201), CLIENT_ID)
 		const refused = await createOne(run.createOp, run.seeding, scope).catch((error: unknown) => error)

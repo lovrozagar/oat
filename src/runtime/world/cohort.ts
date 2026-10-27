@@ -10,7 +10,7 @@ import { SeedError } from "../seed-error.ts"
 import { isUniqueConflictResponse } from "../unique.ts"
 import type { UploadContext } from "../upload.ts"
 import { adoptExisting } from "./adopt.ts"
-import { createWithClientId, takenFor } from "./client-identity.ts"
+import { createWithClientId, reserveIdentity, takenFor } from "./client-identity.ts"
 import { createdRecord } from "./created-record.ts"
 import { isPlanLimitResponse } from "./plan-limit.ts"
 import type { Record_ } from "./records.ts"
@@ -83,9 +83,10 @@ export async function postMember(run: CohortRun, member: CohortMember, nextUploa
 }
 
 /*
- * A client-chosen identity is unique across every tenant, and this principal lists only its own:
- * one another tenant holds comes back 409. It is sent again under a fresh one (`createWithClientId`),
- * and `exhausted` says why when the last attempt was refused too.
+ * A client-chosen identity is reserved before the first create, so no record the run knows of (an
+ * ancestor's, another lane's) holds it. It is unique across every tenant, and this principal lists
+ * only its own: one another tenant holds comes back 409. It is sent again under a fresh one
+ * (`createWithClientId`), and `exhausted` says why when the last attempt was refused too.
  */
 export async function postFresh(
 	run: CohortRun,
@@ -94,12 +95,14 @@ export async function postFresh(
 ): Promise<{ exchange: Exchange; sent: CohortMember; exhausted?: string }> {
 	const { createOp, ownIdentity, schema, seeding } = run
 	const { options } = seeding
-	const made = await createWithClientId(member.body, (body) => postMember(run, { ...member, body }, nextUploads), {
+	const at = {
 		identity: ownIdentity,
 		schema,
 		taken: takenFor(options, createOp),
 		token: `id-${member.variant}-${options.nonce ?? ""}`,
-	})
+	}
+	const first = reserveIdentity(member.body, at)
+	const made = await createWithClientId(first, (body) => postMember(run, { ...member, body }, nextUploads), at)
 	const sent = made.sent === member.body ? member : { ...member, body: made.sent }
 	return { exchange: made.exchange, sent, ...(made.exhausted === undefined ? {} : { exhausted: made.exhausted }) }
 }

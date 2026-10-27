@@ -11,6 +11,7 @@ import {
 	type ClientIdCreate,
 	createWithClientId,
 	identitiesRefused,
+	reserveIdentity,
 	takenFor,
 } from "./client-identity.ts"
 import { createdRecord } from "./created-record.ts"
@@ -76,22 +77,24 @@ async function post(
 }
 
 /*
- * The ancestor's create, sent through `createWithClientId`: a body naming its own identity is sent
+ * The ancestor's create, sent through `createWithClientId`: a body naming its own identity reserves
+ * one no record the run knows holds before it is sent, so two ancestors never share it, and is sent
  * again under a fresh one when another record holds it.
  */
 function postFresh(createOp: OperationModel, seeding: Seeding, scope: Scope): Promise<ClientIdCreate> {
 	const { model, options } = seeding
 	const drawn = ancestorBody(createOp, seeding)
 	const schema = requestSchemaOf(createOp, model) ?? {}
+	const at = {
+		identity: bodyIdentity(model, createOp, schema),
+		schema,
+		taken: takenFor(options, createOp),
+		token: `anc${options.seed}-${options.nonce ?? ""}`,
+	}
 	return createWithClientId(
-		drawn.body,
+		reserveIdentity(drawn.body, at),
 		(fields) => post(createOp, { scope, seeding }, { body: fields, member: drawn.member }),
-		{
-			identity: bodyIdentity(model, createOp, schema),
-			schema,
-			taken: takenFor(options, createOp),
-			token: `anc${options.seed}-${options.nonce ?? ""}`,
-		},
+		at,
 	)
 }
 

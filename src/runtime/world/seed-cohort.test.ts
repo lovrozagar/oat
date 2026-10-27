@@ -170,6 +170,25 @@ describe("seedCohort beside listed records", () => {
 const refusing: Responder = (method) =>
 	method === "POST" ? { body: { error: "taken" }, status: 409 } : { body: [{ id: "theirs" }], status: 200 }
 
+/* Creates echo what they were sent; the list holds two records. */
+const twoListed: Responder = (method, _path, options) =>
+	method === "POST"
+		? { body: bodyOf(options), status: 201 }
+		: { body: [{ id: "listed-1" }, { id: "listed-2" }], status: 200 }
+
+describe("seedCohort and the run's taken identities", () => {
+	it("takes every listed identity before the first create, so no member drawn again lands on one", async () => {
+		const taken = new Set<string>()
+		const { result, sent } = seed(twoListed, {}, { cohortSize: 1, taken: () => taken })
+		await result
+		const posted = sent
+			.filter((request) => request.method === "POST")
+			.map((request) => String(bodyOf(request.options)["id"]))
+		expect(["listed-1", "listed-2"].every((id) => taken.has(id))).toBe(true)
+		expect(posted.some((id) => id.startsWith("listed-"))).toBe(false)
+	})
+})
+
 describe("seedCohort refused for its client-chosen identity", () => {
 	it("records the gap after three refused identities, adopting nothing and sending no fourth create", async () => {
 		const { result, sent } = seed(refusing, { create: { "x-unique": [["name"]] } }, { cohortSize: 1 })

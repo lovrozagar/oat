@@ -11,7 +11,7 @@ import { SeedError } from "../seed-error.ts"
 import { uniqueTupleCollides, uniquifyProbeBody } from "../unique.ts"
 import type { UploadContext } from "../upload.ts"
 import { forEachInvocation } from "../upload-each.ts"
-import { identitiesRefused } from "./client-identity.ts"
+import { identitiesRefused, takenFor } from "./client-identity.ts"
 import { type CohortRun, failOrAdopt, postFresh, recordCreated, withGap } from "./cohort.ts"
 import { listExisting } from "./list-existing.ts"
 import { isScalarId, type Record_ } from "./records.ts"
@@ -183,38 +183,54 @@ export async function seedCohort(createOp: OperationModel, seeding: Seeding, sco
 	return seedSent(createOp, seeding, scope)
 }
 
+/*
+ * The records the collection already holds, as this principal lists them: each identity is taken from
+ * now on, so a member drawn again after a collision never lands on one, and members are kept off them.
+ */
+async function besideExisting(
+	createOp: OperationModel,
+	{ scope, seeding }: { scope: Scope; seeding: Seeding },
+	{ members, plan }: { members: CohortMember[]; plan: CohortPlan },
+): Promise<{ members: CohortMember[]; existingIds: string[] }> {
+	const { model, client, options } = seeding
+	const entity = createOp.entity === null ? undefined : model.entities.get(createOp.entity)
+	const listOp = entity?.list === undefined ? undefined : model.byOperationId.get(entity.list)
+	const existing =
+		listOp === undefined
+			? []
+			: await listExisting({ listOp, model, values: { ...options.roots, ...scope.values } }, client, options.principal)
+	const { ownIdentity } = plan
+	const existingIds =
+		ownIdentity === null
+			? []
+			: existing
+					.map((row) => row[ownIdentity])
+					.filter(isScalarId)
+					.map(String)
+	const taken = takenFor(options, createOp)
+	for (const id of existingIds) taken.add(id)
+	const kept =
+		existing.length > 0 && plan.avoid.length > 0
+			? avoidExisting({ createOp, nonce: options.nonce, plan }, members, existing)
+			: members
+	return { existingIds, members: kept }
+}
+
 /* The cohort, created. */
 async function seedSent(createOp: OperationModel, seeding: Seeding, scope: Scope): Promise<SeededCohort> {
-	const { model, client, options } = seeding
+	const { model, options } = seeding
 	const plan = cohortPlan(createOp, model)
 	let members: CohortMember[]
 	let uniqueGap: string | undefined
 	let existingIds: string[]
 	try {
 		const distinct = plannedMembers(createOp, seeding, plan)
-		members = distinct.members
 		if (distinct.gap !== null) uniqueGap = distinct.gap
-		const entity = createOp.entity === null ? undefined : model.entities.get(createOp.entity)
-		const listOp = entity?.list === undefined ? undefined : model.byOperationId.get(entity.list)
-		const existing =
-			listOp === undefined
-				? []
-				: await listExisting(
-						{ listOp, model, values: { ...options.roots, ...scope.values } },
-						client,
-						options.principal,
-					)
-		const { ownIdentity } = plan
-		existingIds =
-			ownIdentity === null
-				? []
-				: existing
-						.map((row) => row[ownIdentity])
-						.filter(isScalarId)
-						.map(String)
-		if (existing.length > 0 && plan.avoid.length > 0) {
-			members = avoidExisting({ createOp, nonce: options.nonce, plan }, members, existing)
-		}
+		;({ existingIds, members } = await besideExisting(
+			createOp,
+			{ scope, seeding },
+			{ members: distinct.members, plan },
+		))
 	} catch (error) {
 		if (isOverflowError(error)) throw overflowFrom(error, createOp.operationId)
 		throw error

@@ -118,6 +118,16 @@ describe("posting members", () => {
 		expect(refused.exhausted).toMatch(/^every client-chosen "id" sent was refused with 409/)
 	})
 
+	it("reserves a member's identity before its first create, so none is sent under one the run holds", async () => {
+		const taken = new Set<string>(["7"])
+		const fresh = cohortRun(() => ({ body: { id: "x" }, status: 201 }), {}, { taken: () => taken })
+		const posted = await postFresh(fresh.run, member({ id: "7", name: "a" }), { seed: 1 })
+		const ids = fresh.sent.map((request) => (request.options.body as { id: string }).id)
+		expect(ids).toHaveLength(1)
+		expect(ids[0]).not.toBe("7")
+		expect([taken.has(ids[0] as string), posted.sent.body["id"]]).toEqual([true, ids[0]])
+	})
+
 	it("takes a 409 as the answer when the body names no identity of its own", async () => {
 		const noIdentity = cohortRun(() => ({ status: 409 }))
 		await postFresh(noIdentity.run, member({ name: "a" }), { seed: 1 })
