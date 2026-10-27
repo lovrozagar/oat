@@ -89,6 +89,9 @@ See [docs/migrating-0.25.md](docs/migrating-0.25.md) for each change and what to
 - `patch.minimality` recognizes more server timestamp spellings (`updatedAt` and others), including
   one the first write stamps from null.
 - A query probe sends only parameters the operation or the config declares.
+- A recipe for a scheme only a secondary origin declares, mapped there with `origins[].security`,
+  is accepted, acquired once for the run and sent in that origin scheme's place, in the recipe's
+  own format. A recipe no document maps is refused with every origin's schemes named.
 - A password reset, recovery or change is never read as a sign-up; no automatic write changes how a
   principal signs in.
 - A malformed `x-*` tag, an unresolvable `$ref` or a schema oat cannot generate from is a reported
