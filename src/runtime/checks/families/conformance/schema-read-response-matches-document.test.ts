@@ -119,19 +119,23 @@ describe("schema.read-response-matches-document, what it leaves alone", () => {
 })
 
 describe("schema.read-response-matches-document, what it cannot see", () => {
-	it("says so when an answer is held only by reference, a page past the inline limit, and judges the rest", async () => {
-		const held = listed({ bytes: 300_000, mediaType: "application/json", sha256: "a".repeat(64) })
-		const note = "item.list answered 300000 bytes, over the in-memory limit; its body was not validated"
-		const { findings, judged, outcome } = await judge([held, held, listed([ROW])])
-		expect(outcome).toEqual({ kind: "asserted", note })
-		expect(findings.findings).toEqual([])
+	it("judges a page held only by reference by the verdict taken at capture, and one without it not at all", async () => {
+		const ref = { bytes: 300_000, mediaType: "application/json", sha256: "a".repeat(64) }
+		const drifted = listed(ref, { schemaVerdict: { errors: ["/0/name must be string"] } })
+		const { findings, judged, outcome } = await judge([drifted, listed([ROW])])
+		expect(outcome).toEqual({ kind: "finding", verdict: "SPEC_BUG" })
+		expect(findings.findings.map((f) => [f.operations, f.detail.includes("/0/name must be string")])).toEqual([
+			[["item.list"], true],
+		])
 		expect(judged).toEqual([["item.list"]])
-		/* Said beside a finding too: the outcome a run takes from what was reported keeps the note. */
-		const beside = await judge([held, seen("item.read", { body: { item: ROW }, status: 200 })])
-		expect(beside.outcome).toEqual({ kind: "finding", note, verdict: "SPEC_BUG" })
-		expect(beside.findings.findings.map((f) => f.operations)).toEqual([["item.read"]])
-		/* With nothing validated there is no pass to note it on: the check stands down, saying why. */
-		expect((await judge([held])).outcome).toEqual({ kind: "stood-down", reason: note })
+		/* Held to its schema and fitting it: a pass, with nothing said about its size. */
+		expect((await judge([listed(ref, { schemaVerdict: { errors: [] } })])).outcome).toEqual({ kind: "asserted" })
+		/* Never captured whole, there is nothing to judge it by. */
+		const unjudged = await judge([listed(ref)])
+		expect(unjudged.outcome).toEqual({
+			kind: "stood-down",
+			reason: "a 2xx answer of this entity's item read or listing",
+		})
 	})
 
 	it("leaves alone a listing asked for a sparse fieldset, which answers less than the record", async () => {

@@ -60,3 +60,38 @@ describe("Journal", () => {
 		await expect(journal.dispose()).resolves.toBeUndefined()
 	})
 })
+
+describe("Journal: a schema verdict taken at capture", () => {
+	const large = { rows: "x".repeat(300_000) }
+	const headers = { "content-type": "application/json" }
+	const big = { responseBody: large, responseBytes: 300_011, responseHeaders: headers }
+
+	it("keeps the verdict beside a body the transcript holds only by reference, asked of the whole body", async () => {
+		const asked: unknown[] = []
+		const validateAtCapture = (whole: Exchange) => {
+			asked.push(whole.responseBody)
+			return { errors: ["/rows must be array"] }
+		}
+		const journal = new Journal(new Redactor(), { validateAtCapture })
+		await journal.record(exchange(1, big), undefined)
+		expect(journal.transcript[0]?.schemaVerdict).toEqual({ errors: ["/rows must be array"] })
+		expect(asked).toEqual([large])
+	})
+
+	it("asks nothing of a body kept whole, and keeps no verdict where none is given", async () => {
+		const asked: unknown[] = []
+		const journal = new Journal(new Redactor(), {
+			validateAtCapture: (whole) => {
+				asked.push(whole.seq)
+				return undefined
+			},
+		})
+		await journal.record(exchange(1), undefined)
+		await journal.record(exchange(2, big), undefined)
+		expect(asked).toEqual([2])
+		expect(journal.transcript.map((kept) => kept.schemaVerdict)).toEqual([undefined, undefined])
+		const without = new Journal(new Redactor())
+		await without.record(exchange(3, big), undefined)
+		expect(without.transcript[0]?.schemaVerdict).toBeUndefined()
+	})
+})

@@ -7,6 +7,7 @@ import type { SchemaValidator } from "../../../validate.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { createExchange } from "../../payloads/body.ts"
 import { isEventStream, subjectsOf } from "../../planning/subjects.ts"
+import { verdictOf } from "./schema-verdict.ts"
 
 export const successSchemaHonored: Check<{
 	createOp: OperationModel
@@ -48,7 +49,7 @@ export const successSchemaHonored: Check<{
 			)
 		}
 
-		const result = validator.validate(createOp.operationId, raw, exchange)
+		const result = verdictOf(validator, { operationId: createOp.operationId, raw }, exchange)
 		if (result.unchecked !== undefined) {
 			return ctx.findings.gap(this.id, ctx.entityName, {
 				summary: `${createOp.operationId} ${exchange.status} has a schema that cannot be compiled`,

@@ -1,7 +1,7 @@
 /** The client's transcript: every exchange, compacted, and indexed by operation and entity. */
 
 import type { Redactor } from "../security/redact.ts"
-import type { Exchange } from "../runtime/exchange.ts"
+import { type Exchange, isBodyRef, type SchemaVerdict } from "../runtime/exchange.ts"
 import { BodySpool, type SpoolOptions } from "../runtime/transcript/spool.ts"
 import { releaseTranscriptBodies } from "../runtime/transcript/release.ts"
 
@@ -15,21 +15,31 @@ export class Journal {
 	private readonly byEntity = new Map<string, Exchange[]>()
 	private readonly stored = new Map<number, Exchange>()
 	private readonly spool: BodySpool
+	private readonly validateAtCapture: ((exchange: Exchange) => SchemaVerdict | undefined) | undefined
 
 	constructor(
 		private readonly redactor: Redactor,
-		spool: SpoolOptions = {},
+		options: {
+			spool?: SpoolOptions
+			validateAtCapture?: (exchange: Exchange) => SchemaVerdict | undefined
+		} = {},
 	) {
-		this.spool = new BodySpool(spool)
+		this.spool = new BodySpool(options.spool ?? {})
+		this.validateAtCapture = options.validateAtCapture
 	}
 
 	/**
 	 * Keeps a compacted copy. The caller's exchange is left whole: a check reading a 300 KiB page
-	 * must see the page, not a hash of it.
+	 * must see the page, not a hash of it. A response body kept only by reference is validated
+	 * against its documented schema now, while it is whole, and the verdict kept beside it.
 	 */
 	async record(exchange: Exchange, entity: string | undefined): Promise<void> {
 		const stored: Exchange = { ...exchange }
 		await releaseTranscriptBodies(stored, this.redactor)
+		if (isBodyRef(stored.responseBody) && !isBodyRef(exchange.responseBody)) {
+			const verdict = this.validateAtCapture?.(exchange)
+			if (verdict !== undefined) stored.schemaVerdict = verdict
+		}
 		this.transcript.push(stored)
 		this.stored.set(exchange.seq, stored)
 		await this.spool.keep(stored)

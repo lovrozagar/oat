@@ -43,7 +43,10 @@ export class Client {
 	private readonly wire: Wire
 
 	constructor(private readonly options: ClientOptions) {
-		this.journal = new Journal(options.redactor, options.transcript)
+		this.journal = new Journal(options.redactor, {
+			...(options.transcript === undefined ? {} : { spool: options.transcript }),
+			...(options.validateAtCapture === undefined ? {} : { validateAtCapture: options.validateAtCapture }),
+		})
 		this.wire = {
 			baseUrl: options.baseUrl,
 			controls: createControls(),

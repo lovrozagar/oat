@@ -83,6 +83,18 @@ export interface Exchange {
 	 * Only the final answer is the backend's verdict on the request.
 	 */
 	superseded?: true
+	/**
+	 * How the response body held to the schema its operation documents for the status, taken when
+	 * it was captured: set when the transcript keeps the body only by reference, as no later reader
+	 * could validate it. A body kept whole is validated by the check that reads it.
+	 */
+	schemaVerdict?: SchemaVerdict
+}
+
+/** A body's validation against its documented schema: the errors, or why the schema could not compile. */
+export interface SchemaVerdict {
+	errors: string[]
+	unchecked?: string
 }
 
 /**

@@ -3,7 +3,7 @@
 import type { NetworkInterfaceInfo } from "node:os"
 import type { HeaderRequest } from "../config/types/hooks.ts"
 import type { Redactor } from "../security/redact.ts"
-import type { Exchange, Purpose } from "../runtime/exchange.ts"
+import type { Exchange, Purpose, SchemaVerdict } from "../runtime/exchange.ts"
 import type { Fence } from "../runtime/fence.ts"
 import type { NetworkError } from "../errors/network.ts"
 import type { RateLimiter } from "../runtime/rate-limit/limiter.ts"
@@ -140,4 +140,9 @@ export interface ClientOptions {
 	credentials?: CredentialSource | undefined
 	/** How much of the transcript's bodies stays in memory, and where the encrypted rest is spooled. */
 	transcript?: SpoolOptions | undefined
+	/**
+	 * The schema verdict on a response body the transcript keeps only by reference, taken while the
+	 * whole body is still at hand; `undefined` when its operation documents no schema for the status.
+	 */
+	validateAtCapture?: ((exchange: Exchange) => SchemaVerdict | undefined) | undefined
 }

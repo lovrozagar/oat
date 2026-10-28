@@ -145,6 +145,20 @@ describe("schema.error-response-matches-document over the transcript", () => {
 		expect(fits.judged).toEqual([["item.read", "item.create"]])
 	})
 
+	it("judges a 409 held only by reference by the verdict taken at capture", async () => {
+		const ref = { bytes: 300_000, mediaType: "application/json", sha256: "a".repeat(64) }
+		const held = seen(
+			"item.create",
+			{ body: ref, status: 409 },
+			{ schemaVerdict: { errors: ["/error must be string"] } },
+		)
+		const { findings } = await judge([held], fine)
+		expect(summaries(findings)).toEqual([
+			["SPEC_BUG", "409 error body does not match its documented schema", ["item.create"]],
+		])
+		expect(findings.findings[0]?.detail).toContain("/error must be string")
+	})
+
 	it("leaves a security probe's error body to the security checks", async () => {
 		const probed = await judge([seen("item.create", { body: { code: 1 }, status: 409 }, { probe: true })], fine)
 		expect(probed.findings.findings).toEqual([])

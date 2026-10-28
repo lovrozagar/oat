@@ -1,5 +1,7 @@
 import { randomBytes } from "node:crypto"
+import type { CredentialSource } from "../../client/credential-source.ts"
 import { createCredentialSource } from "../../client/credentials.ts"
+import type { CredentialStore } from "../../credentials/store.ts"
 import { operationResolver } from "../../spec/graph/resolver.ts"
 import { Redactor } from "../../security/redact.ts"
 import { Client } from "../../client/client.ts"
@@ -12,6 +14,7 @@ import { AccountLedger } from "../accounts/ledger.ts"
 import { accountOps } from "../accounts/ops.ts"
 import { watchAccounts } from "../accounts/watch.ts"
 import { Ledger } from "../teardown/ledger.ts"
+import { captureVerdict } from "../checks/families/conformance/schema-verdict.ts"
 import { SchemaValidator } from "../validate.ts"
 import type { Connected, Loaded } from "./context.ts"
 import { createRunNetwork } from "./network.ts"
@@ -24,6 +27,18 @@ import { runStore } from "./store.ts"
  * scrub with, the exchange journal, the network gate, the run's credential store, and the clients of
  * the secondary origins, each resolving its actors over that store against its own document.
  */
+/* What the primary client's requests send: over the run's store, mapped as an origin's when this run is one. */
+function primaryCredentials({ model, options }: Loaded, store: CredentialStore): CredentialSource {
+	const shared = options.sharedCredentials
+	return createCredentialSource({
+		model,
+		principals: store.principals,
+		security: options.security ?? {},
+		store,
+		...(shared === undefined ? {} : { mapping: shared.mapping, originOnly: shared.originOnly }),
+	})
+}
+
 export function connect(loaded: Loaded): Connected {
 	const { options, hooks, model, fence, progress } = loaded
 	const redactor = new Redactor()
@@ -33,16 +48,10 @@ export function connect(loaded: Loaded): Connected {
 	const network = createRunNetwork(loaded)
 	/* The ports reach the clients only when they send, by which time both exist. */
 	const store = runStore(loaded, { clients: () => ({ client, origins: originClients }), network, redactor })
-	const shared = options.sharedCredentials
+	const validator = new SchemaValidator(model.defs)
 	const client = new Client({
 		baseUrl: options.baseUrl,
-		credentials: createCredentialSource({
-			model,
-			principals: store.principals,
-			security: options.security ?? {},
-			store,
-			...(shared === undefined ? {} : { mapping: shared.mapping, originOnly: shared.originOnly }),
-		}),
+		credentials: primaryCredentials(loaded, store),
 		fence,
 		headers: options.globalHeaders ?? {},
 		httpHooks: progress.httpHooks,
@@ -57,6 +66,7 @@ export function connect(loaded: Loaded): Connected {
 		redactor,
 		resolveHeaders: hooks.resolveHeaders,
 		transcript: options.transcript,
+		validateAtCapture: captureVerdict(validator, model),
 	})
 	progress.countRequests(() => client.transcript.length)
 	/* From the first request: a principal's own sign-up makes an account too. */
@@ -80,7 +90,7 @@ export function connect(loaded: Loaded): Connected {
 		outOfBand: resolveBackoff(options.outOfBand),
 		seed: options.seed ?? 1,
 		store,
-		validator: new SchemaValidator(model.defs),
+		validator,
 	}
 }
 

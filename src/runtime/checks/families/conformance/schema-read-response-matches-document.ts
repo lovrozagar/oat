@@ -2,12 +2,13 @@ import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
 import { type Exchange, isBodyRef } from "../../../exchange.ts"
-import { ASSERTED, asserted, type Outcome, standDown } from "../../../finding.ts"
+import { ASSERTED, type Outcome, standDown } from "../../../finding.ts"
 import { judges } from "../../../probe-judging.ts"
 import type { SchemaValidator } from "../../../validate.ts"
 import type { CheckContext } from "../../core/context.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { graded, isEventStream, subjectsOf } from "../../planning/subjects.ts"
+import { verdictOf } from "./schema-verdict.ts"
 
 const READ_SCHEMA = "schema.read-response-matches-document"
 
@@ -23,7 +24,8 @@ type Judged = { exchange: Exchange; errors: string[] } | { exchange: Exchange; u
  * answers the record under another key than documented, or with fields the document does not
  * describe, breaks every client generated from it. The check judges the answers the run already
  * drew and sends nothing; a sparse-fieldset answer, asked for less than the record, is not held to
- * the record's schema, and a body the transcript holds only by its hash is not validated at all.
+ * the record's schema. A body the transcript holds only by its hash was validated when it was
+ * captured, and that verdict is the one read.
  */
 export const readSchemaHonored: Check<{ validator: SchemaValidator }> = defineCheck<{ validator: SchemaValidator }>({
 	plan: (ctx) => {
@@ -36,32 +38,23 @@ export const readSchemaHonored: Check<{ validator: SchemaValidator }> = defineCh
 	needs: "an item read or a listing with a documented success schema",
 	subjects: subjectsOf.readAndList,
 	async run(ctx, { validator }): Promise<Outcome> {
-		const { judged, departed, unseen } = await survey(ctx, validator)
-		const note = [...unseen]
-			.map(
-				([operationId, bytes]) =>
-					`${operationId} answered ${bytes} bytes, over the in-memory limit; its body was not validated`,
-			)
-			.join("; ")
-		if (judged.size === 0) return standDown(note || "a 2xx answer of this entity's item read or listing")
+		const { judged, departed } = await survey(ctx, validator)
+		if (judged.size === 0) return standDown("a 2xx answer of this entity's item read or listing")
 		ctx.judged?.([...judged])
 		let outcome: Outcome = ASSERTED
 		for (const [operationId, found] of departed) outcome = reportDeparture(ctx, operationId, found) ?? outcome
-		if (note === "") return outcome
-		return outcome.kind === "finding" ? { ...outcome, note } : asserted(note)
+		return outcome
 	},
 })
 
-/** What the run's answers say: the operations judged, the first departure of each, and each held only by reference with its size. */
+/** What the run's answers say: the operations judged, and the first departure of each. */
 interface Survey {
 	judged: Set<string>
 	departed: Map<string, Judged>
-	/* Said, never skipped silently: a body past the inline limit is held by its hash alone. */
-	unseen: Map<string, number>
 }
 
 async function survey(ctx: CheckContext, validator: SchemaValidator): Promise<Survey> {
-	const found: Survey = { departed: new Map(), judged: new Set(), unseen: new Map() }
+	const found: Survey = { departed: new Map(), judged: new Set() }
 	for (const listed of ctx.client.exchangesForEntity(ctx.entityName)) {
 		const op = readOf(ctx, listed)
 		if (op === undefined || found.departed.has(op.operationId)) continue
@@ -69,12 +62,10 @@ async function survey(ctx: CheckContext, validator: SchemaValidator): Promise<Su
 		if (raw === undefined || !validator.documents(raw, listed.status)) continue
 		const exchange = await ctx.client.hydrate(listed)
 		if (isEventStream(exchange, op)) continue
-		if (isBodyRef(exchange.responseBody)) {
-			if (!found.unseen.has(op.operationId)) found.unseen.set(op.operationId, exchange.responseBody.bytes)
-			continue
-		}
+		/* A body held by reference is judged by its capture verdict; one with none was never captured whole. */
+		if (isBodyRef(exchange.responseBody) && exchange.schemaVerdict === undefined) continue
 		found.judged.add(op.operationId)
-		const result = validator.validate(op.operationId, raw, exchange)
+		const result = verdictOf(validator, { operationId: op.operationId, raw }, exchange)
 		if (result.unchecked !== undefined) found.departed.set(op.operationId, { exchange, unchecked: result.unchecked })
 		else if (!result.ok) found.departed.set(op.operationId, { errors: result.errors, exchange })
 	}

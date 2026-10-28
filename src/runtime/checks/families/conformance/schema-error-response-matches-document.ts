@@ -13,6 +13,7 @@ import { cannot, ready } from "../../core/plan.ts"
 import { absentId } from "../../payloads/identity.ts"
 import { asProbe } from "../../planning/refusal.ts"
 import { graded, itemParamFor, ownOps, subjectsOf } from "../../planning/subjects.ts"
+import { verdictOf } from "./schema-verdict.ts"
 
 export const errorSchemaHonored: Check<{
 	readOp: OperationModel
@@ -122,7 +123,7 @@ async function probeMissingItemError(judge: ErrorJudge, readOp: OperationModel, 
 function judgeErrorBody(judge: ErrorJudge, subject: ErrorSubject, exchange: Exchange): void {
 	const { check, ctx, validator } = judge
 	const { operationId } = subject
-	const result = validator.validate(operationId, subject.raw, exchange)
+	const result = verdictOf(validator, { operationId, raw: subject.raw }, exchange)
 	if (result.unchecked !== undefined) {
 		subject.gaps.gap(check, ctx.entityName, {
 			summary: `${operationId} ${exchange.status} has a schema that cannot be compiled`,

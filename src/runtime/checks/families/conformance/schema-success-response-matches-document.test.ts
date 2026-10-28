@@ -85,3 +85,23 @@ describe("schema.success-response-matches-document run", () => {
 		expect(verdicts(findings)).toEqual([["COVERAGE_GAP", "item.create 201 has a schema that cannot be compiled"]])
 	})
 })
+
+describe("schema.success-response-matches-document on a body held only by reference", () => {
+	it("judges it by the verdict taken at capture", async () => {
+		const model = modelOfItems()
+		const staged = contextFor(model, "item.list", {
+			fields: itemOperations(model),
+			respond: () => ({ body: { id: "1", name: "a" }, status: 201 }),
+		})
+		await staged.ctx.client.request("POST", "/items", { as: { principal: "alpha" }, operationId: "item.create" })
+		const [made] = staged.ctx.client.exchangesFor("item.create")
+		Object.assign(made as object, {
+			responseBody: { bytes: 300_000, mediaType: "application/json", sha256: "a".repeat(64) },
+			schemaVerdict: { errors: ["/name must be string"] },
+		})
+		const plan = successSchemaHonored.plan(staged.ctx)
+		if (!plan.ok) throw new Error("the success-schema plan did not apply")
+		expect(await successSchemaHonored.run(staged.ctx, plan.value)).toEqual({ kind: "finding", verdict: "SPEC_BUG" })
+		expect(staged.findings.findings[0]?.detail).toContain("/name must be string")
+	})
+})
