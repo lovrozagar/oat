@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.25.1
+
+### Fixed
+
+- A response body larger than 256 KiB is held to its documented schema. The transcript keeps such a
+  body only by reference, so `schema.read-response-matches-document` noted it unvalidated and the
+  success and error schema checks never saw it. It is now validated when it arrives, while it is
+  whole, and each of the three checks reports a body that departs from its schema however large.
+- The run's closing calls reach `exchanges.jsonl`: the secondary origins, the revokes of every key
+  it minted, the removal of the accounts its sign-ups made, and the end of the principals' own
+  sessions. `principals.json` is written after them too.
+
 ## 0.25.0
 
 ### Breaking

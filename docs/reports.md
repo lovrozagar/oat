@@ -33,7 +33,7 @@ Written under `--out` (default `./.oat/runs`). Each invocation creates a UTC tim
 
 The journal is oat `Exchange` JSON, not HAR (HAR export is out of scope). Default **on** unless `--profile cheap`. `--no-save-exchanges` skips `exchanges/` entirely. `--quiet` does not. **`--no-save-exchanges` does not reduce transcript RAM** — it only skips the disk journal. The in-memory transcript always drops live `FormData` / `Blob` / `ArrayBuffer` / multi-MiB strings after each hop, keeping citeable metadata and content-addressed body descriptors. Reconstruct bytes from `blobs/<sha256>` when a check genuinely needs them.
 
-Bodies are described, never base64 multipart. JSON / text inline up to 256 KiB, then `blobs/<sha256>`. `FormData` file parts and binary downloads (`application/pdf`, spreadsheet, image, `octet-stream`) are always blobs; the same fixture bytes POSTed N times share one file. SSE is parsed incrementally into `{ event, data }[]` frames — the raw `text/event-stream` concatenation is not retained on the transcript.
+Bodies are described, never base64 multipart. JSON / text inline up to 256 KiB, then `blobs/<sha256>`. A response body past 256 KiB is validated against its documented schema when it arrives, while it is whole, so the schema checks judge it like any other. `FormData` file parts and binary downloads (`application/pdf`, spreadsheet, image, `octet-stream`) are always blobs; the same fixture bytes POSTed N times share one file. SSE is parsed incrementally into `{ event, data }[]` frames — the raw `text/event-stream` concatenation is not retained on the transcript.
 
 Redaction is on by default (not opt-in), applied on write:
 
