@@ -15,6 +15,11 @@
   stored the row only when a new row holds the colliding values, compared as a backend may store
   them (trimmed, case-folded, a number and its numeral alike). A collection that grew by another
   writer's row is no longer read as a leak.
+- `auth.privileged-field-ignored` no longer passes when its writer was refused for a reason other
+  than the marked property. A refused write is followed by the same writer's harmless write; when
+  that is refused too, the writer's role cannot update the record at all, and the next rank below the
+  highest writes instead. The check is unresolved only when no such rank can update the record. A
+  role lattice turned over for updates had hidden a privileged field any lower rank could set.
 
 ## 0.27.0
 
