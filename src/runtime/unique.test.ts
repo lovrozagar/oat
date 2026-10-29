@@ -215,6 +215,12 @@ describe("a collision leaked past its 409", () => {
 		expect(leakedCollisions(["code", "org"], known, around(after))).toEqual(["n1"])
 	})
 
+	it("names a leaked row the backend stored normalized: case-folded, trimmed, a number as text", () => {
+		const sent = { code: 7, email: " Ann@X.test", id: "n0" }
+		const after = [known, { code: "7", email: "ann@x.test", id: "n1" }]
+		expect(leakedCollisions(["email", "code"], sent, around(after))).toEqual(["n1"])
+	})
+
 	it("never counts a row that was there before", () => {
 		expect(leakedCollisions(["name"], known, around([known]))).toEqual([])
 	})

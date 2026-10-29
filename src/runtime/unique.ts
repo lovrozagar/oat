@@ -200,6 +200,17 @@ export function collisionUpdatePatch(
 	return Object.keys(patch).length > 0 ? patch : null
 }
 
+/**
+ * A unique value as a backend may have stored it: text trimmed and case-folded, a number and its
+ * numeral alike. A leak stored normalized is still the collision.
+ */
+function uniqueKey(value: unknown): string {
+	if (typeof value === "number") return String(value)
+	if (typeof value !== "string") return JSON.stringify(value) ?? "undefined"
+	const text = value.trim()
+	return text !== "" && Number.isFinite(Number(text)) ? String(Number(text)) : text.toLowerCase()
+}
+
 /** Two listings of a collection around a refused collision, and how a row in them is named. */
 export interface AroundCollision {
 	before: readonly Record<string, unknown>[]
@@ -220,9 +231,9 @@ export function leakedCollisions(
 ): string[] {
 	const { after, before, identity, scope } = around
 	const held = new Set(before.map((row) => idOf(row, identity)))
-	const sent = (col: string): string => JSON.stringify(source[col] ?? scope[col])
+	const sent = (col: string): string => uniqueKey(source[col] ?? scope[col])
 	return after
-		.filter((row) => set.every((col) => JSON.stringify(row[col]) === sent(col)))
+		.filter((row) => set.every((col) => uniqueKey(row[col]) === sent(col)))
 		.flatMap((row) => {
 			const id = idOf(row, identity)
 			return id === undefined || held.has(id) ? [] : [id]
