@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.27.0
+
+### Added
+
+- **`update.persists-submitted-fields`.** An update must store what it was sent. On a record the
+  check makes itself, one update carries a new value for every field the update offers that a read
+  returns, never a lifecycle enum (status, state, plan, tier), a privileged or a fixed field. A field
+  neither the update's answer nor a read past the cache holds as sent is dropped, and named in one
+  finding. A combined update that is refused is retried one field at a time (at most 8); a field
+  refused alone is refused, not dropped.
+
+### Changed
+
+- `consistency.staleness-within-bound` watches at most 10 minutes, whatever the declared staleness;
+  a read still stale at 10 minutes, under a longer bound, is noted, not judged. Its last read always
+  lands on the bound it watches, so a stale read is judged past the bound only when one was seen
+  there.
+
+### Fixed
+
+- A field an update does not store is reported once, by `update.persists-submitted-fields`. Every
+  check that writes a field picks around it, so it no longer reads as a cache that ignores its
+  bypass (`consistency.bypass-is-fresh`), a lost concurrent write (`concurrency.no-lost-update`) or
+  a collateral change (`patch.minimality`). A freshness check whose update's own answer keeps the old
+  value stands down.
+
 ## 0.26.0
 
 ### Added
