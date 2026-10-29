@@ -42,10 +42,7 @@ export const searchEmptyQ: Check<{
 			return ctx.findings.unresolved(this.id, ctx.entityName, "the sets are larger than a read covers")
 		}
 		if (sameSet(setOf(empty.items, ctx.identity), setOf(baseline.items, ctx.identity))) return ASSERTED
-		const terms = [
-			{ query: q(ctx, {}) as Record<string, string> },
-			{ query: q(ctx, { search: "" }) as Record<string, string> },
-		]
+		const terms = [{ query: q(ctx, {}) }, { query: q(ctx, { search: "" }) }]
 		const moved = await unlessMoved(ctx, this.id, { reads: [baseline, empty], terms })
 		if (moved !== null) return moved
 		return ctx.findings.backend(this.id, ctx.entityName, {

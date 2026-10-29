@@ -59,11 +59,11 @@ export const searchAndFilterCompose: Check<Subset & { token: string }> = defineC
 		}
 
 		const filterIds = new Set(ids(filtered.items, ctx.identity))
-		const searched = await collectSet(ctx, limit, q(ctx, { search: token }) as Record<string, string>)
+		const searched = await collectSet(ctx, limit, q(ctx, { search: token }))
 		const both = await collectSet(ctx, limit, {
 			...term,
 			...q(ctx, { search: token }),
-		} as Record<string, string>)
+		})
 		if (searched === null || both === null) {
 			return ctx.findings.unresolved(
 				this.id,
@@ -81,7 +81,7 @@ export const searchAndFilterCompose: Check<Subset & { token: string }> = defineC
 		const missing = [...expected].filter((id) => !got.has(id))
 		const extraIds = [...got].filter((id) => !expected.has(id))
 		if (missing.length === 0 && extraIds.length === 0) return ASSERTED
-		const search = q(ctx, { search: token }) as Record<string, string>
+		const search = q(ctx, { search: token })
 		const terms = [{ query: term }, { query: search }, { query: { ...term, ...search } }]
 		const moved = await unlessMoved(ctx, this.id, { reads: [filtered, searched, both], terms })
 		if (moved !== null) return moved

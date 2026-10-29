@@ -1,4 +1,3 @@
-import type { FilterQuery } from "../../../spec/render/filter-types.ts"
 import type { SortValue } from "../../../spec/render/sort.ts"
 import type { Record_ } from "../../world/records.ts"
 import type { Listed } from "../core/context.ts"
@@ -56,7 +55,7 @@ function readListing(ctx: Listed, query: Query, fresh: boolean): Promise<SetRead
 export async function collectSet(
 	ctx: Listed,
 	requested: number,
-	extra: FilterQuery = {},
+	extra: Query = {},
 	/* `fresh`: a repeat read that must see the collection as it is now, not as an earlier read saw it. */
 	{ order, fresh = false }: { order?: SortValue | undefined; fresh?: boolean | undefined } = {},
 ): Promise<SetRead | null> {
@@ -125,7 +124,7 @@ export async function readSettled(
 
 /** One term of a comparison as its check walked it: the query, and the walk's order and page size. */
 export interface SettledTerm {
-	query?: FilterQuery | undefined
+	query?: Query | undefined
 	order?: SortValue | undefined
 	size?: number
 }

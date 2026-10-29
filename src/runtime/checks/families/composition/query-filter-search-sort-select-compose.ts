@@ -43,7 +43,7 @@ export const queryFilterSearchSortSelectCompose: Check<
 		subjects: subjectsOf.list,
 		async run(ctx, { projection, sortField, term, token }): Promise<Outcome> {
 			const conventions = conv(ctx)
-			const searched = q(ctx, { search: token }) as Record<string, string>
+			const searched = q(ctx, { search: token })
 			const readBase = (fresh = false) => collectSet(ctx, pageSize(ctx), { ...term, ...searched }, { fresh })
 			const readCombined = (fresh = false) =>
 				collectSet(

@@ -49,12 +49,12 @@ export const filterSearchSelectCompose: Check<
 		const pair = await collectSet(ctx, limit, {
 			...term,
 			...q(ctx, { search: token }),
-		} as Record<string, string>)
+		})
 		const triple = await collectSet(ctx, limit, {
 			...term,
 			...q(ctx, { search: token }),
 			...projection,
-		} as Record<string, string>)
+		})
 		if (pair === null || triple === null) {
 			return ctx.findings.unresolved(this.id, ctx.entityName, "combining a filter, a search and a select was rejected")
 		}
@@ -77,8 +77,8 @@ export const filterSearchSelectCompose: Check<
 		const moved = await unlessMoved(ctx, this.id, {
 			reads: [pair, triple],
 			terms: [
-				{ query: { ...term, ...q(ctx, { search: token }) } as Record<string, string> },
-				{ query: { ...term, ...q(ctx, { search: token }), ...projection } as Record<string, string> },
+				{ query: { ...term, ...q(ctx, { search: token }) } },
+				{ query: { ...term, ...q(ctx, { search: token }), ...projection } },
 			],
 		})
 		if (moved !== null) return moved

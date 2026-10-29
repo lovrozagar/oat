@@ -52,7 +52,7 @@ export const searchTokensAnd: Check<{ a: string; b: string }> = defineCheck<{ a:
 		const expected = new Set([...setA].filter((id) => setB.has(id)))
 		const got = setOf(both.items, ctx.identity)
 		if (sameSet(expected, got) || sameSet(got, new Set([...setA, ...setB]))) return ASSERTED
-		const terms = [a, b, `${a} ${b}`].map((search) => ({ query: q(ctx, { search }) as Record<string, string> }))
+		const terms = [a, b, `${a} ${b}`].map((search) => ({ query: q(ctx, { search }) }))
 		const moved = await unlessMoved(ctx, this.id, { reads: [onlyA, onlyB, both], terms })
 		if (moved !== null) return moved
 		return ctx.findings.backend(this.id, ctx.entityName, {

@@ -51,10 +51,7 @@ export const querySearchAndSelectCompose: Check<{
 		if (sameSet(setOf(searched.items, ctx.identity), setOf(combined.items, ctx.identity))) return ASSERTED
 		const moved = await unlessMoved(ctx, this.id, {
 			reads: [searched, combined],
-			terms: [
-				{ query: q(ctx, { search: token }) as Record<string, string> },
-				{ query: { ...q(ctx, { search: token }), ...projection } as Record<string, string> },
-			],
+			terms: [{ query: q(ctx, { search: token }) }, { query: { ...q(ctx, { search: token }), ...projection } }],
 		})
 		if (moved !== null) return moved
 		return ctx.findings.backend(this.id, ctx.entityName, {
