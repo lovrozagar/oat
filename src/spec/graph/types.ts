@@ -5,6 +5,7 @@ import type { ResolvedSecurity } from "../security/requirements.ts"
 import type { CollectionShape } from "../collection/shape.ts"
 import type { QueryConventions } from "../conventions/types.ts"
 import type { AsyncSpec, WaitSpec } from "../extensions/async.ts"
+import type { ConsistencySpec } from "../extensions/consistency.ts"
 import type { EffectSpec } from "../extensions/effects.ts"
 import type { EntityAction } from "../extensions/entity.ts"
 import type { GapCollector } from "../extensions/gaps.ts"
@@ -23,6 +24,8 @@ export interface OperationModel {
 	action: EntityAction | null
 	entitySource: "tag" | "heuristic" | null
 	invalidates: string[]
+	/** `x-consistency`: the read's staleness bound and cache bypass; null when undeclared. */
+	consistency: ConsistencySpec | null
 	effects: EffectSpec[]
 	/** The operation declares it has no effects (`x-effects: []`): its contract is the whole promise. */
 	noEffects: boolean

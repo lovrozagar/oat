@@ -9,6 +9,7 @@ import { type Args, list, str } from "../flags.ts"
 const AS_WRITTEN = [
 	"writer",
 	"globalHeaders",
+	"cache",
 	"hooks",
 	"uploads",
 	"security",

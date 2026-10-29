@@ -114,6 +114,12 @@ export interface OatConfig {
 	 * headers are recorded on each exchange; the rest is opaque.
 	 */
 	globalHeaders?: Record<string, string>
+	/**
+	 * The cache bypass oat sends on every documented read: the read's `x-consistency` bypass, else
+	 * `Cache-Control: no-cache`. `bypass: false` sends none, for an API whose firewall refuses the
+	 * header or whose caches are to be tested as they are. A header `globalHeaders` sets wins.
+	 */
+	cache?: { bypass?: boolean }
 	/** Header names whose values are secret though they carry no credential, scrubbed wherever a run records them. */
 	redact?: { headers?: string[] }
 	/**

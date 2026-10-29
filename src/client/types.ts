@@ -10,6 +10,7 @@ import type { RateLimiter } from "../runtime/rate-limit/limiter.ts"
 import type { Actor, CredentialSource } from "./credential-source.ts"
 import type { SpoolOptions } from "../runtime/transcript/spool.ts"
 import type { ParamStyles } from "../spec/graph/parameters.ts"
+import type { CacheBypass } from "../spec/extensions/consistency.ts"
 
 export type { SafeMethod } from "../spec/methods.ts"
 
@@ -41,6 +42,8 @@ export interface ResolvedOperation {
 	/** How each parameter is written, where the document says other than the OAS default. */
 	paramStyles?: ParamStyles
 	pathParams?: Record<string, string>
+	/** The `x-consistency` bypass a read declares; a read without one is sent `Cache-Control: no-cache`. */
+	bypass?: CacheBypass | null
 }
 
 /** Maps a request to the documented operation it is an instance of. */
@@ -96,6 +99,8 @@ export interface RequestOptions {
 	 * `manual` returns the first 3xx. Unset: native fetch follow, no jar.
 	 */
 	redirect?: "follow" | "manual"
+	/** `use` reads as a client would, past no cache: the staleness measurement. Default `bypass`. */
+	cache?: "bypass" | "use"
 }
 
 /** Optional retry / wait-for-link policy. Unset keeps today's "throw and hope". */
@@ -117,6 +122,8 @@ export interface ClientOptions {
 	redactor: Redactor
 	/** Sent on every request, under everything else. */
 	headers?: Record<string, string> | undefined
+	/** The config's `cache.bypass`. Default true: every documented read asks past the caches. */
+	cacheBypass?: boolean
 	/**
 	 * Requests allowed in flight at once. Default 4.
 	 *

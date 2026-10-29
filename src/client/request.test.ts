@@ -276,3 +276,31 @@ describe("sendAttempt redirects and transport", () => {
 		}
 	})
 })
+
+const reading = () => ({ bypass: { name: "x-fresh", value: "1" }, operationId: "row.get", template: "/rows/{id}" })
+const undeclared = () => ({ operationId: "row.get", template: "/rows/{id}" })
+
+describe("sendAttempt: the cache bypass", () => {
+	it("sends the read's bypass under the global, hook and caller layers, and none on a read that uses the cache", async () => {
+		const wire = transport(() => json({}))
+		const ctx = wireOf(wire, { cacheBypass: true, headers: { "x-global": "g" }, operationResolver: reading })
+		await sendAttempt(prepare(ctx, "GET", "/rows/1", { as: ANON }), 0, ctx)
+		expect(wire.sent[0]?.headers).toEqual({ "x-fresh": "1", "x-global": "g" })
+		await sendAttempt(prepare(ctx, "GET", "/rows/1", { as: ANON, cache: "use" }), 0, ctx)
+		expect(wire.sent[1]?.headers).toEqual({ "x-global": "g" })
+	})
+
+	it("never overrides a Cache-Control the globals set, and sends none when the config turns it off", async () => {
+		const wire = transport(() => json({}))
+		const global = wireOf(wire, {
+			cacheBypass: true,
+			headers: { "Cache-Control": "max-age=5" },
+			operationResolver: undeclared,
+		})
+		await sendAttempt(prepare(global, "GET", "/rows/1", { as: ANON }), 0, global)
+		expect(wire.sent[0]?.headers).toEqual({ "Cache-Control": "max-age=5" })
+		const off = wireOf(wire, { cacheBypass: false, operationResolver: undeclared })
+		await sendAttempt(prepare(off, "GET", "/rows/1", { as: ANON }), 0, off)
+		expect(wire.sent[1]?.headers).toEqual({})
+	})
+})

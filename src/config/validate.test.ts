@@ -219,3 +219,12 @@ describe("the writer", () => {
 		expect(configProblems({ ...two, writer: 1 })).toContain("config.writer must be a string")
 	})
 })
+
+describe("the cache bypass switch", () => {
+	it("takes cache.bypass as a boolean and names anything else", () => {
+		expect(configProblems({ ...valid, cache: { bypass: false } })).toEqual([])
+		expect(configProblems({ ...valid, cache: { bypass: "off" } })).toEqual([
+			"config.cache.bypass must be true or false",
+		])
+	})
+})

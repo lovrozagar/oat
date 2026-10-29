@@ -49,6 +49,7 @@ export class Client {
 		})
 		this.wire = {
 			baseUrl: options.baseUrl,
+			cacheBypass: options.cacheBypass ?? true,
 			controls: createControls(),
 			credentials: options.credentials,
 			deliver: async (exchange, entity) => {

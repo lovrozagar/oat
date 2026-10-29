@@ -162,6 +162,12 @@ export const SHAPES: readonly NamedShape[] = [
 		why: "the API keys a recipe mints are listed, named and renamed, each its own tenant's",
 	},
 	{
+		exhibits: ["STALE_PAST_BOUND", "BYPASS_IGNORED"],
+		name: "cached-reads",
+		shape: { cachedReads: true },
+		why: "item and list reads come from a 400 ms cache past which a declared bypass header reads fresh",
+	},
+	{
 		exhibits: ["WRITE_ONLY_LEAKED"],
 		name: "write-only-field",
 		shape: { writeOnlyField: true },

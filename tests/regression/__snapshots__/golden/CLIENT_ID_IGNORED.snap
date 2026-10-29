@@ -7,7 +7,7 @@
         "was": 0
       },
       "reason": {
-        "now": "records may remain: 18 creates answered 2xx with no readable id",
+        "now": "records may remain: 20 creates answered 2xx with no readable id",
         "was": "no defects found in what was graded"
       },
       "result": {
@@ -525,6 +525,11 @@
           "needs": "x-entity.identity: self, and a read or an update"
         },
         {
+          "check": "consistency.bypass-is-fresh",
+          "entity": "row",
+          "needs": "a read that declares an x-consistency bypass"
+        },
+        {
           "check": "create.keeps-submitted-identity",
           "entity": "row",
           "needs": "a create that takes the record's identity from the client, and an item read"
@@ -686,6 +691,24 @@
           ]
         },
         {
+          "check": "consistency.staleness-within-bound",
+          "entity": "table",
+          "reason": "a record for this check could not be made: the create answered 201 without an id oat could read",
+          "operations": [
+            "table.get",
+            "table.update"
+          ]
+        },
+        {
+          "check": "consistency.staleness-within-bound",
+          "entity": "table",
+          "reason": "a record for this check could not be made: the create answered 201 without an id oat could read",
+          "operations": [
+            "table.get",
+            "table.update"
+          ]
+        },
+        {
           "check": "idempotency.replay-does-not-duplicate",
           "entity": "table",
           "reason": "the create response carries no \"id\", so a replay cannot be matched to it",
@@ -775,6 +798,7 @@
                 "auth.rank-is-monotonic-on-writes",
                 "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
+                "consistency.staleness-within-bound",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "payload.string-survives",
@@ -813,6 +837,7 @@
               "gaps": [],
               "inconclusive": [
                 "concurrency.if-match-enforced",
+                "consistency.staleness-within-bound",
                 "payload.string-survives"
               ],
               "passed": [],
@@ -1099,6 +1124,7 @@
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
                 "consistency.projections-agree",
+                "consistency.staleness-within-bound",
                 "invalidation.declared-route-changes",
                 "payload.string-survives",
                 "response.status-is-documented",
@@ -1132,6 +1158,7 @@
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
                 "consistency.projections-agree",
+                "consistency.staleness-within-bound",
                 "payload.string-survives",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
@@ -1192,6 +1219,7 @@
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
+                "consistency.staleness-within-bound",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "payload.string-survives",
@@ -1226,6 +1254,7 @@
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
+                "consistency.staleness-within-bound",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "payload.string-survives",
@@ -1656,7 +1685,31 @@
           {
             "entity": "row",
             "id": "ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "row",
+            "id": "ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "row",
+            "id": "ID",
             "principal": "alpha_member",
+            "removed": true
+          },
+          {
+            "entity": "table",
+            "id": "ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "table",
+            "id": "ID",
+            "principal": "alpha",
             "removed": true
           },
           {
@@ -1848,11 +1901,25 @@
         ]
       },
       "removed": {
-        "now": 70,
-        "was": 128
+        "now": 75,
+        "was": 137
       },
       "unidentified": {
         "added": [
+          {
+            "entity": "table",
+            "method": "POST",
+            "operationId": "table.create",
+            "status": 201,
+            "url": "http://reference.test/v1/projects/proj_alpha/tables"
+          },
+          {
+            "entity": "table",
+            "method": "POST",
+            "operationId": "table.create",
+            "status": 201,
+            "url": "http://reference.test/v1/projects/proj_alpha/tables"
+          },
           {
             "entity": "table",
             "method": "POST",
@@ -2087,6 +2154,16 @@
     "observed": {
       "removed": [
         {
+          "check": "consistency.staleness-within-bound",
+          "entity": "row",
+          "note": "after the update the read showed it at once; after the delete the read showed it at once; no staleness is declared, so the window is reported, not judged"
+        },
+        {
+          "check": "consistency.staleness-within-bound",
+          "entity": "table",
+          "note": "after the delete the read showed it at once; no staleness is declared, so the window is reported, not judged"
+        },
+        {
           "check": "pagination.bounds-handled",
           "entity": "row",
           "note": "a page past the end is served empty"
@@ -2216,9 +2293,19 @@
             "skipped": 2
           },
           {
+            "check": "consistency.bypass-is-fresh",
+            "ran": 2,
+            "skipped": 5
+          },
+          {
             "check": "consistency.projections-agree",
             "ran": 3,
             "skipped": 4
+          },
+          {
+            "check": "consistency.staleness-within-bound",
+            "ran": 6,
+            "skipped": 1
           },
           {
             "check": "count.consistent-with-returned-page",
@@ -2808,9 +2895,19 @@
             "skipped": 2
           },
           {
+            "check": "consistency.bypass-is-fresh",
+            "ran": 2,
+            "skipped": 6
+          },
+          {
             "check": "consistency.projections-agree",
             "ran": 5,
             "skipped": 3
+          },
+          {
+            "check": "consistency.staleness-within-bound",
+            "ran": 7,
+            "skipped": 1
           },
           {
             "check": "count.consistent-with-returned-page",

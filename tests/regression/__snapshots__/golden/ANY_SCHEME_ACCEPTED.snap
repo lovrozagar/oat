@@ -41,6 +41,7 @@
                 "auth.invalid-credential-refused",
                 "auth.missing-credential-refused",
                 "auth.rank-is-monotonic",
+                "consistency.staleness-within-bound",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
                 "schema.read-response-matches-document"
@@ -244,6 +245,7 @@
                 "auth.missing-credential-refused",
                 "auth.rank-is-monotonic",
                 "auth.wrong-scheme-refused",
+                "consistency.staleness-within-bound",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
                 "schema.read-response-matches-document"
@@ -410,8 +412,8 @@
     "teardown": {
       "records": {},
       "removed": {
-        "now": 129,
-        "was": 128
+        "now": 138,
+        "was": 137
       }
     },
     "findings": {

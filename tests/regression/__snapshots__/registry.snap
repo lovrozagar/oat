@@ -1183,6 +1183,20 @@
     "needs": "x-async with an idFrom pointer"
   },
   {
+    "id": "consistency.staleness-within-bound",
+    "dependsOn": [],
+    "mutates": true,
+    "judgesTranscript": false,
+    "needs": "a create, an item read, and an update or a delete"
+  },
+  {
+    "id": "consistency.bypass-is-fresh",
+    "dependsOn": [],
+    "mutates": true,
+    "judgesTranscript": false,
+    "needs": "a read that declares an x-consistency bypass, a create, and an update or a delete"
+  },
+  {
     "id": "concurrency.if-match-enforced",
     "dependsOn": [],
     "mutates": true,

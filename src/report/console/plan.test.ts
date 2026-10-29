@@ -227,3 +227,17 @@ describe("plan and the roots a config supplies", () => {
 		expect(hooked.unmadeIds).toEqual([])
 	})
 })
+
+describe("plan and the staleness check", () => {
+	it("names how many entities the staleness check will measure, and how many declare a bound", async () => {
+		const { model } = await referenceModel({ shape: "cached-reads" })
+		const lines = plan(model, false).split("\n")
+		expect(lines.filter((line) => line.includes("staleness"))).toEqual([
+			"  consistency.staleness-within-bound measures 5 entities, 4 against a declared staleness",
+		])
+		const plain = plan((await referenceModel()).model, false).split("\n")
+		expect(plain.filter((line) => line.includes("staleness"))).toEqual([
+			"  consistency.staleness-within-bound measures 5 entities, none against a declared staleness",
+		])
+	})
+})

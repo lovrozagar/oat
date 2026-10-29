@@ -19,6 +19,8 @@ export function wireOf(transport: Transport, more: Partial<Wire> = {}): Wire & {
 	let seq = 0
 	return {
 		baseUrl: BASE,
+		/* off unless a test is about it: other tests assert a read's headers exactly */
+		cacheBypass: false,
 		controls: createControls(),
 		credentials: undefined,
 		deliver: async (exchange, entity) => {

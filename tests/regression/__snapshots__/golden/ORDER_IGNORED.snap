@@ -1004,6 +1004,7 @@
                 "auth.rank-is-monotonic",
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
+                "consistency.staleness-within-bound",
                 "payload.string-survives",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
@@ -1038,6 +1039,7 @@
                 "auth.rank-is-monotonic",
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
+                "consistency.staleness-within-bound",
                 "payload.string-survives",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
@@ -1072,6 +1074,7 @@
                 "auth.rank-is-monotonic",
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
+                "consistency.staleness-within-bound",
                 "payload.string-survives",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
@@ -1107,6 +1110,7 @@
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
+                "consistency.staleness-within-bound",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "payload.string-survives",
@@ -1461,6 +1465,7 @@
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
                 "consistency.projections-agree",
+                "consistency.staleness-within-bound",
                 "invalidation.declared-route-changes",
                 "payload.string-survives",
                 "response.status-is-documented",
@@ -1494,6 +1499,7 @@
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
                 "consistency.projections-agree",
+                "consistency.staleness-within-bound",
                 "payload.string-survives",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
@@ -1527,6 +1533,7 @@
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
                 "consistency.projections-agree",
+                "consistency.staleness-within-bound",
                 "payload.string-survives",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
@@ -1560,6 +1567,7 @@
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
+                "consistency.staleness-within-bound",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "payload.string-survives",
@@ -1786,8 +1794,8 @@
     "teardown": {
       "records": {},
       "removed": {
-        "now": 121,
-        "was": 128
+        "now": 130,
+        "was": 137
       }
     },
     "findings": {

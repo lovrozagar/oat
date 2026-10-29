@@ -1,4 +1,5 @@
 import { pathTemplateParams } from "../routes.ts"
+import type { CacheBypass } from "../extensions/consistency.ts"
 import type { ParamStyles } from "./parameters.ts"
 import type { OperationModel, SpecModel } from "./types.ts"
 
@@ -13,6 +14,8 @@ export interface ResolvedOperation {
 	requiredCookies: Record<string, unknown>
 	paramStyles: ParamStyles
 	pathParams: Record<string, string>
+	/** The `x-consistency` bypass the operation declares; null when it declares none. */
+	bypass: CacheBypass | null
 }
 
 /**
@@ -42,6 +45,7 @@ function resolvedTo(op: OperationModel, pathParams: Record<string, string>): Res
 	/* A documented 3xx is the answer to grade, not a hop to follow. */
 	const redirects = op.statuses.exact.some((code) => code >= 300 && code < 400) || op.statuses.ranges.includes(3)
 	return {
+		bypass: op.consistency?.bypass ?? null,
 		entity: op.entity,
 		operationId: op.operationId,
 		pathParams,

@@ -126,6 +126,13 @@ describe("checkContext declared operations", () => {
 		expect([checks.actor, checks.peer, checks.peerScope]).toEqual([actors[0], actors[2], { org_id: "o2" }])
 		expect(checks.actors).toEqual(actors)
 	})
+
+	it("tells the checks the config turned the cache bypass off, and says nothing otherwise", async () => {
+		const off = await contextFor(notesDoc(), fresh, { cache: { bypass: false } })
+		expect(off.checks.cacheBypass).toBe(false)
+		const on = await contextFor(notesDoc(), fresh)
+		expect(on.checks).not.toHaveProperty("cacheBypass")
+	})
 })
 
 describe("checkContext extras", () => {

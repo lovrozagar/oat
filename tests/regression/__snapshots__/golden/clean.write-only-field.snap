@@ -31,6 +31,7 @@
       "concurrency.if-match-enforced",
       "concurrency.no-lost-update",
       "consistency.projections-agree",
+      "consistency.staleness-within-bound",
       "count.consistent-with-returned-page",
       "count.matches-filtered-set",
       "create.persists-submitted-fields",
@@ -2582,6 +2583,36 @@
         "needs": "a create, a PATCH update and two writable string fields"
       },
       {
+        "check": "consistency.bypass-is-fresh",
+        "entity": "api-key",
+        "needs": "a read that declares an x-consistency bypass"
+      },
+      {
+        "check": "consistency.bypass-is-fresh",
+        "entity": "job",
+        "needs": "a read that declares an x-consistency bypass"
+      },
+      {
+        "check": "consistency.bypass-is-fresh",
+        "entity": "notice",
+        "needs": "a read that declares an x-consistency bypass"
+      },
+      {
+        "check": "consistency.bypass-is-fresh",
+        "entity": "row",
+        "needs": "a read that declares an x-consistency bypass"
+      },
+      {
+        "check": "consistency.bypass-is-fresh",
+        "entity": "table",
+        "needs": "a read that declares an x-consistency bypass"
+      },
+      {
+        "check": "consistency.bypass-is-fresh",
+        "entity": "webhook",
+        "needs": "a read that declares an x-consistency bypass"
+      },
+      {
         "check": "consistency.projections-agree",
         "entity": "api-key",
         "needs": "a list operation"
@@ -2595,6 +2626,11 @@
         "check": "consistency.projections-agree",
         "entity": "webhook",
         "needs": "a list operation"
+      },
+      {
+        "check": "consistency.staleness-within-bound",
+        "entity": "notice",
+        "needs": "a create, an item read, and an update or a delete"
       },
       {
         "check": "count.consistent-with-returned-page",
@@ -4780,6 +4816,7 @@
               "auth.scope-enforced",
               "concurrency.if-match-enforced",
               "consistency.projections-agree",
+              "consistency.staleness-within-bound",
               "invalidation.declared-route-changes",
               "payload.string-survives",
               "response.status-is-documented",
@@ -4814,6 +4851,7 @@
               "auth.scope-enforced",
               "concurrency.if-match-enforced",
               "consistency.projections-agree",
+              "consistency.staleness-within-bound",
               "payload.string-survives",
               "response.status-is-documented",
               "schema.error-response-matches-document",
@@ -4847,6 +4885,7 @@
               "auth.scope-enforced",
               "concurrency.if-match-enforced",
               "consistency.projections-agree",
+              "consistency.staleness-within-bound",
               "payload.string-survives",
               "response.status-is-documented",
               "schema.error-response-matches-document",
@@ -4878,6 +4917,7 @@
               "auth.rank-is-monotonic",
               "auth.scope-enforced",
               "concurrency.if-match-enforced",
+              "consistency.staleness-within-bound",
               "payload.string-survives",
               "response.status-is-documented",
               "schema.error-response-matches-document",
@@ -5086,6 +5126,7 @@
               "auth.scope-enforced",
               "concurrency.if-match-enforced",
               "concurrency.no-lost-update",
+              "consistency.staleness-within-bound",
               "patch.immutable-field-rejected",
               "patch.minimality",
               "payload.string-survives",
@@ -5117,6 +5158,7 @@
               "auth.missing-credential-refused",
               "auth.rank-is-monotonic",
               "auth.wrong-scheme-refused",
+              "consistency.staleness-within-bound",
               "response.status-is-documented",
               "schema.error-response-matches-document",
               "schema.read-response-matches-document"
@@ -5173,6 +5215,7 @@
               "auth.scope-enforced",
               "concurrency.if-match-enforced",
               "concurrency.no-lost-update",
+              "consistency.staleness-within-bound",
               "patch.immutable-field-rejected",
               "patch.minimality",
               "payload.string-survives",
@@ -5206,6 +5249,7 @@
               "auth.scope-enforced",
               "concurrency.if-match-enforced",
               "concurrency.no-lost-update",
+              "consistency.staleness-within-bound",
               "patch.immutable-field-rejected",
               "patch.minimality",
               "payload.string-survives",
@@ -5239,6 +5283,7 @@
               "auth.scope-enforced",
               "concurrency.if-match-enforced",
               "concurrency.no-lost-update",
+              "consistency.staleness-within-bound",
               "patch.immutable-field-rejected",
               "patch.minimality",
               "payload.string-survives",
@@ -5558,6 +5603,32 @@
             "inconclusive": [],
             "passed": [
               "auth.rank-is-monotonic-on-writes",
+              "consistency.staleness-within-bound",
+              "create.persists-submitted-fields",
+              "create.status-matches-document",
+              "schema.success-response-matches-document",
+              "validation.content-type-enforced",
+              "validation.required-enforced"
+            ],
+            "suppressed": []
+          },
+          "entity": "api-key",
+          "findings": 0,
+          "operationId": "apiKey.create",
+          "reason": null,
+          "status": "passed",
+          "evidence": {},
+          "sufficiency": "verified",
+          "tier": "verified",
+          "why": "a later exchange shows what this call did"
+        },
+        {
+          "checks": {
+            "failed": [],
+            "gaps": [],
+            "inconclusive": [],
+            "passed": [
+              "auth.rank-is-monotonic-on-writes",
               "create.persists-submitted-fields",
               "create.status-matches-document",
               "create.unique-conflict-rejected",
@@ -5661,31 +5732,6 @@
           "entity": "webhook",
           "findings": 0,
           "operationId": "webhook.create",
-          "reason": null,
-          "status": "passed",
-          "evidence": {},
-          "sufficiency": "verified",
-          "tier": "verified",
-          "why": "a later exchange shows what this call did"
-        },
-        {
-          "checks": {
-            "failed": [],
-            "gaps": [],
-            "inconclusive": [],
-            "passed": [
-              "auth.rank-is-monotonic-on-writes",
-              "create.persists-submitted-fields",
-              "create.status-matches-document",
-              "schema.success-response-matches-document",
-              "validation.content-type-enforced",
-              "validation.required-enforced"
-            ],
-            "suppressed": []
-          },
-          "entity": "api-key",
-          "findings": 0,
-          "operationId": "apiKey.create",
           "reason": null,
           "status": "passed",
           "evidence": {},
@@ -6015,6 +6061,12 @@
         {
           "entity": "api-key",
           "id": "apikey_ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "api-key",
+          "id": "apikey_ID",
           "principal": "alpha_member",
           "removed": true
         },
@@ -6189,6 +6241,18 @@
         {
           "entity": "job",
           "id": "job_ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "job",
+          "id": "job_ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "job",
+          "id": "job_ID",
           "principal": "alpha_member",
           "removed": true
         },
@@ -6351,7 +6415,31 @@
         {
           "entity": "row",
           "id": "row_ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "row",
+          "id": "row_ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "row",
+          "id": "row_ID",
           "principal": "alpha_member",
+          "removed": true
+        },
+        {
+          "entity": "table",
+          "id": "table_ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "table",
+          "id": "table_ID",
+          "principal": "alpha",
           "removed": true
         },
         {
@@ -6687,11 +6775,23 @@
         {
           "entity": "webhook",
           "id": "webhook_ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "webhook",
+          "id": "webhook_ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "webhook",
+          "id": "webhook_ID",
           "principal": "alpha_member",
           "removed": true
         }
       ],
-      "removed": 128,
+      "removed": 137,
       "unidentified": [],
       "unsupported": []
     },
@@ -6753,6 +6853,9 @@
       },
       {
         "check": "consistency.projections-agree"
+      },
+      {
+        "check": "consistency.staleness-within-bound"
       },
       {
         "check": "count.consistent-with-returned-page"
@@ -7054,6 +7157,31 @@
     ],
     "observed": [
       {
+        "check": "consistency.staleness-within-bound",
+        "entity": "api-key",
+        "note": "after the delete the read showed it at once; no staleness is declared, so the window is reported, not judged"
+      },
+      {
+        "check": "consistency.staleness-within-bound",
+        "entity": "job",
+        "note": "after the update the read showed it at once; after the delete the read showed it at once; no staleness is declared, so the window is reported, not judged"
+      },
+      {
+        "check": "consistency.staleness-within-bound",
+        "entity": "row",
+        "note": "after the update the read showed it at once; after the delete the read showed it at once; no staleness is declared, so the window is reported, not judged"
+      },
+      {
+        "check": "consistency.staleness-within-bound",
+        "entity": "table",
+        "note": "after the delete the read showed it at once; no staleness is declared, so the window is reported, not judged"
+      },
+      {
+        "check": "consistency.staleness-within-bound",
+        "entity": "webhook",
+        "note": "after the update the read showed it at once; after the delete the read showed it at once; no staleness is declared, so the window is reported, not judged"
+      },
+      {
         "check": "pagination.bounds-handled",
         "entity": "job",
         "note": "a page past the end is served empty"
@@ -7206,9 +7334,19 @@
           "skipped": 2
         },
         {
+          "check": "consistency.bypass-is-fresh",
+          "ran": 2,
+          "skipped": 6
+        },
+        {
           "check": "consistency.projections-agree",
           "ran": 5,
           "skipped": 3
+        },
+        {
+          "check": "consistency.staleness-within-bound",
+          "ran": 7,
+          "skipped": 1
         },
         {
           "check": "count.consistent-with-returned-page",

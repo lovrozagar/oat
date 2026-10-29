@@ -1,5 +1,7 @@
 import { existsSync } from "node:fs"
 import { dirname, resolve } from "node:path"
+import type { OatConfig } from "../../config/types/config.ts"
+import type { DoctorConfig } from "../../report/console/doctor-facts.ts"
 import { report } from "../../report/console/report.ts"
 import { authStepOperationIds } from "../../runtime/scope/entities.ts"
 import type { Args } from "../flags.ts"
@@ -13,21 +15,7 @@ export async function commandDoctor(writer: Writer, flags: Args["flags"]): Promi
 	const { model, danglingRefs, externalRefs, config, configPath, removed, unsetEnv } = read
 	const output = report.doctor(model, {
 		asJson: flags.json === true,
-		config:
-			config === undefined
-				? undefined
-				: {
-						...(config.query === undefined ? {} : { query: config.query }),
-						...(config.entities === undefined ? {} : { entities: config.entities }),
-						...(config.hooks === undefined ? {} : { hooks: config.hooks }),
-						...(config.allow === undefined ? {} : { allowRemoved: removed }),
-						authCreates: authStepOperationIds(config),
-						credentials: {
-							principals: config.principals ?? {},
-							security: config.security ?? {},
-							...(config.writer === undefined ? {} : { writer: config.writer }),
-						},
-					},
+		config: config === undefined ? undefined : doctorConfig(config, removed),
 		danglingRefs,
 		externalRefs,
 		unsetEnv,
@@ -39,4 +27,21 @@ export async function commandDoctor(writer: Writer, flags: Args["flags"]): Promi
 		if (!existsSync(path)) writer.out(`  baseline   ${path} does not exist; \`oat baseline --from <run>\` writes one\n`)
 	}
 	return output.blocking > 0 ? 1 : 0
+}
+
+/** What of the config `doctor` reads beside the document. */
+function doctorConfig(config: OatConfig, removed: string[]): DoctorConfig {
+	return {
+		...(config.query === undefined ? {} : { query: config.query }),
+		...(config.entities === undefined ? {} : { entities: config.entities }),
+		...(config.hooks === undefined ? {} : { hooks: config.hooks }),
+		...(config.allow === undefined ? {} : { allowRemoved: removed }),
+		...(config.cache?.bypass === undefined ? {} : { cacheBypass: config.cache.bypass }),
+		authCreates: authStepOperationIds(config),
+		credentials: {
+			principals: config.principals ?? {},
+			security: config.security ?? {},
+			...(config.writer === undefined ? {} : { writer: config.writer }),
+		},
+	}
 }

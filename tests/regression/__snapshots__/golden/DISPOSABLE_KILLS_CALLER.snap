@@ -7,7 +7,7 @@
         "was": 0
       },
       "reason": {
-        "now": "records may remain: 120 teardown could not show gone",
+        "now": "records may remain: 124 teardown could not show gone",
         "was": "no defects found in what was graded"
       },
       "result": {
@@ -408,6 +408,7 @@
                 "auth.rank-is-monotonic",
                 "concurrency.if-match-enforced",
                 "consistency.projections-agree",
+                "consistency.staleness-within-bound",
                 "invalidation.declared-route-changes",
                 "payload.string-survives",
                 "response.status-is-documented",
@@ -437,6 +438,7 @@
                 "auth.rank-is-monotonic",
                 "concurrency.if-match-enforced",
                 "consistency.projections-agree",
+                "consistency.staleness-within-bound",
                 "payload.string-survives",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
@@ -466,6 +468,7 @@
                 "auth.rank-is-monotonic",
                 "concurrency.if-match-enforced",
                 "consistency.projections-agree",
+                "consistency.staleness-within-bound",
                 "payload.string-survives",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
@@ -493,6 +496,7 @@
               "passed": [
                 "auth.rank-is-monotonic",
                 "concurrency.if-match-enforced",
+                "consistency.staleness-within-bound",
                 "payload.string-survives",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
@@ -519,6 +523,7 @@
               "inconclusive": [],
               "passed": [
                 "auth.rank-is-monotonic",
+                "consistency.staleness-within-bound",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
                 "schema.read-response-matches-document"
@@ -544,6 +549,7 @@
                 "auth.rank-is-monotonic-on-writes",
                 "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
+                "consistency.staleness-within-bound",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "payload.string-survives",
@@ -573,6 +579,7 @@
                 "auth.rank-is-monotonic-on-writes",
                 "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
+                "consistency.staleness-within-bound",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "payload.string-survives",
@@ -601,6 +608,7 @@
                 "auth.rank-is-monotonic-on-writes",
                 "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
+                "consistency.staleness-within-bound",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "payload.string-survives",
@@ -629,6 +637,7 @@
                 "auth.rank-is-monotonic-on-writes",
                 "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
+                "consistency.staleness-within-bound",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "payload.string-survives",
@@ -714,9 +723,9 @@
             "reason": null,
             "status": "passed",
             "evidence": {},
-            "sufficiency": "unproven",
-            "tier": "contract",
-            "why": "met its contract, but no later read observed what it changed"
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
           },
           {
             "checks": {
@@ -737,9 +746,9 @@
             "reason": null,
             "status": "passed",
             "evidence": {},
-            "sufficiency": "unproven",
-            "tier": "contract",
-            "why": "met its contract, but no later read observed what it changed"
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
           },
           {
             "checks": {
@@ -759,9 +768,9 @@
             "reason": null,
             "status": "passed",
             "evidence": {},
-            "sufficiency": "unproven",
-            "tier": "contract",
-            "why": "met its contract, but no later read observed what it changed"
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
           },
           {
             "checks": {
@@ -838,6 +847,7 @@
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
                 "consistency.projections-agree",
+                "consistency.staleness-within-bound",
                 "invalidation.declared-route-changes",
                 "payload.string-survives",
                 "response.status-is-documented",
@@ -871,6 +881,7 @@
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
                 "consistency.projections-agree",
+                "consistency.staleness-within-bound",
                 "payload.string-survives",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
@@ -904,6 +915,7 @@
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
                 "consistency.projections-agree",
+                "consistency.staleness-within-bound",
                 "payload.string-survives",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
@@ -935,6 +947,7 @@
                 "auth.rank-is-monotonic",
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
+                "consistency.staleness-within-bound",
                 "payload.string-survives",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
@@ -1037,6 +1050,7 @@
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
+                "consistency.staleness-within-bound",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "payload.string-survives",
@@ -1068,6 +1082,7 @@
                 "auth.missing-credential-refused",
                 "auth.rank-is-monotonic",
                 "auth.wrong-scheme-refused",
+                "consistency.staleness-within-bound",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
                 "schema.read-response-matches-document"
@@ -1124,6 +1139,7 @@
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
+                "consistency.staleness-within-bound",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "payload.string-survives",
@@ -1157,6 +1173,7 @@
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
+                "consistency.staleness-within-bound",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "payload.string-survives",
@@ -1190,6 +1207,7 @@
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
+                "consistency.staleness-within-bound",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "payload.string-survives",
@@ -1644,8 +1662,20 @@
           {
             "entity": "job",
             "id": "job_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/projects/proj_alpha/jobs/job_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
             "principal": "alpha_member",
             "reason": "DELETE /v1/projects/proj_alpha/jobs/job_ID returned alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/projects/proj_alpha/tables/table_ID/rows/row_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: 401"
           },
           {
             "entity": "row",
@@ -1950,6 +1980,12 @@
           {
             "entity": "table",
             "id": "table_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/projects/proj_alpha/tables/table_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
+          },
+          {
+            "entity": "table",
+            "id": "table_ID",
             "principal": "alpha_member",
             "reason": "DELETE /v1/projects/proj_alpha/tables/table_ID returned alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
           },
@@ -1964,6 +2000,12 @@
             "id": "table_ID",
             "principal": "beta",
             "reason": "DELETE /v1/projects/proj_beta/tables/table_ID returned beta: 401"
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/projects/proj_alpha/webhooks/webhook_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
           },
           {
             "entity": "webhook",
@@ -2338,6 +2380,12 @@
           {
             "entity": "job",
             "id": "job_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
             "principal": "alpha_member",
             "removed": false
           },
@@ -2488,7 +2536,19 @@
           {
             "entity": "row",
             "id": "row_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
             "principal": "alpha_member",
+            "removed": false
+          },
+          {
+            "entity": "table",
+            "id": "table_ID",
+            "principal": "alpha",
             "removed": false
           },
           {
@@ -2657,6 +2717,12 @@
             "entity": "table",
             "id": "table_ID",
             "principal": "beta",
+            "removed": false
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
             "removed": false
           },
           {
@@ -2856,23 +2922,12 @@
         ]
       },
       "removed": {
-        "now": 8,
-        "was": 128
+        "now": 13,
+        "was": 137
       }
     },
     "findings": {
       "added": [
-        {
-          "check": "auth.blocked",
-          "detail": "blocked by signed in again, and the new credential is refused where the old one was accepted (profile.get). apiKey.get was not sent to read /v1/api-keys/apikey_ID back after apiKey.revoke.",
-          "entity": "api-key",
-          "operations": [
-            "apiKey.revoke"
-          ],
-          "evidence": [],
-          "summary": "delete.absent-record-returns-404 needed a credential that is BLOCKED",
-          "verdict": "BLOCKED"
-        },
         {
           "check": "auth.blocked",
           "detail": "blocked by signed in again, and the new credential is refused where the old one was accepted (profile.get). auth.privileged-field-ignored could not complete.",
@@ -2882,28 +2937,6 @@
           ],
           "evidence": [],
           "summary": "auth.privileged-field-ignored needed a credential that is BLOCKED",
-          "verdict": "BLOCKED"
-        },
-        {
-          "check": "auth.blocked",
-          "detail": "blocked by signed in again, and the new credential is refused where the old one was accepted (profile.get). row.get was not sent to read /v1/projects/proj_alpha/tables/table_ID/rows/row_ID back after row.delete.",
-          "entity": "row",
-          "operations": [
-            "row.delete"
-          ],
-          "evidence": [],
-          "summary": "delete.absent-record-returns-404 needed a credential that is BLOCKED",
-          "verdict": "BLOCKED"
-        },
-        {
-          "check": "auth.blocked",
-          "detail": "blocked by signed in again, and the new credential is refused where the old one was accepted (profile.get). webhook.get was not sent to read /v1/projects/proj_alpha/webhooks/webhook_ID back after webhook.delete.",
-          "entity": "webhook",
-          "operations": [
-            "webhook.delete"
-          ],
-          "evidence": [],
-          "summary": "delete.absent-record-returns-404 needed a credential that is BLOCKED",
           "verdict": "BLOCKED"
         },
         {
@@ -2949,7 +2982,7 @@
         "was": null
       },
       "BLOCKED": {
-        "now": 4,
+        "now": 1,
         "was": null
       }
     },

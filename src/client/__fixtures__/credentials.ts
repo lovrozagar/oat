@@ -67,6 +67,8 @@ export function clientOf(setup: Setup) {
 	const wire = transport(setup.answer)
 	const client = new Client({
 		baseUrl: BASE,
+		/* these tests assert a request's credential headers exactly; the cache bypass has its own */
+		cacheBypass: false,
 		credentials: createCredentialSource({ model, principals, security: setup.security, store }),
 		network: { fetchImpl: wire.fetch },
 		operationResolver: resolverOf(setup.doc),

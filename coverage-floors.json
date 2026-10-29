@@ -42,6 +42,8 @@
 	"src/cli/writer.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/client/answer.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/client/attempt.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/client/bypass.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/client/cache-signals.ts": { "statements": 100, "branches": 95, "functions": 100, "lines": 100 },
 	"src/client/client.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/client/control.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/client/credential-source.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
@@ -191,6 +193,7 @@
 	"src/reference/defects/composition.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/reference/defects/core.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/reference/defects/defect-set.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/reference/defects/freshness.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/reference/defects/query.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/reference/defects/records.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/reference/defects/security.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
@@ -226,6 +229,7 @@
 	"src/reference/http/listing-query.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/reference/http/node.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/reference/http/privileged.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/reference/http/read-cache.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/reference/http/records.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/reference/http/reference.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/reference/http/router.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
@@ -282,6 +286,7 @@
 	"src/reference/spec/caller.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/reference/spec/collection.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/reference/spec/components.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/reference/spec/consistency.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/reference/spec/errors.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/reference/spec/invites.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/reference/spec/item.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
@@ -304,6 +309,7 @@
 	"src/reference/stores/sqlite-driver.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/reference/stores/sqlite.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/report/confidence.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/report/console/bypass.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/report/console/catalog-checks.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/report/console/catalog.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/report/console/describe.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
@@ -499,9 +505,21 @@
 		"functions": 100,
 		"lines": 100
 	},
+	"src/runtime/checks/families/consistency/bypass-is-fresh.ts": {
+		"statements": 96,
+		"branches": 85,
+		"functions": 100,
+		"lines": 100
+	},
 	"src/runtime/checks/families/consistency/consistency-projections-agree.ts": {
 		"statements": 100,
 		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/consistency/freshness-write.ts": {
+		"statements": 90,
+		"branches": 86,
 		"functions": 100,
 		"lines": 100
 	},
@@ -520,6 +538,24 @@
 	"src/runtime/checks/families/consistency/list-read-after-write.ts": {
 		"statements": 100,
 		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/consistency/staleness-schedule.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/consistency/staleness-watch.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
+	"src/runtime/checks/families/consistency/staleness-within-bound.ts": {
+		"statements": 97,
+		"branches": 77,
 		"functions": 100,
 		"lines": 100
 	},
@@ -1503,6 +1539,7 @@
 	"src/spec/conventions/types.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/spec/endpoints.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/spec/extensions/async.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/spec/extensions/consistency.ts": { "statements": 93, "branches": 94, "functions": 100, "lines": 100 },
 	"src/spec/extensions/effects.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/spec/extensions/entity.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/spec/extensions/flags.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },

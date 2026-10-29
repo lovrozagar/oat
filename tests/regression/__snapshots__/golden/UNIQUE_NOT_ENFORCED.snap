@@ -61,6 +61,7 @@
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
+                "consistency.staleness-within-bound",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "payload.string-survives",
@@ -93,6 +94,7 @@
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
+                "consistency.staleness-within-bound",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "payload.string-survives",
@@ -151,8 +153,8 @@
     "teardown": {
       "records": {},
       "removed": {
-        "now": 129,
-        "was": 128
+        "now": 138,
+        "was": 137
       }
     },
     "findings": {
@@ -200,6 +202,22 @@
           ],
           "summary": "a duplicate unique-set update was accepted",
           "verdict": "BACKEND_BUG"
+        }
+      ]
+    },
+    "observed": {
+      "added": [
+        {
+          "check": "consistency.staleness-within-bound",
+          "entity": "table",
+          "note": "after the update the read showed it at once; after the delete the read showed it at once; no staleness is declared, so the window is reported, not judged"
+        }
+      ],
+      "removed": [
+        {
+          "check": "consistency.staleness-within-bound",
+          "entity": "table",
+          "note": "after the delete the read showed it at once; no staleness is declared, so the window is reported, not judged"
         }
       ]
     },

@@ -8,6 +8,7 @@ import type { GapCollector } from "../extensions/gaps.ts"
 import { pathParameterNames, readRootParams, readTenantParam, readTenantSource } from "../extensions/tenant.ts"
 import { readAsync, readWait } from "../extensions/async.ts"
 import { readCleanup, readInvalidate } from "../extensions/routes.ts"
+import { readConsistency } from "../extensions/consistency.ts"
 import {
 	readCost,
 	readFeatureGate,
@@ -162,6 +163,7 @@ function behaviorFacts(reading: Reading) {
 	const effects = ext(op, "x-effects")
 	const method = endpoint.method.toUpperCase()
 	return {
+		consistency: readConsistency(op),
 		effects: readEffects(op, operationId, gaps),
 		noEffects: Array.isArray(effects) && effects.length === 0,
 		entity: reading.entity?.name ?? null,

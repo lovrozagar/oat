@@ -7,6 +7,7 @@ import { errorResponses, preconditionResponses } from "./errors.ts"
 import { declaredIdentity, entityTag, jsonResponse, ok } from "./operation.ts"
 import { pathParams, tenantParam } from "./params.ts"
 import { bodySchema, located, readSchema, writtenSchema } from "./schemas.ts"
+import { cacheDeclaration } from "./consistency.ts"
 import type { Json, SpecContext } from "./types.ts"
 
 /** The routes an entity's own writes change: its listing, when it has one, and its item. */
@@ -61,6 +62,7 @@ function getOperation(ctx: SpecContext, entity: EntityDef): Json {
 			...located(ctx, entity, "read"),
 		},
 		"x-tenant": tenantParam(entity),
+		...cacheDeclaration(ctx),
 	}
 }
 

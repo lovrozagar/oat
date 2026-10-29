@@ -62,6 +62,7 @@
                 "auth.role-enforced",
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
+                "consistency.staleness-within-bound",
                 "patch.immutable-field-rejected",
                 "payload.string-survives",
                 "request.invalid-body-refused",
@@ -94,6 +95,7 @@
                 "auth.role-enforced",
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
+                "consistency.staleness-within-bound",
                 "patch.immutable-field-rejected",
                 "payload.string-survives",
                 "request.invalid-body-refused",
@@ -125,6 +127,7 @@
                 "auth.role-enforced",
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
+                "consistency.staleness-within-bound",
                 "patch.immutable-field-rejected",
                 "payload.string-survives",
                 "request.invalid-body-refused",
@@ -156,6 +159,7 @@
                 "auth.role-enforced",
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
+                "consistency.staleness-within-bound",
                 "patch.immutable-field-rejected",
                 "payload.string-survives",
                 "request.invalid-body-refused",
@@ -189,6 +193,7 @@
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
+                "consistency.staleness-within-bound",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "payload.string-survives",
@@ -223,6 +228,7 @@
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
+                "consistency.staleness-within-bound",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "payload.string-survives",
@@ -256,6 +262,7 @@
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
+                "consistency.staleness-within-bound",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "payload.string-survives",
@@ -289,6 +296,7 @@
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
+                "consistency.staleness-within-bound",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "payload.string-survives",
@@ -315,8 +323,8 @@
     "teardown": {
       "records": {},
       "removed": {
-        "now": 124,
-        "was": 128
+        "now": 133,
+        "was": 137
       }
     },
     "findings": {

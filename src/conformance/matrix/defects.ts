@@ -21,6 +21,12 @@ export const KEY_LIFECYCLE_ONLY: ReadonlySet<DefectName> = /* @__PURE__ */ new S
 	"KEY_DELETE_CROSS_TENANT",
 ])
 
+/* Only a cached read can be stale past its bound or ignore its bypass: the cached-reads shape runs these. */
+export const CACHED_READS_ONLY: ReadonlySet<DefectName> = /* @__PURE__ */ new Set<DefectName>([
+	"STALE_PAST_BOUND",
+	"BYPASS_IGNORED",
+])
+
 /* Only a record with a write-only field can leak one: the write-only-field shape runs these. */
 export const WRITE_ONLY_FIELD_ONLY: ReadonlySet<DefectName> = /* @__PURE__ */ new Set<DefectName>(["WRITE_ONLY_LEAKED"])
 
@@ -221,7 +227,13 @@ export function defectsFor(backend: Backend, dialect: string, filter?: readonly 
 			 * no physical column names, so a DDL/read mismatch has nowhere to happen. */
 			.filter((name) => backend !== "memory" || !SQL_ONLY.has(name))
 			/* Shape-only defects run in the recall pass of the shape that names them. */
-			.filter((name) => !CLIENT_ID_ONLY.has(name) && !WRITE_ONLY_FIELD_ONLY.has(name) && !KEY_LIFECYCLE_ONLY.has(name))
+			.filter(
+				(name) =>
+					!CLIENT_ID_ONLY.has(name) &&
+					!WRITE_ONLY_FIELD_ONLY.has(name) &&
+					!KEY_LIFECYCLE_ONLY.has(name) &&
+					!CACHED_READS_ONLY.has(name),
+			)
 			/* Likewise a dialect that has no cursor cannot drift one. */
 			.filter((name) => DIALECTS_WITH_CURSOR.has(dialect) || !CURSOR_ONLY.has(name))
 			/* Likewise a shape with no total cannot report a wrong one. */

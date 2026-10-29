@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 import {
+	CACHED_READS_ONLY,
 	CLIENT_ID_ONLY,
 	DECLARED_SORT_ONLY,
 	defectsFor,
@@ -31,6 +32,7 @@ const LEGS: ReadonlyArray<{ leg: string; target: GoldenTarget; defects: readonly
 	{ defects: [...CLIENT_ID_ONLY], leg: "clean.client-ids", target: { shape: "client-ids" } },
 	{ defects: [...WRITE_ONLY_FIELD_ONLY], leg: "clean.write-only-field", target: { shape: "write-only-field" } },
 	{ defects: [...KEY_LIFECYCLE_ONLY], leg: "clean.key-lifecycle", target: { shape: "key-lifecycle" } },
+	{ defects: [...CACHED_READS_ONLY], leg: "clean.cached-reads", target: { shape: "cached-reads" } },
 	{ defects: [...DECLARED_SORT_ONLY], leg: "clean.template", target: { dialect: "template" } },
 ]
 

@@ -90,6 +90,7 @@ export async function referenceState(options: ReferenceOptions, createStore: Sto
 	const state: ReferenceState = {
 		auth: newAuthState(options),
 		basePath: shape.basePath ?? "",
+		clock: options.clock ?? Date.now,
 		conventions: { ...DEFAULT_CONVENTIONS, ...shape.conventions },
 		defects,
 		dialect,
@@ -102,6 +103,7 @@ export async function referenceState(options: ReferenceOptions, createStore: Sto
 		jobStartedAt: new Map(),
 		listingStore: defects.has("HIDDEN_FROM_CREATOR") ? withoutHidden(defects, store) : store,
 		profiles: new Map(),
+		readCache: new Map(),
 		totpSecrets: [],
 		shape,
 		slugOf: new Map(),

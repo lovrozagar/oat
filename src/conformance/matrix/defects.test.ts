@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import { DEFECTS, type DefectName } from "../../reference/defects/table.ts"
 import { DIALECTS } from "../../reference/dialect/presets.ts"
 import {
+	CACHED_READS_ONLY,
 	KEY_LIFECYCLE_ONLY,
 	WRITE_ONLY_FIELD_ONLY,
 	CLIENT_ID_ONLY,
@@ -91,8 +92,8 @@ const EXCLUSIONS: readonly Exclusion[] = [
 ]
 
 describe("defectsFor", () => {
-	it("runs every defect but the client-id, write-only-field and key-lifecycle shapes' on SQLite under PostgREST", () => {
-		expect(defectsFor("sqlite", "postgrest").length).toBeGreaterThan(ALL.length - 14)
+	it("runs every defect but the client-id, write-only-field, key-lifecycle and cached-reads shapes' on SQLite under PostgREST", () => {
+		expect(defectsFor("sqlite", "postgrest").length).toBeGreaterThan(ALL.length - 16)
 		expect(none(defectsFor("sqlite", "postgrest"), SQL_ONLY)).toEqual([...SQL_ONLY])
 	})
 
@@ -127,7 +128,7 @@ describe("defectsFor", () => {
 			BACKENDS.flatMap((backend) => Object.keys(DIALECTS).flatMap((dialect) => defectsFor(backend, dialect))),
 		)
 		expect(ALL.filter((name) => !everywhere.has(name)).toSorted()).toEqual(
-			[...CLIENT_ID_ONLY, ...WRITE_ONLY_FIELD_ONLY, ...KEY_LIFECYCLE_ONLY].toSorted(),
+			[...CLIENT_ID_ONLY, ...WRITE_ONLY_FIELD_ONLY, ...KEY_LIFECYCLE_ONLY, ...CACHED_READS_ONLY].toSorted(),
 		)
 	})
 })

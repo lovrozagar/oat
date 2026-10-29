@@ -1,44 +1,44 @@
 {
   "apiKey.get": [
-    "GET /v1/api-keys/apikey_ID schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>] → 401"
+    "GET /v1/api-keys/apikey_ID schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>, cache-control: no-cache] → 401"
   ],
   "job.get": [
-    "GET /v1/projects/proj_alpha/jobs/job_ID schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>] → 200",
-    "GET /v1/projects/proj_alpha/jobs/job_ID schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>] → 401",
-    "GET /v1/projects/proj_alpha/jobs/job_ID schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>] → 403"
+    "GET /v1/projects/proj_alpha/jobs/job_ID schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>, cache-control: no-cache] → 200",
+    "GET /v1/projects/proj_alpha/jobs/job_ID schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>, cache-control: no-cache] → 401",
+    "GET /v1/projects/proj_alpha/jobs/job_ID schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>, cache-control: no-cache] → 403"
   ],
   "job.list": [
-    "GET /v1/projects/proj_alpha/jobs schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>] → 200",
-    "GET /v1/projects/proj_alpha/jobs schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>] → 401",
-    "GET /v1/projects/proj_alpha/jobs schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>] → 403"
+    "GET /v1/projects/proj_alpha/jobs schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>, cache-control: no-cache] → 200",
+    "GET /v1/projects/proj_alpha/jobs schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>, cache-control: no-cache] → 401",
+    "GET /v1/projects/proj_alpha/jobs schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>, cache-control: no-cache] → 403"
   ],
   "notice.list": [
-    "GET /v1/notices schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>] → 401"
+    "GET /v1/notices schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>, cache-control: no-cache] → 401"
   ],
   "profile.get": [
-    "GET /v1/me schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>] → 401"
+    "GET /v1/me schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>, cache-control: no-cache] → 401"
   ],
   "row.get": [
-    "GET /v1/projects/proj_alpha/tables/table_ID/rows/row_ID schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>] → 200",
-    "GET /v1/projects/proj_alpha/tables/table_ID/rows/row_ID schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>] → 401",
-    "GET /v1/projects/proj_alpha/tables/table_ID/rows/row_ID schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>] → 403"
+    "GET /v1/projects/proj_alpha/tables/table_ID/rows/row_ID schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>, cache-control: no-cache] → 200",
+    "GET /v1/projects/proj_alpha/tables/table_ID/rows/row_ID schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>, cache-control: no-cache] → 401",
+    "GET /v1/projects/proj_alpha/tables/table_ID/rows/row_ID schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>, cache-control: no-cache] → 403"
   ],
   "signup.list": [
-    "GET /v1/signups schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>] → 401"
+    "GET /v1/signups schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>, cache-control: no-cache] → 401"
   ],
   "table.get": [
-    "GET /v1/projects/proj_alpha/tables/table_ID schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>] → 200",
-    "GET /v1/projects/proj_alpha/tables/table_ID schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>] → 401",
-    "GET /v1/projects/proj_alpha/tables/table_ID schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>] → 403"
+    "GET /v1/projects/proj_alpha/tables/table_ID schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>, cache-control: no-cache] → 200",
+    "GET /v1/projects/proj_alpha/tables/table_ID schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>, cache-control: no-cache] → 401",
+    "GET /v1/projects/proj_alpha/tables/table_ID schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>, cache-control: no-cache] → 403"
   ],
   "table.list": [
-    "GET /v1/projects/proj_alpha/tables schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>] → 200",
-    "GET /v1/projects/proj_alpha/tables schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>] → 401",
-    "GET /v1/projects/proj_alpha/tables schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>] → 403"
+    "GET /v1/projects/proj_alpha/tables schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>, cache-control: no-cache] → 200",
+    "GET /v1/projects/proj_alpha/tables schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>, cache-control: no-cache] → 401",
+    "GET /v1/projects/proj_alpha/tables schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>, cache-control: no-cache] → 403"
   ],
   "webhook.get": [
-    "GET /v1/projects/proj_alpha/webhooks/webhook_ID schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>] → 200",
-    "GET /v1/projects/proj_alpha/webhooks/webhook_ID schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>] → 401",
-    "GET /v1/projects/proj_alpha/webhooks/webhook_ID schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>] → 403"
+    "GET /v1/projects/proj_alpha/webhooks/webhook_ID schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>, cache-control: no-cache] → 200",
+    "GET /v1/projects/proj_alpha/webhooks/webhook_ID schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>, cache-control: no-cache] → 401",
+    "GET /v1/projects/proj_alpha/webhooks/webhook_ID schemes=[\"apiKey\"] [Authorization: ApiKey <redacted>, cache-control: no-cache] → 403"
   ]
 }

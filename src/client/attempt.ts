@@ -42,6 +42,8 @@ export interface Prepared {
 export interface Wire {
 	baseUrl: string
 	headers: Record<string, string>
+	/** The config's `cache.bypass`: false sends no cache bypass on reads. */
+	cacheBypass: boolean
 	resolveHeaders: HeaderResolver | undefined
 	operationResolver: OperationResolver | undefined
 	credentials: CredentialSource | undefined

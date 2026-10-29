@@ -55,6 +55,9 @@ export const TYPICAL_REQUESTS: Partial<Record<CheckId, number>> = {
 	"invalidation.declared-route-changes": 5,
 	"list.item-matches-listed-row": 1,
 	"list.read-after-write": 2,
+	/* Per write kind: a create, a priming read, the write, and one read against an API that serves it at once. */
+	"consistency.staleness-within-bound": 8,
+	"consistency.bypass-is-fresh": 4,
 	"pagination.cursor-agrees-with-page": 10,
 	"pagination.has-more-is-accurate": 2,
 	"pagination.limit-bounds-page-size": 1,

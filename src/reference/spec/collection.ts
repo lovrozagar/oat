@@ -6,6 +6,7 @@ import { fieldsWhere } from "../model/fields.ts"
 import { errorResponses } from "./errors.ts"
 import { declaredIdentity, entityTag, jsonResponse, listResponseHeaders, ok } from "./operation.ts"
 import { listQueryParams, pathParams, tenantParam } from "./params.ts"
+import { cacheDeclaration } from "./consistency.ts"
 import { queryDeclaration } from "./query.ts"
 import { acknowledgmentSchema, bodySchema, createdSchema, listLocated, listSchema, located } from "./schemas.ts"
 import type { Json, SpecContext } from "./types.ts"
@@ -68,6 +69,7 @@ function listOperation(ctx: SpecContext, entity: EntityDef, dialect: Dialect): J
 		"x-rate-limit": { category: `${entity.name}.list`, rps: 500 },
 		"x-tenant": tenantParam(entity),
 		...(entity.softDeleteField === undefined ? {} : { "x-soft-delete": entity.softDeleteField }),
+		...cacheDeclaration(ctx),
 	}
 }
 

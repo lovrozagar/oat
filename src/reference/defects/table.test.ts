@@ -4,6 +4,7 @@ import { COMPOSITION_DEFECTS } from "./composition.ts"
 import { CORE_DEFECTS } from "./core.ts"
 import { QUERY_DEFECTS } from "./query.ts"
 import { RECORD_DEFECTS } from "./records.ts"
+import { FRESHNESS_DEFECTS } from "./freshness.ts"
 import { SECURITY_DEFECTS } from "./security.ts"
 import { DEFECTS, isDefectName } from "./table.ts"
 
@@ -16,9 +17,10 @@ describe("DEFECTS", () => {
 			RECORD_DEFECTS,
 			CATALOG_DEFECTS,
 			SECURITY_DEFECTS,
+			FRESHNESS_DEFECTS,
 		]
 		expect(Object.keys(DEFECTS)).toEqual(families.flatMap((family) => Object.keys(family)))
-		expect(Object.keys(DEFECTS)).toHaveLength(136)
+		expect(Object.keys(DEFECTS)).toHaveLength(138)
 		expect(DEFECTS.UNSTABLE_SORT).toBe(CORE_DEFECTS.UNSTABLE_SORT)
 	})
 
@@ -30,6 +32,7 @@ describe("DEFECTS", () => {
 			RECORD_DEFECTS,
 			CATALOG_DEFECTS,
 			SECURITY_DEFECTS,
+			FRESHNESS_DEFECTS,
 		]
 		const total = families.reduce((sum, family) => sum + Object.keys(family).length, 0)
 		expect(total).toBe(Object.keys(DEFECTS).length)

@@ -4,7 +4,12 @@ import type { FindingId } from "../../runtime/check-ids.ts"
 /** The defects with a row in the consistency family; a name that is not a defect falls out and fails its row. */
 type ConsistencyDefect = Extract<
 	DefectName,
-	"PARENT_PROJECTION_STALE" | "LIST_DETAIL_DISAGREE" | "STALE_LIST" | "LISTED_GET_DIFFERS"
+	| "PARENT_PROJECTION_STALE"
+	| "LIST_DETAIL_DISAGREE"
+	| "STALE_LIST"
+	| "LISTED_GET_DIFFERS"
+	| "STALE_PAST_BOUND"
+	| "BYPASS_IGNORED"
 >
 
 /** The defects whose primary check is in the consistency family, and the check each must trip. */
@@ -24,4 +29,6 @@ export const CONSISTENCY_EXPECTED: Record<ConsistencyDefect, FindingId | Finding
 	],
 	STALE_LIST: "list.read-after-write",
 	LISTED_GET_DIFFERS: "list.item-matches-listed-row",
+	STALE_PAST_BOUND: "consistency.staleness-within-bound",
+	BYPASS_IGNORED: "consistency.bypass-is-fresh",
 }

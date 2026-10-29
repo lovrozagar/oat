@@ -395,6 +395,7 @@
                 "auth.missing-credential-refused",
                 "auth.rank-is-monotonic",
                 "auth.scope-enforced",
+                "consistency.staleness-within-bound",
                 "invalidation.declared-route-changes",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
@@ -431,6 +432,7 @@
                 "auth.rank-is-monotonic-on-writes",
                 "auth.role-enforced",
                 "auth.scope-enforced",
+                "consistency.staleness-within-bound",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "request.invalid-body-refused",
@@ -637,6 +639,7 @@
                 "auth.rank-is-monotonic",
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
+                "consistency.staleness-within-bound",
                 "payload.string-survives",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
@@ -670,6 +673,7 @@
                 "auth.role-enforced",
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
+                "consistency.staleness-within-bound",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "payload.string-survives",
@@ -704,6 +708,7 @@
                 "auth.role-enforced",
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
+                "consistency.staleness-within-bound",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "payload.string-survives",
@@ -914,6 +919,7 @@
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
                 "consistency.projections-agree",
+                "consistency.staleness-within-bound",
                 "invalidation.declared-route-changes",
                 "payload.string-survives",
                 "response.status-is-documented",
@@ -947,6 +953,7 @@
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
                 "consistency.projections-agree",
+                "consistency.staleness-within-bound",
                 "payload.string-survives",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
@@ -980,6 +987,7 @@
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
+                "consistency.staleness-within-bound",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "payload.string-survives",
@@ -1014,6 +1022,7 @@
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
+                "consistency.staleness-within-bound",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "payload.string-survives",
@@ -1047,6 +1056,7 @@
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
+                "consistency.staleness-within-bound",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "payload.string-survives",
@@ -1160,8 +1170,8 @@
     "teardown": {
       "records": {},
       "removed": {
-        "now": 120,
-        "was": 128
+        "now": 129,
+        "was": 137
       }
     },
     "findings": {
@@ -1266,7 +1276,29 @@
       ]
     },
     "observed": {
+      "added": [
+        {
+          "check": "consistency.staleness-within-bound",
+          "entity": "job",
+          "note": "after the delete the read showed it at once; no staleness is declared, so the window is reported, not judged"
+        },
+        {
+          "check": "consistency.staleness-within-bound",
+          "entity": "webhook",
+          "note": "after the delete the read showed it at once; no staleness is declared, so the window is reported, not judged"
+        }
+      ],
       "removed": [
+        {
+          "check": "consistency.staleness-within-bound",
+          "entity": "job",
+          "note": "after the update the read showed it at once; after the delete the read showed it at once; no staleness is declared, so the window is reported, not judged"
+        },
+        {
+          "check": "consistency.staleness-within-bound",
+          "entity": "webhook",
+          "note": "after the update the read showed it at once; after the delete the read showed it at once; no staleness is declared, so the window is reported, not judged"
+        },
         {
           "check": "payload.string-survives",
           "entity": "table",

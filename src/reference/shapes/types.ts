@@ -42,6 +42,11 @@ export interface ReferenceShape {
 	stringGuard?: boolean
 	/** The caller enrolls TOTP: `POST /v1/me/2fa` answers its secret, the otpauth URI and a QR image of it. */
 	totpSetup?: boolean
+	/**
+	 * Item and list reads go through a cache that keeps each answer 400 ms and declares
+	 * `x-consistency: { staleness: "1s", bypass: "x-oat-fresh: 1" }`, answering `Cache-Status` and `Age`.
+	 */
+	cachedReads?: boolean
 	/** Each record carries a large generated field, so one page exceeds 256 KiB. */
 	largeRecords?: boolean
 	/** Responses documented as `2XX` and `default` rather than exact codes. */

@@ -1,5 +1,6 @@
 import { formatUniqueSets } from "../../spec/extensions/unique.ts"
 import type { SpecModel } from "../../spec/graph/types.ts"
+import { bypassRows } from "./bypass.ts"
 import { bar, inviteAcceptMode } from "./describe.ts"
 import type { DoctorConfig, DoctorFacts } from "./doctor-facts.ts"
 import { declaredTags, TAG_SHARPENS, TAG_UNLOCKS } from "./tags.ts"
@@ -105,6 +106,7 @@ export function declarationLines(facts: DoctorFacts): string[] {
 			"  invite — accept mode",
 			facts.inviting.map((entity) => `    ${entity.name.padEnd(28)} ${inviteAcceptMode(entity.invite)}`),
 		),
+		...block("  cache bypass oat sends on reads", bypassRows(facts.bypass)),
 		...block(
 			"  config.entities names that do not match the document (ignored)",
 			facts.unknownEntities.map((name) => `    ${name}`),

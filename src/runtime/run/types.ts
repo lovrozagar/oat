@@ -43,6 +43,8 @@ export interface RunOptions {
 	seed?: number
 	cohortSize?: number
 	globalHeaders?: Record<string, string>
+	/** The config's `cache`: `bypass: false` sends no cache bypass on reads. */
+	cache?: { bypass?: boolean }
 	/** Entity names; each expands into the target set. */
 	only?: string[]
 	/**

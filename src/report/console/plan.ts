@@ -85,7 +85,21 @@ function entityTable(model: SpecModel, entities: EntityModel[]): string[] {
 	const total = entities.reduce((sum, entity) => sum + estimateRequests(entity, model), 0)
 	lines.push("")
 	lines.push(`  ~${total} requests estimated for a full run, from typical per-check costs`)
+	lines.push(...stalenessLine(model, entities))
 	return lines
+}
+
+/* The entities `consistency.staleness-within-bound` writes and watches: a create, an item read, and an update or a delete. */
+function stalenessLine(model: SpecModel, entities: readonly EntityModel[]): string[] {
+	const measured = entities.filter(
+		(e) => e.create !== undefined && e.read !== undefined && (e.update ?? e.delete) !== undefined,
+	)
+	const bounded = measured.filter((e) => model.byOperationId.get(e.read as string)?.consistency?.stalenessMs != null)
+	if (measured.length === 0) return []
+	const noun = `${measured.length} entit${measured.length === 1 ? "y" : "ies"}`
+	return [
+		`  consistency.staleness-within-bound measures ${noun}, ${bounded.length === 0 ? "none" : bounded.length} against a declared staleness`,
+	]
 }
 
 /** A titled block of indented rows, or nothing when there are no rows. */

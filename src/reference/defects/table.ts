@@ -12,6 +12,7 @@
 import { CATALOG_DEFECTS } from "./catalog.ts"
 import { COMPOSITION_DEFECTS } from "./composition.ts"
 import { CORE_DEFECTS } from "./core.ts"
+import { FRESHNESS_DEFECTS } from "./freshness.ts"
 import { QUERY_DEFECTS } from "./query.ts"
 import { RECORD_DEFECTS } from "./records.ts"
 import { SECURITY_DEFECTS } from "./security.ts"
@@ -23,7 +24,8 @@ export const DEFECTS: Readonly<
 		typeof QUERY_DEFECTS &
 		typeof RECORD_DEFECTS &
 		typeof CATALOG_DEFECTS &
-		typeof SECURITY_DEFECTS
+		typeof SECURITY_DEFECTS &
+		typeof FRESHNESS_DEFECTS
 > = {
 	...CORE_DEFECTS,
 	...COMPOSITION_DEFECTS,
@@ -31,6 +33,7 @@ export const DEFECTS: Readonly<
 	...RECORD_DEFECTS,
 	...CATALOG_DEFECTS,
 	...SECURITY_DEFECTS,
+	...FRESHNESS_DEFECTS,
 }
 
 export type DefectName = keyof typeof DEFECTS

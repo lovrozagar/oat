@@ -2,6 +2,7 @@ import type { Hooks } from "../../config/types/hooks.ts"
 import type { Gap } from "../../spec/extensions/gaps.ts"
 import { untestableEntityReason } from "../../runtime/scope/entities.ts"
 import type { EntityModel, SpecModel } from "../../spec/graph/types.ts"
+import { type BypassGroup, bypassGroups } from "./bypass.ts"
 import { type CatalogConfig, entityQueryCatalogs, type QueryCatalog } from "./catalog.ts"
 import { hasInvite, type InvitingEntity, sortedEntities } from "./describe.ts"
 import { type Roots, rootsOf } from "./roots.ts"
@@ -15,6 +16,8 @@ export interface DoctorConfig extends CatalogConfig {
 	/** The config's recipes and principals: with them, an operation no principal can send blocks. */
 	credentials?: SecurityCredentials
 	hooks?: Pick<Hooks, "resolveQueryCapabilities" | "resolvePathValue">
+	/** The config's `cache.bypass`; default true. */
+	cacheBypass?: boolean
 }
 
 /** What `doctor` found in a document, before it is printed as text or JSON. */
@@ -44,6 +47,8 @@ export interface DoctorFacts {
 	security: SecurityFacts
 	/** The document's roots: those the config supplies, and those a run would still lack. */
 	roots: Roots
+	/** The cache bypass each read is sent with. */
+	bypass: BypassGroup[]
 }
 
 function gapsByTag(gaps: readonly Gap[]): Map<string, Gap[]> {
@@ -69,6 +74,7 @@ export function doctorFacts(model: SpecModel, config?: DoctorConfig): DoctorFact
 	const security = securityFacts(model, config?.credentials)
 	const roots = rootsOf(model, config ?? {})
 	return {
+		bypass: bypassGroups(model, config?.cacheBypass ?? true),
 		blocking: untestable.length + (roots.required.length > 0 ? 1 : 0) + security.blocking,
 		entities,
 		featureGates: model.operations

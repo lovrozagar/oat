@@ -189,3 +189,12 @@ describe("commandDoctor and the config's principals", () => {
 		expect(JSON.parse(withConfig.text()).blocking).toBe(JSON.parse(plain.text()).blocking + 1)
 	})
 })
+
+describe("commandDoctor and the cache bypass", () => {
+	it("prints the cache bypass off when the config turns it off", async () => {
+		const configPath = notesConfig(folder(), { cache: { bypass: false } })
+		const writer = bufferWriter()
+		await commandDoctor(writer, { config: configPath })
+		expect(writer.text()).toContain("off (config cache.bypass)")
+	})
+})

@@ -29,11 +29,12 @@ describe("delete.absent-record-returns-404 when the read-back is refused", () =>
 			)
 			expect(own("delete.absent-record-returns-404")).toEqual([])
 			expect(result.inconclusive.filter((entry) => entry.check === "delete.absent-record-returns-404")).toEqual([])
+			/* An API key's revoke needs no read-back: consistency.staleness-within-bound read its own
+			 * revoked key and got 404, which already proves a revoke. */
 			expect(blocked.map((finding) => [finding.entity, finding.operations])).toEqual([
 				["row", ["row.delete"]],
 				["job", ["job.delete"]],
 				["webhook", ["webhook.delete"]],
-				["api-key", ["apiKey.revoke"]],
 			])
 			for (const finding of blocked) {
 				expect(finding.detail).toMatch(

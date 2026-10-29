@@ -260,7 +260,10 @@ describe("runStore: a revoke sends its own session's value", () => {
 		const revoke = ctx.client.transcript.at(-1)
 		expect(revoke).toMatchObject({ operationId: "notes.list", principal: probe.principal, purpose: "auth" })
 		expect(revoke).not.toHaveProperty("forged")
-		expect(ctx.client.redactor.headers(revoke?.requestHeaders ?? {})).toEqual({ Authorization: "Bearer <redacted>" })
+		expect(ctx.client.redactor.headers(revoke?.requestHeaders ?? {})).toEqual({
+			Authorization: "Bearer <redacted>",
+			"cache-control": "no-cache",
+		})
 	})
 })
 

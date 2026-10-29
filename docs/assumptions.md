@@ -99,12 +99,13 @@ would settle it. If one of these produces a finding against a correct backend, t
 
 ## Async work, effects and pacing
 
-| oat assumes                                                                          | when it does not hold                                                    | declare                                                                  |
-| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
-| A write is complete when it answers                                                  | —                                                                        | [`x-async`](tags.md#x-async), [`x-wait`](tags.md#x-wait)                 |
-| A write affects only its own entity and the routes it declares                       | other entities' changes are not tested                                   | [`x-invalidate`](tags.md#x-invalidate), [`x-effects`](tags.md#x-effects) |
-| Entities that share no parent, invalidated route or effect cannot observe each other | they are tested side by side                                             | the shared relation, declared                                            |
-| A rate the document declares is the rate the backend enforces                        | a 429 under it is a finding; a config-supplied rate is only paced around | [`x-rate-limit`](tags.md#x-rate-limit--pacing-oats-own-traffic)          |
+| oat assumes                                                                                                                    | when it does not hold                                                                                         | declare                                                                  |
+| ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| A write is complete when it answers                                                                                            | —                                                                                                             | [`x-async`](tags.md#x-async), [`x-wait`](tags.md#x-wait)                 |
+| A read oat sends after a write sees it: every read carries the bypass `x-consistency` declares, else `Cache-Control: no-cache` | a cache that ignores both serves oat stale reads; the staleness window is measured on its own, past no bypass | [`x-consistency`](tags.md#x-consistency)                                 |
+| A write affects only its own entity and the routes it declares                                                                 | other entities' changes are not tested                                                                        | [`x-invalidate`](tags.md#x-invalidate), [`x-effects`](tags.md#x-effects) |
+| Entities that share no parent, invalidated route or effect cannot observe each other                                           | they are tested side by side                                                                                  | the shared relation, declared                                            |
+| A rate the document declares is the rate the backend enforces                                                                  | a 429 under it is a finding; a config-supplied rate is only paced around                                      | [`x-rate-limit`](tags.md#x-rate-limit--pacing-oats-own-traffic)          |
 
 ## What oat never assumes
 

@@ -133,3 +133,18 @@ describe("validateTags x-entity and x-root", () => {
 		])
 	})
 })
+
+describe("validateTags x-consistency", () => {
+	it("records a staleness that is not whole seconds and a bypass that is not a header", () => {
+		expect(gapsOf({ "x-consistency": { bypass: "x-fresh: 1", staleness: "30s" } })).toEqual([])
+		expect(gapsOf({ "x-consistency": { staleness: "30" } })).toEqual([
+			'x-consistency: x-consistency "staleness" must be whole seconds like "30s"; oat cannot use it',
+		])
+		expect(gapsOf({ "x-consistency": { bypass: "x-fresh" } })).toEqual([
+			'x-consistency: x-consistency "bypass" must be a header like "x-fresh: 1"; oat cannot use it',
+		])
+		expect(gapsOf({ "x-consistency": "30s" })).toEqual([
+			"x-consistency: x-consistency must be an object; oat cannot use it",
+		])
+	})
+})

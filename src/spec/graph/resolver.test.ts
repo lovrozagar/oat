@@ -20,7 +20,13 @@ const resolve = operationResolver(
 				responses: ok(member),
 			},
 		},
-		"/health": { get: { operationId: "health", responses: ok({ type: "object" }) } },
+		"/health": {
+			get: {
+				operationId: "health",
+				responses: ok({ type: "object" }),
+				"x-consistency": { bypass: "X-Fresh: 1", staleness: "30s" },
+			},
+		},
 		"/tables/{id}/rows/{row}": { get: { operationId: "rows.get", responses: { "3XX": { description: "elsewhere" } } } },
 	}),
 )
@@ -28,6 +34,7 @@ const resolve = operationResolver(
 describe("operationResolver", () => {
 	it("maps a request to the most specific documented template, whatever the method's case", () => {
 		expect(resolve("get", "/tables/archived")).toEqual({
+			bypass: null,
 			entity: "table",
 			operationId: "tables.archived",
 			paramStyles: { query: { f: { style: "deepObject" } } },
@@ -39,6 +46,11 @@ describe("operationResolver", () => {
 			template: "/tables/archived",
 		})
 		expect(resolve("GET", "/tables/t%201")).toMatchObject({ operationId: "tables.get", pathParams: { id: "t 1" } })
+	})
+
+	it("carries the bypass a read declares in x-consistency, and none for one that declares none", () => {
+		expect(resolve("GET", "/health")?.bypass).toEqual({ name: "x-fresh", value: "1" })
+		expect(resolve("GET", "/tables/t1")?.bypass).toBeNull()
 	})
 
 	it("reads a documented 3xx, exact or as a range, as an answer to grade", () => {

@@ -26,16 +26,18 @@ What each tag **unlocks** (otherwise the check cannot run):
 | `x-query`       | `spec.declared-filterable-is-filterable`, `spec.declared-sortable-is-sortable`, `spec.declared-selectable-is-selectable`, plus the declared-or-skip catalog checks (`in` / `ilike` / `is` / nulls / caps / …) |
 | `x-soft-delete` | `softdelete.absent-from-default-list`                                                                                                                                                                         |
 | `x-invite`      | `auth.invite-grants-then-revokes`                                                                                                                                                                             |
+| `x-consistency` | `consistency.bypass-is-fresh` (its `bypass`)                                                                                                                                                                  |
 | `x-wait`        | `effects.side-effect-arrives`                                                                                                                                                                                 |
 | `x-unique`      | `create.unique-conflict-rejected`, `update.unique-conflict-rejected`                                                                                                                                          |
 | `x-privileged`  | `auth.privileged-field-ignored`                                                                                                                                                                               |
 
 What each tag **sharpens** (the check already runs, but the verdict changes):
 
-| tag        | without it                                                                                                                  |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `x-query`  | every scalar is probed, including columns you never indexed — expect findings you will dismiss                              |
-| `x-tenant` | inferred tenant: a cross-tenant read is `AMBIGUITY`, not `SECURITY`. No tenant tagged or inferred: the check does not apply |
+| tag             | without it                                                                                                                  |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `x-query`       | every scalar is probed, including columns you never indexed — expect findings you will dismiss                              |
+| `x-consistency` | `consistency.staleness-within-bound` reports the measured window and never fails; with `staleness` it fails past it         |
+| `x-tenant`      | inferred tenant: a cross-tenant read is `AMBIGUITY`, not `SECURITY`. No tenant tagged or inferred: the check does not apply |
 
 ### `x-invalidate`
 
@@ -287,6 +289,22 @@ Put this on the **write**. After that write succeeds, oat polls `operationId` un
 Use this for queue consumers and webhook inboxes (1–30 s), not for the same request. `x-effects` still asserts cardinality; `x-wait` asserts “this other GET eventually has a body”. If the poll path needs a parent id the write created, oat binds it the same way `x-effects` does.
 
 **Fallback:** the check does not run.
+
+### `x-consistency`
+
+```yaml
+x-consistency:
+  staleness: 30s
+  bypass: "X-Fresh: 1"
+```
+
+Put this on a **read** a cache answers. `staleness` (whole seconds) is how long after a write the read may still answer the old value. `bypass` is the request header that makes it skip every cache.
+
+oat sends the bypass on every read it makes of that operation, so a write's verification sees the database, not the cache. A read that declares no bypass gets `Cache-Control: no-cache` (RFC 9111). Config `cache: { bypass: false }` sends none, and a `Cache-Control` or bypass header already set in `globalHeaders` or a hook is never overridden.
+
+`consistency.staleness-within-bound` writes, then reads without the bypass on a backoff (at once, then gaps doubling from min(250 ms, bound / 10), each at most bound / 4, at most 12 reads) until the read shows the write. Past `staleness` it is a finding with the bracket it measured and the stale answer's `Cache-Status` (RFC 9211) and `Age`. Without `staleness` it reads for up to 10 s and only reports the window. `consistency.bypass-is-fresh` reads once with the bypass right after the write: a stale answer, or one whose `Cache-Status` says `hit`, is a finding.
+
+**Fallback:** without `staleness` the window is reported, never failed; without `bypass` oat sends `Cache-Control: no-cache` and `consistency.bypass-is-fresh` does not run.
 
 ### `x-soft-delete`
 

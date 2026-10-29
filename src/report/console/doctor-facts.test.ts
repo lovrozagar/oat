@@ -137,3 +137,26 @@ describe("doctorFacts and a run agree on what is testable", () => {
 		expect(facts.blocking).toBe(1)
 	})
 })
+
+describe("doctorFacts and the cache bypass", () => {
+	const doc = documentOf({
+		"/notes": { get: listOp("note", "notes.list") },
+		"/notes/{id}": {
+			get: readOp("note", "notes.get", { "x-consistency": { bypass: "x-fresh: 1", staleness: "30s" } }),
+		},
+		"/tags/{id}": { get: readOp("tag", "tags.get", { "x-consistency": { bypass: "x-fresh: 1" } }) },
+	})
+
+	it("groups the reads by the bypass oat sends them: declared, else the default no-cache", () => {
+		expect(doctorFacts(modelOf(doc).model).bypass).toEqual([
+			{ bypass: "x-fresh: 1", operations: ["notes.get", "tags.get"], source: "declared" },
+			{ bypass: "cache-control: no-cache", operations: ["notes.list"], source: "default" },
+		])
+	})
+
+	it("is one group sending none when the config turns the bypass off", () => {
+		expect(doctorFacts(modelOf(doc).model, { cacheBypass: false }).bypass).toEqual([
+			{ bypass: null, operations: ["notes.get", "notes.list", "tags.get"], source: "off" },
+		])
+	})
+})

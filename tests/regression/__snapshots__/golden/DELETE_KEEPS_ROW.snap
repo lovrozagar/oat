@@ -7,7 +7,7 @@
         "was": 0
       },
       "reason": {
-        "now": "records may remain: 80 teardown could not show gone",
+        "now": "records may remain: 86 teardown could not show gone",
         "was": "no defects found in what was graded"
       },
       "result": {
@@ -344,6 +344,18 @@
           {
             "entity": "job",
             "id": "job_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
             "principal": "alpha_member",
             "reason": "delete answered 2xx but the record is still listed"
           },
@@ -506,8 +518,32 @@
           {
             "entity": "row",
             "id": "row_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
             "principal": "alpha_member",
             "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record still reads back"
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record still reads back"
           },
           {
             "entity": "webhook",
@@ -828,6 +864,18 @@
           {
             "entity": "job",
             "id": "job_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
             "principal": "alpha_member",
             "removed": false
           },
@@ -990,7 +1038,31 @@
           {
             "entity": "row",
             "id": "row_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
             "principal": "alpha_member",
+            "removed": false
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
             "removed": false
           },
           {
@@ -1310,6 +1382,18 @@
           {
             "entity": "job",
             "id": "job_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
             "principal": "alpha_member",
             "removed": true
           },
@@ -1472,7 +1556,31 @@
           {
             "entity": "row",
             "id": "row_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
             "principal": "alpha_member",
+            "removed": true
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
             "removed": true
           },
           {
@@ -1628,8 +1736,8 @@
         ]
       },
       "removed": {
-        "now": 48,
-        "was": 128
+        "now": 51,
+        "was": 137
       }
     },
     "findings": {
@@ -1699,6 +1807,42 @@
           ],
           "summary": "a deleted record is still readable",
           "verdict": "BACKEND_BUG"
+        }
+      ]
+    },
+    "observed": {
+      "added": [
+        {
+          "check": "consistency.staleness-within-bound",
+          "entity": "job",
+          "note": "after the update the read showed it at once; no staleness is declared, so the window is reported, not judged"
+        },
+        {
+          "check": "consistency.staleness-within-bound",
+          "entity": "row",
+          "note": "after the update the read showed it at once; no staleness is declared, so the window is reported, not judged"
+        },
+        {
+          "check": "consistency.staleness-within-bound",
+          "entity": "webhook",
+          "note": "after the update the read showed it at once; no staleness is declared, so the window is reported, not judged"
+        }
+      ],
+      "removed": [
+        {
+          "check": "consistency.staleness-within-bound",
+          "entity": "job",
+          "note": "after the update the read showed it at once; after the delete the read showed it at once; no staleness is declared, so the window is reported, not judged"
+        },
+        {
+          "check": "consistency.staleness-within-bound",
+          "entity": "row",
+          "note": "after the update the read showed it at once; after the delete the read showed it at once; no staleness is declared, so the window is reported, not judged"
+        },
+        {
+          "check": "consistency.staleness-within-bound",
+          "entity": "webhook",
+          "note": "after the update the read showed it at once; after the delete the read showed it at once; no staleness is declared, so the window is reported, not judged"
         }
       ]
     },

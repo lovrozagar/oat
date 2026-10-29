@@ -45,6 +45,7 @@ function doctorJson({ config, danglingRefs, externalRefs, facts, unsetEnv }: Dia
 	return `${JSON.stringify(
 		{
 			blocking: facts.blocking,
+			cacheBypass: facts.bypass,
 			entities: facts.entities.length,
 			externalRefs,
 			danglingRefs,

@@ -8,6 +8,7 @@ import { credentialHeaderNames } from "../security/strip.ts"
 import { answered, failed } from "./answer.ts"
 import type { Pacing, Prepared, Sent, Timed, Wire } from "./attempt.ts"
 import type { Actor } from "./credential-source.ts"
+import { bypassLayer } from "./bypass.ts"
 import { withDeclared } from "./declared.ts"
 import { type FenceAsk, fenceAsker } from "./fence.ts"
 import { requestIdOf, requestMessageBytes } from "./message.ts"
@@ -84,8 +85,8 @@ export async function sendAttempt(request: Prepared, attempt: number, wire: Wire
 }
 
 /**
- * The attempt before its credential: the operation's declared header and cookie values, then
- * globals, then `resolveHeaders`, then the caller's headers.
+ * The attempt before its credential: the operation's declared header and cookie values, the cache
+ * bypass, then globals, then `resolveHeaders`, then the caller's headers.
  */
 async function unplaced(
 	request: Prepared,
@@ -97,7 +98,12 @@ async function unplaced(
 		url: request.url.toString(),
 		...(options.operationId === undefined ? {} : { operationId: options.operationId }),
 	})
-	const layers = withDeclared(request.resolved, placement, [wire.headers, hooked ?? {}, request.callerHeaders()])
+	const above = [wire.headers, hooked ?? {}, request.callerHeaders()]
+	const bypass = bypassLayer(
+		{ cache: options.cache, enabled: wire.cacheBypass, method: request.method, resolved: request.resolved },
+		above,
+	)
+	const layers = withDeclared(request.resolved, placement, [bypass, ...above])
 	return { callerQuery: request.callerQuery, layers, url: request.url }
 }
 

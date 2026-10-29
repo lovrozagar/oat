@@ -24,6 +24,7 @@ import { totp } from "./handlers/totp.ts"
 import { accept, invite, revoke } from "./handlers/grants.ts"
 import { read, remove, update } from "./handlers/item.ts"
 import { list } from "./handlers/list.ts"
+import { cachedRead } from "./read-cache.ts"
 import { search } from "./handlers/query-route.ts"
 import { styles } from "./handlers/styles.ts"
 import { matchRoute } from "./routes.ts"
@@ -114,7 +115,7 @@ async function entityRoute(state: ReferenceState, request: ReferenceRequest): Pr
 		if (method === "GET" && entity.unlisted === true) {
 			throw new HttpError(405, "method_not_allowed", `${entity.plural} cannot be listed`)
 		}
-		if (method === "GET") return list(state, request, call)
+		if (method === "GET") return cachedRead(state, { request, who: principal.key }, () => list(state, request, call))
 		if (method === "POST") return create(state, request, call)
 		throw new HttpError(404, "not_found", `method ${method} not supported here`)
 	}
@@ -122,7 +123,7 @@ async function entityRoute(state: ReferenceState, request: ReferenceRequest): Pr
 }
 
 function item(state: ReferenceState, request: ReferenceRequest, call: ItemCall): Promise<ReferenceResponse> {
-	if (request.method === "GET") return read(state, call)
+	if (request.method === "GET") return cachedRead(state, { request, who: call.principal.key }, () => read(state, call))
 	if (request.method === state.updateMethod) return update(state, request, call)
 	if (request.method === "DELETE") return remove(state, call)
 	throw new HttpError(405, "method_not_allowed", `method ${request.method} not supported`)

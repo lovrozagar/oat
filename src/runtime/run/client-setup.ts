@@ -53,6 +53,7 @@ export function connect(loaded: Loaded): Connected {
 		baseUrl: options.baseUrl,
 		credentials: primaryCredentials(loaded, store),
 		fence,
+		cacheBypass: options.cache?.bypass ?? true,
 		headers: options.globalHeaders ?? {},
 		httpHooks: progress.httpHooks,
 		maxInFlight: options.maxInFlight ?? 4,

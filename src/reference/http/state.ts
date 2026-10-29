@@ -8,6 +8,7 @@ import type { ReferenceShape } from "../shapes/types.ts"
 import type { Row, Store } from "../store-api.ts"
 import type { Account, AuthState } from "./auth/types.ts"
 import type { Ids } from "./ids.ts"
+import type { ReferenceResponse } from "./wire.ts"
 
 export type { Account, Principal } from "./auth/types.ts"
 
@@ -116,4 +117,8 @@ export interface ReferenceState {
 	auth: AuthState
 	/** Under `tableKey: "slug"`, each table's slug by its internal id: the identity a client knows. */
 	slugOf: Map<string, string>
+	/** Under the cached-reads shape, each caller's cached read answers. */
+	readCache: Map<string, { response: ReferenceResponse; storedAt: number }>
+	/** Milliseconds since the epoch: the read cache's clock. */
+	clock: () => number
 }

@@ -133,6 +133,8 @@ export interface CheckContext<C extends ReadClient = ReadClient> {
 	/** Operations on this entity that declare `x-wait`. */
 	waitOps: OperationModel[]
 	hooks: Hooks
+	/** Set when config `cache.bypass` is false: oat sends no cache bypass, so none can be judged. */
+	cacheBypass?: false
 	outOfBand: BackoffConfig
 	/** What guards each principal's own record: a check's write there never changes how it signs in. */
 	ownRecords?: OwnRecords

@@ -27,6 +27,29 @@
               "inconclusive": [],
               "passed": [
                 "auth.rank-is-monotonic-on-writes",
+                "consistency.staleness-within-bound",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "schema.success-response-matches-document",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "api-key",
+            "findings": 1,
+            "operationId": "apiKey.create",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [
+                "validation.content-type-enforced"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
                 "create.persists-submitted-fields",
                 "create.status-matches-document",
                 "create.unique-conflict-rejected",
@@ -120,28 +143,6 @@
             "entity": "webhook",
             "findings": 1,
             "operationId": "webhook.create",
-            "reason": null,
-            "status": "failed"
-          },
-          {
-            "checks": {
-              "failed": [
-                "validation.content-type-enforced"
-              ],
-              "gaps": [],
-              "inconclusive": [],
-              "passed": [
-                "auth.rank-is-monotonic-on-writes",
-                "create.persists-submitted-fields",
-                "create.status-matches-document",
-                "schema.success-response-matches-document",
-                "validation.required-enforced"
-              ],
-              "suppressed": []
-            },
-            "entity": "api-key",
-            "findings": 1,
-            "operationId": "apiKey.create",
             "reason": null,
             "status": "failed"
           }
@@ -154,6 +155,32 @@
               "inconclusive": [],
               "passed": [
                 "auth.rank-is-monotonic-on-writes",
+                "consistency.staleness-within-bound",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "schema.success-response-matches-document",
+                "validation.content-type-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "api-key",
+            "findings": 0,
+            "operationId": "apiKey.create",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
                 "create.persists-submitted-fields",
                 "create.status-matches-document",
                 "create.unique-conflict-rejected",
@@ -257,31 +284,6 @@
             "entity": "webhook",
             "findings": 0,
             "operationId": "webhook.create",
-            "reason": null,
-            "status": "passed",
-            "evidence": {},
-            "sufficiency": "verified",
-            "tier": "verified",
-            "why": "a later exchange shows what this call did"
-          },
-          {
-            "checks": {
-              "failed": [],
-              "gaps": [],
-              "inconclusive": [],
-              "passed": [
-                "auth.rank-is-monotonic-on-writes",
-                "create.persists-submitted-fields",
-                "create.status-matches-document",
-                "schema.success-response-matches-document",
-                "validation.content-type-enforced",
-                "validation.required-enforced"
-              ],
-              "suppressed": []
-            },
-            "entity": "api-key",
-            "findings": 0,
-            "operationId": "apiKey.create",
             "reason": null,
             "status": "passed",
             "evidence": {},
@@ -295,8 +297,8 @@
     "teardown": {
       "records": {},
       "removed": {
-        "now": 133,
-        "was": 128
+        "now": 142,
+        "was": 137
       }
     },
     "findings": {

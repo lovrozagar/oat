@@ -148,6 +148,9 @@ describe("declarationLines", () => {
 			"  invite — accept mode",
 			`    ${"table".padEnd(28)} JSON token → invite.accept`,
 			"",
+			"  cache bypass oat sends on reads",
+			"    default cache-control: no-cache      16 reads",
+			"",
 			"  config.entities names that do not match the document (ignored)",
 			"    ghost",
 			"",
@@ -156,6 +159,9 @@ describe("declarationLines", () => {
 		expect(declarationLines(doctorFacts(gated))).toEqual([
 			"  feature gates — a matching 403 is a coverage gap, not a fail",
 			`    ${"a.list".padEnd(28)} x-feature-gate: beta`,
+			"",
+			"  cache bypass oat sends on reads",
+			"    default cache-control: no-cache      1 read",
 			"",
 		])
 	})

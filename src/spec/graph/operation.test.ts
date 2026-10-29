@@ -17,6 +17,7 @@ const FIELDS = [
 	"destructive",
 	"documentedStatuses",
 	"statuses",
+	"consistency",
 	"effects",
 	"noEffects",
 	"entity",

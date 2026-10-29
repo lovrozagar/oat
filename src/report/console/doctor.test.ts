@@ -49,6 +49,7 @@ describe("doctor as JSON", () => {
 		const json = JSON.parse(text)
 		expect(Object.keys(json)).toEqual([
 			"blocking",
+			"cacheBypass",
 			"entities",
 			"externalRefs",
 			"danglingRefs",

@@ -33,6 +33,7 @@
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
                 "consistency.projections-agree",
+                "consistency.staleness-within-bound",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
                 "schema.read-response-matches-document",
@@ -63,6 +64,7 @@
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
+                "consistency.staleness-within-bound",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "request.invalid-body-refused",
@@ -93,6 +95,7 @@
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
                 "consistency.projections-agree",
+                "consistency.staleness-within-bound",
                 "payload.string-survives",
                 "response.status-is-documented",
                 "schema.error-response-matches-document",
@@ -126,6 +129,7 @@
                 "auth.scope-enforced",
                 "concurrency.if-match-enforced",
                 "concurrency.no-lost-update",
+                "consistency.staleness-within-bound",
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "payload.string-survives",
@@ -171,8 +175,8 @@
         ]
       },
       "removed": {
-        "now": 124,
-        "was": 128
+        "now": 133,
+        "was": 137
       }
     },
     "findings": {

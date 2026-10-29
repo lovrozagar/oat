@@ -8,6 +8,7 @@
 
 import { rowsOf } from "../collection/shape.ts"
 import type { AsyncSpec, WaitSpec } from "../extensions/async.ts"
+import { readBypass, readStaleness } from "../extensions/consistency.ts"
 import { ENTITY_ACTIONS, type EntityTag } from "../extensions/entity.ts"
 import type { RateLimitTag } from "../extensions/flags.ts"
 import type { GapCollector } from "../extensions/gaps.ts"
@@ -28,6 +29,11 @@ import {
 	texts,
 } from "./checks.ts"
 import { xQuery } from "./query.ts"
+
+const CONSISTENCY: Fields = {
+	bypass: (value) => (readBypass(value) === null ? 'must be a header like "x-fresh: 1"' : null),
+	staleness: (value) => (readStaleness(value) === null ? 'must be whole seconds like "30s"' : null),
+}
 
 const ASYNC = {
 	idFrom: text,
@@ -97,6 +103,7 @@ const OPERATION_TAGS: Readonly<Record<string, Check>> = {
 	"x-bind": (value) => checkShape(value, BIND),
 	"x-async": (value) => checkShape(value, ASYNC, ["poll"]),
 	"x-cleanup": route,
+	"x-consistency": (value) => checkShape(value, CONSISTENCY),
 	"x-cost": (value) => oneOf(value, ["low", "medium", "high"]),
 	"x-destructive": flag,
 	"x-entity": entity,

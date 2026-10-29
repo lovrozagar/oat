@@ -26,7 +26,9 @@ import { successSchemaHonored } from "./families/conformance/schema-success-resp
 import { projectionsAgree } from "./families/consistency/consistency-projections-agree.ts"
 import { declaredInvalidationHappens } from "./families/consistency/invalidation-declared-route-changes.ts"
 import { listedRowIsTheGet } from "./families/consistency/list-item-matches-listed-row.ts"
+import { bypassIsFresh } from "./families/consistency/bypass-is-fresh.ts"
 import { readAfterWrite } from "./families/consistency/list-read-after-write.ts"
+import { stalenessWithinBound } from "./families/consistency/staleness-within-bound.ts"
 import { asyncReachesTerminalState } from "./families/effects-async/async-reaches-terminal-state.ts"
 import { asyncReceiptIsResolvable } from "./families/effects-async/async-receipt-identifies-the-job.ts"
 import { declaredEffectsOccur } from "./families/effects-async/effects-declared-effect-occurs.ts"
@@ -272,6 +274,10 @@ export const CHECKS: readonly RegisteredCheck[] = [
 	sideEffectArrives,
 	asyncReachesTerminalState,
 	asyncReceiptIsResolvable,
+	/* Freshness writes scratch records late, so registering them moved no earlier check's bodies; the
+	 * judges after them still see their exchanges. */
+	stalenessWithinBound,
+	bypassIsFresh,
 	/* The last writer, right before the judges, so they see its 412. Only the judges come after it,
 	 * and they draw no salt, so registering it moved no other check's bodies. */
 	ifMatchEnforced,
