@@ -363,6 +363,7 @@
 	"src/runtime/accounts/watch.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/async.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/baseline.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/runtime/blocked-check.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/body/encode.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/body/form-data.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/body/form-pairs.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },

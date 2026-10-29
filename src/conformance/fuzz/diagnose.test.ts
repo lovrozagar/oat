@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { Finding, Verdict } from "../../runtime/finding.ts"
+import { blockedCheckSummary } from "../../runtime/blocked-check.ts"
 import { ancestorsOf, diagnose, falsePositives, type Reported } from "./diagnose.ts"
 
 function finding(check: string, verdict: Verdict = "BACKEND_BUG"): Finding {
@@ -62,7 +63,27 @@ describe("diagnose", () => {
 		expect(diagnosis.unresolved).toEqual([{ defect: "ORDER_IGNORED", reason: "one row" }])
 		expect(diagnosis.ok).toBe(true)
 	})
+})
 
+describe("diagnose and a BLOCKED check", () => {
+	it("counts a check BLOCKED by a credential another defect took away as unresolved, not missed", () => {
+		const blocked: Finding = {
+			...finding("auth.blocked", "BLOCKED"),
+			detail: "blocked by every sign-in refused",
+			summary: blockedCheckSummary("auth.privileged-field-ignored"),
+		}
+		const diagnosis = diagnose(["PRIVILEGED_FIELD_WRITABLE", "DISPOSABLE_KILLS_CALLER"], reported([blocked]))
+		expect(diagnosis.missed).toContainEqual({
+			defect: "DISPOSABLE_KILLS_CALLER",
+			primary: "auth.destructive-spares-the-caller",
+		})
+		expect(diagnosis.unresolved).toEqual([
+			{ defect: "PRIVILEGED_FIELD_WRITABLE", reason: "blocked by every sign-in refused" },
+		])
+	})
+})
+
+describe("diagnose and what no defect explains", () => {
 	it("fails a defect nothing reported, and a finding no defect justifies", () => {
 		const diagnosis = diagnose(["ORDER_IGNORED"], reported([finding("search.q-narrows-result")]))
 		expect(diagnosis).toEqual({

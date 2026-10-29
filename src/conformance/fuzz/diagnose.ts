@@ -3,6 +3,7 @@
  * what it did report measures up. See `fuzz.ts` for why recall allows for cascades.
  */
 
+import { blockedCheckOf } from "../../runtime/blocked-check.ts"
 import type { DefectName } from "../../reference/defects/table.ts"
 import { entityChecks } from "../../runtime/checks/core/registry.ts"
 import { CHECKS } from "../../runtime/checks/registry.ts"
@@ -94,6 +95,7 @@ export function diagnose(injected: readonly DefectName[], reported: Reported): D
 	const findings = reported.findings.filter(real)
 	const fired = new Set(findings.map((finding) => finding.check))
 	const recall = recallOf(injected, fired, {
+		blocked: blockedChecks(findings),
 		inconclusive: new Map(reported.inconclusive.map((entry) => [entry.check, entry.reason])),
 		stoodDown: stoodDownEverywhere(reported),
 	})
@@ -104,6 +106,16 @@ export function diagnose(injected: readonly DefectName[], reported: Reported): D
 		.filter((finding) => !justified.has(finding.check))
 		.map((finding) => ({ ...brief(finding), detail: finding.detail }))
 	return { ...recall, findings: findings.length, ok: recall.missed.length === 0 && spurious.length === 0, spurious }
+}
+
+/** Each check a BLOCKED credential stopped, and the finding's account of why. */
+function blockedChecks(findings: readonly Finding[]): Map<string, string> {
+	const blocked = new Map<string, string>()
+	for (const finding of findings) {
+		const check = blockedCheckOf(finding)
+		if (check !== undefined && !blocked.has(check)) blocked.set(check, finding.detail)
+	}
+	return blocked
 }
 
 /**
@@ -121,7 +133,11 @@ function stoodDownEverywhere(reported: Reported): Map<string, string> {
 function recallOf(
 	injected: readonly DefectName[],
 	fired: ReadonlySet<string>,
-	stated: { inconclusive: ReadonlyMap<string, string>; stoodDown: ReadonlyMap<string, string> },
+	stated: {
+		blocked: ReadonlyMap<string, string>
+		inconclusive: ReadonlyMap<string, string>
+		stoodDown: ReadonlyMap<string, string>
+	},
 ): Pick<FuzzCase, "cascaded" | "excused" | "missed" | "unresolved"> {
 	const recall: Pick<FuzzCase, "cascaded" | "excused" | "missed" | "unresolved"> = {
 		cascaded: [],
@@ -133,11 +149,11 @@ function recallOf(
 		const want = primaryOf(EXPECTED[defect])
 		if (fired.has(want)) continue
 		/* Not fired. Acceptable in three cases: something `want` depends on is itself broken —
-		 * cascade suppression working —, the check ran and reported *why* it could not conclude, or
-		 * it stood down everywhere it ran, saying why. Anything else is oat going quiet, which is the
-		 * real failure. */
+		 * cascade suppression working —, the check ran and reported *why* it could not conclude
+		 * (inconclusive, or BLOCKED by a credential another defect took away), or it stood down
+		 * everywhere it ran, saying why. Anything else is oat going quiet, which is the real failure. */
 		const broken = [...ancestorsOf(want)].find((ancestor) => fired.has(ancestor))
-		const reason = stated.inconclusive.get(want)
+		const reason = stated.inconclusive.get(want) ?? stated.blocked.get(want)
 		const stood = stated.stoodDown.get(want)
 		if (broken !== undefined) recall.cascaded.push({ because: broken, defect })
 		else if (reason !== undefined) recall.unresolved.push({ defect, reason })

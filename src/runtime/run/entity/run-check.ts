@@ -1,4 +1,5 @@
 import { MissingValueError } from "../../../errors/missing-value.ts"
+import { blockedCheckSummary } from "../../blocked-check.ts"
 import type { WriteContext } from "../../checks/core/context.ts"
 import type { Check } from "../../checks/core/check.ts"
 import { entityChecks } from "../../checks/core/registry.ts"
@@ -167,7 +168,7 @@ export async function unresolvedBy(stopped: Stopped, error: unknown): Promise<st
 	/* No credential meets the operation's security: untested, with the reason. */
 	if (error.kind === "unsatisfied") return error.reason
 	attributed.blocked("auth.blocked" satisfies RunFindingId, name, {
-		summary: `${checkId} needed a credential that is BLOCKED`,
+		summary: blockedCheckSummary(checkId),
 		cause: `${error.reason}. ${checkId} could not complete.`,
 	})
 	return "a credential is BLOCKED"

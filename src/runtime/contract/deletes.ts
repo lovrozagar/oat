@@ -5,6 +5,7 @@
  */
 
 import { UnsatisfiedSecurity } from "../../client/credential-source.ts"
+import { blockedCheckSummary } from "../blocked-check.ts"
 import type { CheckId, RunFindingId } from "../check-ids.ts"
 import type { OperationModel } from "../../spec/graph/types.ts"
 import type { Exchange } from "../exchange.ts"
@@ -49,7 +50,7 @@ async function readBack(input: ConfirmInput, target: ReadBack): Promise<Exchange
 		const entity = op.entity ?? op.operationId
 		if (error.kind === "blocked") {
 			attributed.blocked("auth.blocked" satisfies RunFindingId, entity, {
-				summary: `${DELETE_CHECK_ID} needed a credential that is BLOCKED`,
+				summary: blockedCheckSummary(DELETE_CHECK_ID),
 				cause: `${error.reason}. ${read.operationId} was not sent to read ${path} back after ${op.operationId}.`,
 			})
 			return null
