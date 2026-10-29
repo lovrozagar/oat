@@ -168,7 +168,8 @@ async function writeAndJudge(
 
 /*
  * A refused probe, told apart: the same writer sends the harmless body alone. Accepted, the refusal
- * was the marked properties' (a pass); refused too, this writer cannot update the record at all.
+ * was the marked properties' (a pass); refused too, this writer cannot update the record at all. A
+ * server error is unresolved, as on the probe.
  */
 async function controlled(
 	ctx: OperationWriteContext,
@@ -182,6 +183,13 @@ async function controlled(
 		probe: true,
 		query,
 	})
+	if (control.status >= 500) {
+		return ctx.findings.unresolved(
+			CHECK,
+			ctx.subject,
+			`${writer.id}'s harmless write drew ${control.status}, a server error`,
+		)
+	}
 	return control.status < 300 ? ASSERTED : { refused: `${writer.id} ${control.status}` }
 }
 

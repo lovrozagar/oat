@@ -139,6 +139,20 @@ describe("auth.privileged-field-ignored when a writer cannot update at all", () 
 		expect(stage.findings.inconclusive[0]?.reason).toContain("alpha_viewer")
 	})
 
+	it("is unresolved at once when the control write draws a server error, as a probe's would", async () => {
+		const stage = staged("notes.update", {
+			respond: (sent) => {
+				if (sent.method === "GET") return { body: NOTE_TARGET.current, status: 200 }
+				return { status: "verified" in (sent.options.body as object) ? 403 : 503 }
+			},
+		})
+		expect(await runOperationCheck(privilegedFieldIgnored, stage.ctx)).toEqual({
+			kind: "unresolved",
+			reason: "alpha_member's harmless write drew 503, a server error",
+		})
+		expect(stage.sent.filter((s) => s.method === "PATCH")).toHaveLength(2)
+	})
+
 	it("passes on a refusal of the field alone: the same writer's control write is accepted", async () => {
 		const stage = staged("notes.update", { respond: scripted(403, false) })
 		expect(await runOperationCheck(privilegedFieldIgnored, stage.ctx)).toEqual({ kind: "asserted" })
