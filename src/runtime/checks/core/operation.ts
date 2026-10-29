@@ -28,9 +28,11 @@ export function placementOf(
 
 /** The record a write or item-read probe sends to, or a stand-down naming what is missing. */
 export function targetPlan(ctx: OperationContext): Plan<WriteTarget> {
-	const { operation, target, untargeted } = ctx
+	const { operation, target, untargeted, untargetedBy } = ctx
 	if (target !== undefined) return ready(target)
-	return cannot(untargeted ?? `a record this run created that ${operation.operationId} can be sent to`)
+	return cannot(untargeted ?? `a record this run created that ${operation.operationId} can be sent to`, {
+		blockedBy: untargetedBy,
+	})
 }
 
 /** Whether a probe credential was refused, with the reason the check is untested for. */

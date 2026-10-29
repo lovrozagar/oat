@@ -28,11 +28,10 @@ describe("a principal the server refuses anywhere, after DISPOSABLE_KILLS_CALLER
 			expect(blocked.length).toBeGreaterThan(0)
 			expect(blocked.every((finding) => REASON.test(finding.detail))).toBe(true)
 			expect(result.findings.some((finding) => finding.check === "auth.destructive-spares-the-caller")).toBe(true)
-			/* The write probes that could not read their target say why. */
-			const citing = result.checksSkipped.filter((skipped) =>
-				skipped.needs.includes("credential is BLOCKED (signed in again"),
-			)
+			/* The probes that could not read their target are stopped by the block, each naming itself. */
+			const citing = blocked.filter((finding) => finding.summary.endsWith("needed a credential that is BLOCKED"))
 			expect(citing.length).toBeGreaterThan(0)
+			expect(result.checksSkipped.some((skipped) => skipped.needs.includes("credential is BLOCKED"))).toBe(false)
 			const transcript = result.client.transcript
 			const kill = transcript.findIndex((exchange) => exchange.operationId === "auth.logout")
 			/* Logins that issued a credential: a probe's refused login is not a renewal. */

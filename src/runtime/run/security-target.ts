@@ -22,7 +22,7 @@ import type { Disposable } from "../teardown/types.ts"
 import type { RunContext } from "./context.ts"
 
 /** What one read back gave: the record's current state, or why the probe is untested. */
-type ReadBack = { current: unknown } | { untested: string }
+type ReadBack = { current: unknown } | { untested: string; blocked: UnsatisfiedSecurity }
 
 /** One record's read back: the answer, the transcript length it is known current to, and the ids its path names. */
 interface SharedRead {
@@ -185,6 +185,6 @@ async function readAs(
 	} catch (error) {
 		if (!(error instanceof UnsatisfiedSecurity) || error.kind !== "blocked") return { current: undefined }
 		const why = `${at.owner}'s credential is BLOCKED (${error.reason})`
-		return { untested: `${at.op.operationId}'s target could not be read back: ${why}` }
+		return { blocked: error, untested: `${at.op.operationId}'s target could not be read back: ${why}` }
 	}
 }

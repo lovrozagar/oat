@@ -52,6 +52,7 @@ describe("recordTarget: a creator whose credential is BLOCKED", () => {
 		const ctx = await running([{ id: "n1", title: "a" }], ["n1"])
 		ctx.store.block({ principal: "alpha", scheme: "bearer" }, "the new credential is refused")
 		const untested = {
+			blocked: expect.objectContaining({ kind: "blocked", reason: "the new credential is refused" }),
 			untested:
 				"notes.update's target could not be read back: alpha's credential is BLOCKED (the new credential is refused)",
 		}
@@ -77,6 +78,7 @@ describe("recordTarget: records it passes over", () => {
 		const [note] = listedIds(["n1"])
 		ctx.ledger.record({ entity: "note", id: note as NonNullable<typeof note>, scope: {} }, { id: "ghost" })
 		expect(await recordTarget(ctx, op(ctx, "notes.update"))).toEqual({
+			blocked: expect.objectContaining({ kind: "blocked" }),
 			untested: `notes.update's target could not be read back: ghost's credential is BLOCKED (no principal "ghost" in the config)`,
 		})
 	})

@@ -84,31 +84,44 @@ async function runProbe(ctx: RunContext, probe: Probe, stage?: Stage): Promise<v
 
 /* Plans the check and, when it applies, runs it; what the scheduler does for one operation check. */
 async function outcomeOf(ctx: RunContext, probe: Probe, context: OperationWriteContext): Promise<Outcome> {
-	const { check, operation } = probe
+	const { check } = probe
 	/* The one place opt-in is enforced: a check that could lock an account out runs only when asked. */
 	const switchedOn = new Map<string, boolean | undefined>(Object.entries(ctx.options.checks ?? {}))
 	if (check.optIn === true && switchedOn.get(check.id) !== true) {
 		return standDown(`opt in with checks: { "${check.id}": true }`)
 	}
 	const planned = check.plan(context)
-	if (!planned.ok) return standDown(planned.needs ?? check.needs ?? "an unstated precondition")
+	if (!planned.ok) {
+		/* A plan stopped by a BLOCKED credential is a check that could not complete, as a throw of it would be. */
+		if (planned.blockedBy !== undefined) return stoppedBy(ctx, { context, probe }, planned.blockedBy)
+		return standDown(planned.needs ?? check.needs ?? "an unstated precondition")
+	}
 	try {
 		return await check.run(context, planned.value)
 	} catch (error) {
-		/* A stop is reported under its own id (the fence, a blocked credential), never the check's. */
-		const stopped = {
-			attributed: ctx.findings.attributed([operation.operationId]),
-			checkId: check.id,
-			ctx,
-			entity: operation.operationId,
-		}
-		const reason = await unresolvedBy(stopped, error)
-		if (reason !== undefined) return { kind: "unresolved", reason }
-		return context.findings.gap(check.id, operation.operationId, {
-			summary: `check "${check.id}" could not complete`,
-			detail: `${operation.operationId}: ${error instanceof Error ? error.message : String(error)}`,
-		})
+		return stoppedBy(ctx, { context, probe }, error)
 	}
+}
+
+/* A stop is reported under its own id (the fence, a blocked credential), never the check's; anything else is a gap. */
+async function stoppedBy(
+	ctx: RunContext,
+	{ context, probe }: { context: OperationWriteContext; probe: Probe },
+	error: unknown,
+): Promise<Outcome> {
+	const { check, operation } = probe
+	const stopped = {
+		attributed: ctx.findings.attributed([operation.operationId]),
+		checkId: check.id,
+		ctx,
+		entity: operation.operationId,
+	}
+	const reason = await unresolvedBy(stopped, error)
+	if (reason !== undefined) return { kind: "unresolved", reason }
+	return context.findings.gap(check.id, operation.operationId, {
+		summary: `check "${check.id}" could not complete`,
+		detail: `${operation.operationId}: ${error instanceof Error ? error.message : String(error)}`,
+	})
 }
 
 /** The context one operation check runs against, owned by the check and attributed to the operation. */
@@ -141,8 +154,11 @@ async function contextOf(ctx: RunContext, probe: Probe, stage?: Stage): Promise<
 	if (peer !== undefined) context.peer = peer
 	const target = await targetFor(ctx, probe, stage)
 	if (target === undefined) return context
-	if ("untested" in target) context.untargeted = target.untested
-	else context.target = target
+	if (!("untested" in target)) context.target = target
+	else {
+		context.untargeted = target.untested
+		if (target.blocked !== undefined) context.untargetedBy = target.blocked
+	}
 	return context
 }
 

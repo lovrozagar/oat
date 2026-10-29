@@ -7,6 +7,7 @@
  */
 
 import type { Probed, WriteTarget } from "../checks/core/operation-context.ts"
+import { UnsatisfiedSecurity } from "../../client/credential-source.ts"
 import { messageOf } from "../../errors/message.ts"
 import type { OperationModel } from "../../spec/graph/types.ts"
 import { encodeForOperation } from "../body/encode.ts"
@@ -58,7 +59,7 @@ export async function throwawayTarget(
 	}
 	throwaway.made += 1
 	const made = await create(ctx, { createOp, label: `t${throwaway.made}`, op, shared })
-	if ("untested" in made) return { untested: `a throwaway ${entity} for ${op.operationId}: ${made.untested}` }
+	if ("untested" in made) return { ...made, untested: `a throwaway ${entity} for ${op.operationId}: ${made.untested}` }
 	const target = await targetOf(ctx, op, made)
 	if (!("untested" in target)) throwaway.held.set(op.operationId, target)
 	return target
@@ -128,7 +129,9 @@ async function create(ctx: RunContext, { createOp, label, op, shared }: Making):
 		const made = targetRecord(ctx, op, ctx.ledger.entries().slice(before))
 		return made ?? { untested: `${createOp.operationId} answered ${exchange.status}` }
 	} catch (error) {
-		return { untested: messageOf(error) }
+		/* A creator whose credential is BLOCKED stops the probe as the read back would: say so, never just stand down. */
+		const blocked = error instanceof UnsatisfiedSecurity && error.kind === "blocked" ? { blocked: error } : {}
+		return { untested: messageOf(error), ...blocked }
 	}
 }
 

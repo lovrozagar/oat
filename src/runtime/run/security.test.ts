@@ -174,6 +174,53 @@ describe("the security stage: targets", () => {
 	})
 })
 
+describe("the security stage: a target its creator's BLOCKED credential cannot read back", () => {
+	it("reports each check behind it as stopped by the block, naming the check, never stood down", async () => {
+		const ctx = await running([], 1)
+		ctx.store.block({ principal: "alpha", scheme: "bearer" }, "the new credential is refused")
+		const ran: string[] = []
+		const targeted = defineCheck({
+			id: "response.status-is-documented",
+			mutates: true,
+			plan: targetPlan,
+			run: async (c) => {
+				ran.push(c.subject)
+				return ASSERTED
+			},
+			subject: "operation",
+		})
+		await runWriteSecurity(ctx, [targeted])
+		expect(ran).toEqual([])
+		expect(ctx.state.checksSkipped).toEqual([])
+		expect(ctx.findings.findings.map((finding) => [finding.check, finding.verdict, finding.summary])).toEqual([
+			["auth.blocked", "BLOCKED", "response.status-is-documented needed a credential that is BLOCKED"],
+			["auth.blocked", "BLOCKED", "response.status-is-documented needed a credential that is BLOCKED"],
+		])
+		expect(ctx.findings.findings.map((finding) => finding.operations)).toEqual([["notes.get"], ["notes.update"]])
+	})
+
+	it("reports it by the cause the plan carries, not its words: a reworded stand-down is still stopped", async () => {
+		const ctx = await running([], 1)
+		ctx.store.block({ principal: "alpha", scheme: "bearer" }, "the new credential is refused")
+		const reworded = defineCheck({
+			id: "response.status-is-documented",
+			mutates: true,
+			plan: (c) => {
+				const target = targetPlan(c)
+				return target.ok ? target : { ...target, needs: "a record of my own to write to" }
+			},
+			run: async () => ASSERTED,
+			subject: "operation",
+		})
+		await runWriteSecurity(ctx, [reworded])
+		expect(ctx.state.checksSkipped).toEqual([])
+		expect(ctx.findings.findings.map((finding) => finding.summary)).toEqual([
+			"response.status-is-documented needed a credential that is BLOCKED",
+			"response.status-is-documented needed a credential that is BLOCKED",
+		])
+	})
+})
+
 describe("the security stage: a DELETE probe's target", () => {
 	it("sends a DELETE probe to a throwaway of its own, and stands it down with the reason when there is none", async () => {
 		const rows: Record_[] = []

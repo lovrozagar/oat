@@ -1,6 +1,7 @@
 /* What an operation check runs against: one operation, the principals, and the run's probe credentials. */
 
 import type { Client, ReadClient } from "../../../client/client.ts"
+import type { UnsatisfiedSecurity } from "../../../client/credential-source.ts"
 import type { CheckSwitches } from "../../../config/types/config.ts"
 import type { Exchange } from "../../exchange.ts"
 import type { FindingCollector } from "../../finding.ts"
@@ -56,8 +57,11 @@ export interface DedicatedCredential {
 	rotate?: () => Promise<Rotation>
 }
 
-/** A credential a probe asked for, or why it cannot have one: the check is untested with that reason. */
-export type Probed<T> = T | { untested: string }
+/**
+ * A credential or a target a probe asked for, or why it cannot have one: the check is untested with that
+ * reason. `blocked` is the BLOCKED credential when that is the reason.
+ */
+export type Probed<T> = T | { untested: string; blocked?: UnsatisfiedSecurity }
 
 /** What a probe asks for: whose credential, for which scheme, carrying which scopes. */
 export interface ProbeRequest {
@@ -143,6 +147,8 @@ export interface OperationContext<C extends ReadClient = ReadClient> {
 	target?: WriteTarget
 	/** Why there is no `target`, when the run knows better than that it created none: `targetPlan` names it. */
 	untargeted?: string
+	/** The BLOCKED credential behind `untargeted`, when that is why: a check it stops could not complete. */
+	untargetedBy?: UnsatisfiedSecurity
 }
 
 /** The context of an operation check that changes server state or a credential. */

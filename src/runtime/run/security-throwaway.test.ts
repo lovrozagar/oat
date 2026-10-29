@@ -211,9 +211,26 @@ describe("a DELETE probe whose throwaway cannot be read back", () => {
 		const ctx = await running(rows, { respond: blocking })
 		holder.ctx = ctx
 		await runWriteSecurity(ctx, [probing("auth.role-enforced", [])])
-		expect(ctx.state.checksSkipped.map((skipped) => skipped.needs)[0]).toBe(
-			"notes.delete's target could not be read back: alpha's credential is BLOCKED (refused anywhere)",
-		)
+		expect(ctx.state.checksSkipped).toEqual([])
+		expect(
+			ctx.findings.findings.map((finding) => [finding.summary, finding.operations, finding.detail]),
+		).toContainEqual([
+			"auth.role-enforced needed a credential that is BLOCKED",
+			["notes.delete"],
+			expect.stringContaining("refused anywhere"),
+		])
+	})
+
+	it("reports the probe stopped by the block when its creator is BLOCKED before the throwaway is made", async () => {
+		const rows: Record_[] = [{ id: "run-1", title: "t1" }]
+		const ctx = await running(rows)
+		ctx.store.block({ principal: "alpha", scheme: "bearer" }, "refused before the create")
+		await runWriteSecurity(ctx, [probing("auth.role-enforced", [])])
+		expect(ctx.state.checksSkipped.filter((skipped) => skipped.entity === "notes.delete")).toEqual([])
+		expect(ctx.findings.findings.map((finding) => [finding.summary, finding.operations])).toContainEqual([
+			"auth.role-enforced needed a credential that is BLOCKED",
+			["notes.delete"],
+		])
 	})
 
 	it("stands it down as any write when the run created no record of its entity to model the throwaway on", async () => {
