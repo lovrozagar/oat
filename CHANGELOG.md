@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.27.1
+
+### Fixed
+
+- A query check that compares several listings no longer blames the backend for a record another
+  entity wrote to the same collection between its reads. Before it reports, it reads each listing
+  again as it read it; when one now holds other rows, the check is unresolved and says the
+  collection moved. A full run saw this when another entity created a template matching a search
+  between `search.tokens-and`'s token reads and read it as a dropped AND. It covers
+  `search.tokens-and`, `search.empty-q`, `filter.negation-partitions-the-set` and the
+  search, select, sort and paging compositions.
+- `create.unique-conflict-rejected` and `update.unique-conflict-rejected` report a 409 that still
+  stored the row only when a new row holds the colliding values, compared as a backend may store
+  them (trimmed, case-folded, a number and its numeral alike). A collection that grew by another
+  writer's row is no longer read as a leak.
+
 ## 0.27.0
 
 ### Added
