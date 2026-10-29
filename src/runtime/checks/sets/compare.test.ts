@@ -12,6 +12,7 @@ import {
 	sameSet,
 	setOf,
 	settlePair,
+	unlessMoved,
 } from "./compare.ts"
 import { rows, served } from "./__fixtures__/serve.ts"
 
@@ -194,6 +195,55 @@ describe("readSettled", () => {
 	it("is incomplete when a read could not show its set ended", async () => {
 		const { ctx } = notesContext(() => ({ body: rows(3), status: 200 }))
 		expect(await readSettled(ctx, TERMS, () => true)).toBe("incomplete")
+	})
+})
+
+describe("unlessMoved", () => {
+	const CHECK = "query.search-and-filter-compose"
+	const terms = [{ query: { filter: "a" } }, { query: { filter: "b" }, order: "id.desc", size: 1 }]
+
+	async function judged(respond: Responder, reads: Record_[][]) {
+		const { ctx, findings, sent } = notesContext(respond)
+		const outcome = await unlessMoved(ctx, CHECK, { reads: reads.map((items) => ({ items })), terms })
+		return { findings, outcome, sent }
+	}
+
+	it("leaves a disagreement to the backend when every term reads as it did", async () => {
+		const { findings, outcome, sent } = await judged(
+			byFilter(() => SETS),
+			[SETS.a, SETS.b],
+		)
+		expect(outcome).toBeNull()
+		expect(findings.findings).toEqual([])
+		/* Each term is walked again as it was walked: its order, one row a page. */
+		expect(walks(sent).map((request) => request.options.query)).toEqual([
+			expect.objectContaining({ filter: "a" }),
+			expect.objectContaining({ filter: "b", limit: 1, sort: "id.desc" }),
+		])
+	})
+
+	it("is unresolved as a moving collection when a term now holds other rows", async () => {
+		const { findings, outcome } = await judged(
+			byFilter(() => SETS),
+			[SETS.a, rows(1)],
+		)
+		expect(outcome).toMatchObject({ kind: "unresolved" })
+		expect(findings.inconclusive[0]?.reason).toContain("gained or lost rows")
+	})
+
+	it("is moving when a row created after one term was deleted again before the reread", async () => {
+		/* The second term held the passing row; neither term holds it now, and the first never did. */
+		const { outcome } = await judged(
+			byFilter(() => SETS),
+			[SETS.a, [...SETS.b, { id: "passing" }]],
+		)
+		expect(outcome).toMatchObject({ kind: "unresolved" })
+	})
+
+	it("is unresolved, never the backend's, when a reread is refused", async () => {
+		const { findings, outcome } = await judged(refusing, [SETS.a, SETS.b])
+		expect(outcome).toMatchObject({ kind: "unresolved" })
+		expect(findings.inconclusive[0]?.reason).toContain("reading them again to rule out another writer was refused")
 	})
 })
 

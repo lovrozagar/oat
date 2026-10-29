@@ -4,7 +4,7 @@ import { sortTerm } from "../../../../spec/conventions/sort.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { andThen, cannot, ready } from "../../core/plan.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
-import { conv, filterable, MOVING_FILTER, pageSize, q } from "../../query/capabilities.ts"
+import { conv, filterable, MOVING_COLLECTION, pageSize, q } from "../../query/capabilities.ts"
 import { collectSet, sameSet, setOf, settlePair } from "../../sets/compare.ts"
 import { overlapPlan, selectionPlan, type Subset } from "./plans.ts"
 
@@ -74,7 +74,7 @@ export const queryFilterSearchSortSelectCompose: Check<
 				},
 			)
 			if (pair === null) return ctx.findings.unresolved(this.id, ctx.entityName, "four-axis probe was rejected")
-			if (pair === "moving") return ctx.findings.unresolved(this.id, ctx.entityName, MOVING_FILTER)
+			if (pair === "moving") return ctx.findings.unresolved(this.id, ctx.entityName, MOVING_COLLECTION)
 			const { first: base, second: combined } = pair
 			if (combined.items.some((item) => item[ctx.identity] === undefined)) {
 				return ctx.findings.unresolved(this.id, ctx.entityName, "projection omitted the identity")

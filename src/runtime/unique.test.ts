@@ -7,6 +7,7 @@ import {
 	collisionUpdatePatch,
 	idempotencyHeaderRequired,
 	isUniqueConflictResponse,
+	leakedCollisions,
 	probeableUniqueSets,
 	uniqueProbeHeaders,
 	uniqueTupleCollides,
@@ -191,5 +192,30 @@ describe("a collision update patch", () => {
 		expect(collisionUpdatePatch(source, {}, { ...write, set: ["title"] })).toBeNull()
 		expect(collisionUpdatePatch(source, { slug: "b" }, { ...write, set: ["email", "slug"] })).toBeNull()
 		expect(collisionUpdatePatch(source, { slug: "a" }, { ...write, set: ["slug"] })).toBeNull()
+	})
+})
+
+describe("a collision leaked past its 409", () => {
+	const known = { code: "c0", id: "n0", name: "taken" }
+	const before = [known]
+	const around = (after: Record<string, unknown>[]) => ({ after, before, identity: "id", scope: { org: "o1" } })
+
+	it("names a new row holding the sent values on the whole set", () => {
+		const after = [known, { code: "c9", id: "n1", name: "taken" }]
+		expect(leakedCollisions(["name"], known, around(after))).toEqual(["n1"])
+	})
+
+	it("is no leak when the collection grew by a row of another writer's", () => {
+		const after = [known, { code: "other", id: "x1", name: "other" }]
+		expect(leakedCollisions(["name"], known, around(after))).toEqual([])
+	})
+
+	it("matches every column of a composite set, a scope column by the scope's value", () => {
+		const after = [known, { code: "c0", id: "n1", name: "else", org: "o1" }, { code: "c0", id: "n2", org: "o2" }]
+		expect(leakedCollisions(["code", "org"], known, around(after))).toEqual(["n1"])
+	})
+
+	it("never counts a row that was there before", () => {
+		expect(leakedCollisions(["name"], known, around([known]))).toEqual([])
 	})
 })

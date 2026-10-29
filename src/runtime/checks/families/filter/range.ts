@@ -2,7 +2,7 @@ import { filterTerm } from "../../../../spec/conventions/filter.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import type { Listed } from "../../core/context.ts"
 import { cannot, type Plan, ready } from "../../core/plan.ts"
-import { canUseOp, conv, MOVING_FILTER } from "../../query/capabilities.ts"
+import { canUseOp, conv, MOVING_COLLECTION } from "../../query/capabilities.ts"
 import { readSettled, sameSet, setOf } from "../../sets/compare.ts"
 import { ids } from "../../sets/list.ts"
 import type { SetRead } from "../../sets/read.ts"
@@ -58,7 +58,7 @@ export async function assertRangeUnion(
 	if (reads === "incomplete") {
 		return ctx.findings.unresolved(check, ctx.entityName, "the collection is larger than the walk covers")
 	}
-	if (reads === "moving") return ctx.findings.unresolved(check, ctx.entityName, MOVING_FILTER)
+	if (reads === "moving") return ctx.findings.unresolved(check, ctx.entityName, MOVING_COLLECTION)
 	const [closedSet, openSet, eqSet] = reads as [SetRead, SetRead, SetRead]
 	const { expected, got } = union(reads)
 	if (sameSet(expected, got)) return ASSERTED

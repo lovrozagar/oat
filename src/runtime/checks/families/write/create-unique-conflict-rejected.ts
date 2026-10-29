@@ -11,6 +11,7 @@ import {
 	bodyPropertyNames,
 	collisionCreateBody,
 	idempotencyHeaderRequired,
+	leakedCollisions,
 	probeableUniqueSets,
 	uniqueProbeHeaders,
 	uniquifyProbeBody,
@@ -180,17 +181,16 @@ async function judgeCreateProbe(
 ): Promise<void> {
 	const { before, check, createOp } = probe
 	if (sent.status === 409) {
-		if (
-			probe.listResolved &&
-			after.exchange.status < 400 &&
-			after.complete &&
-			after.items.length > before.items.length
-		) {
+		if (!probe.listResolved || after.exchange.status >= 400 || !after.complete) return
+		const around = { after: after.items, before: before.items, identity: ctx.identity, scope: ctx.scope }
+		const leaked = leakedCollisions(set, probe.known, around)
+		if (leaked.length > 0) {
 			ctx.findings.backend(check, ctx.entityName, {
 				summary: "a unique-conflict 409 still grew the collection",
 				detail:
 					`POST colliding ${set.join(", ")} returned 409 but the list grew from ` +
-					`${before.items.length} to ${after.items.length}.`,
+					`${before.items.length} to ${after.items.length}, by ${leaked.slice(0, 3).join(", ")}, ` +
+					`which holds the colliding values.`,
 				evidence: [before.exchange, sent, after.exchange],
 			})
 		}

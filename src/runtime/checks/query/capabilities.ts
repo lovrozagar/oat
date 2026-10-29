@@ -169,9 +169,13 @@ export function pageable(ctx: Listed): boolean {
 	return c.page !== undefined || c.offset !== undefined
 }
 
-export const MOVING_FILTER: string =
+export const MOVING_COLLECTION: string =
 	"the collection gained or lost rows between the term reads and the combined read (something wrote " +
 	"to it while the check ran), so the reads cannot be compared"
+
+export const REREAD_REFUSED: string =
+	"the reads disagreed, and reading them again to rule out another writer was refused, so the " +
+	"disagreement cannot be pinned on the backend"
 
 export const MOVING: string =
 	"the collection gained or lost rows between two reads in the same direction (something wrote to it " +

@@ -14,8 +14,10 @@ import {
 	pageSize,
 } from "../../query/capabilities.ts"
 import { nullableField } from "../../query/order.ts"
-import { collectSet } from "../../sets/compare.ts"
+import { collectSet, unlessMoved } from "../../sets/compare.ts"
 import { ids } from "../../sets/list.ts"
+import type { SetRead } from "../../sets/read.ts"
+import type { Listed } from "../../core/context.ts"
 
 export const negationPartitions: Check<{
 	field: string
@@ -85,6 +87,12 @@ export const negationPartitions: Check<{
 		const overlap = ids(matching.items, ctx.identity).filter((value) =>
 			ids(complement.items, ctx.identity).includes(value),
 		)
+		const missing = [...expected].filter((id) => !union.has(id))
+		if (overlap.length > 0 || missing.length > 0) {
+			const terms = [{}, { query: eqTerm }, { query: neqTerm }]
+			const moved = await unlessMoved(ctx, this.id, { reads: [all, matching, complement], terms })
+			if (moved !== null) return moved
+		}
 
 		if (overlap.length > 0) {
 			return ctx.findings.backend(this.id, ctx.entityName, {
@@ -95,25 +103,31 @@ export const negationPartitions: Check<{
 				evidence: [matching.last.exchange, complement.last.exchange],
 			})
 		}
-		const missing = [...expected].filter((id) => !union.has(id))
-		if (missing.length > 0) {
-			const nulls = missing.filter((id) => {
-				const record = ctx.records.find((r) => idOf(r, ctx.identity) === id)
-				return record !== undefined && (record[field] === null || record[field] === undefined)
-			})
-			ctx.findings.backend(this.id, ctx.entityName, {
-				summary: "a predicate and its negation do not cover the full set",
-				detail:
-					`${missing.length} record(s) match neither ${field}.eq nor ${field}.neq: ` +
-					`${missing.slice(0, 3).join(", ")}. ` +
-					(nulls.length === missing.length
-						? `Every one of them has ${field} = null, so the negated predicate is dropping ` +
-							"nulls — SQL evaluates `col <> x` as NULL, not true, unless the query also " +
-							"tests `col IS NULL`."
-						: "A record must satisfy either a predicate or its negation."),
-				evidence: [all.last.exchange, matching.last.exchange, complement.last.exchange],
-			})
-		}
+		if (missing.length > 0) reportUncovered(ctx, this.id, { field, missing, reads: [all, matching, complement] })
 		return ASSERTED
 	},
 })
+
+/** Records that match neither the predicate nor its negation, and whether nulls explain them. */
+function reportUncovered(
+	ctx: Listed,
+	check: string,
+	{ field, missing, reads }: { field: string; missing: string[]; reads: SetRead[] },
+): void {
+	const nulls = missing.filter((id) => {
+		const record = ctx.records.find((r) => idOf(r, ctx.identity) === id)
+		return record !== undefined && (record[field] === null || record[field] === undefined)
+	})
+	ctx.findings.backend(check, ctx.entityName, {
+		summary: "a predicate and its negation do not cover the full set",
+		detail:
+			`${missing.length} record(s) match neither ${field}.eq nor ${field}.neq: ` +
+			`${missing.slice(0, 3).join(", ")}. ` +
+			(nulls.length === missing.length
+				? `Every one of them has ${field} = null, so the negated predicate is dropping ` +
+					"nulls — SQL evaluates `col <> x` as NULL, not true, unless the query also " +
+					"tests `col IS NULL`."
+				: "A record must satisfy either a predicate or its negation."),
+		evidence: reads.map((read) => read.last.exchange),
+	})
+}

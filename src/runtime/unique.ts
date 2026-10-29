@@ -9,6 +9,7 @@ import { generate } from "./generate/generate.ts"
 import { requestContent } from "../spec/collection/request.ts"
 import type { OperationModel, SpecModel } from "../spec/graph/types.ts"
 import type { JsonSchema } from "../spec/types.ts"
+import { idOf } from "./world/records.ts"
 
 export const UNIQUE_CONFLICT_STATUS = 409
 
@@ -197,4 +198,33 @@ export function collisionUpdatePatch(
 		patch[col] = value
 	}
 	return Object.keys(patch).length > 0 ? patch : null
+}
+
+/** Two listings of a collection around a refused collision, and how a row in them is named. */
+export interface AroundCollision {
+	before: readonly Record<string, unknown>[]
+	after: readonly Record<string, unknown>[]
+	identity: string
+	scope: Record<string, unknown>
+}
+
+/**
+ * The rows a refused collision stored anyway: listed after it but not before, holding the values the
+ * probe sent (`source`'s, or the scope's) on every column of `set`. Growth alone is no leak: another
+ * writer may add rows of its own between the two listings.
+ */
+export function leakedCollisions(
+	set: readonly string[],
+	source: Record<string, unknown>,
+	around: AroundCollision,
+): string[] {
+	const { after, before, identity, scope } = around
+	const held = new Set(before.map((row) => idOf(row, identity)))
+	const sent = (col: string): string => JSON.stringify(source[col] ?? scope[col])
+	return after
+		.filter((row) => set.every((col) => JSON.stringify(row[col]) === sent(col)))
+		.flatMap((row) => {
+			const id = idOf(row, identity)
+			return id === undefined || held.has(id) ? [] : [id]
+		})
 }

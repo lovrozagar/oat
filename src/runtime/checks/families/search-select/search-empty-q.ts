@@ -6,7 +6,7 @@ import { cannot, ready } from "../../core/plan.ts"
 import { judgeRefusal } from "../../planning/refusal.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, pageSize, q, resolvedCaps } from "../../query/capabilities.ts"
-import { listAll, sameSet, setOf } from "../../sets/compare.ts"
+import { listAll, sameSet, setOf, unlessMoved } from "../../sets/compare.ts"
 
 export const searchEmptyQ: Check<{
 	policy: NonNullable<EffectiveQueryCapabilities["searchEmpty"]>
@@ -42,6 +42,12 @@ export const searchEmptyQ: Check<{
 			return ctx.findings.unresolved(this.id, ctx.entityName, "the sets are larger than a read covers")
 		}
 		if (sameSet(setOf(empty.items, ctx.identity), setOf(baseline.items, ctx.identity))) return ASSERTED
+		const terms = [
+			{ query: q(ctx, {}) as Record<string, string> },
+			{ query: q(ctx, { search: "" }) as Record<string, string> },
+		]
+		const moved = await unlessMoved(ctx, this.id, { reads: [baseline, empty], terms })
+		if (moved !== null) return moved
 		return ctx.findings.backend(this.id, ctx.entityName, {
 			summary: "empty q did not match the unfiltered set",
 			detail: `searchEmpty=${policy} but q= returned ${empty.items.length} of ${baseline.items.length} records.`,

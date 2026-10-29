@@ -4,7 +4,7 @@ import { andTerm } from "../../../../spec/conventions/filter.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { cannot } from "../../core/plan.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
-import { filterable, MOVING_FILTER } from "../../query/capabilities.ts"
+import { filterable, MOVING_COLLECTION } from "../../query/capabilities.ts"
 import { type Compound, compoundPlan, readComposed } from "./compound.ts"
 
 /**
@@ -48,7 +48,7 @@ export const filterAndComposesAsIntersection: Check<Compound> = defineCheck<Comp
 				"the collection is larger than the walk covers, so the intersection cannot be verified",
 			)
 		}
-		if (composed === "moving") return ctx.findings.unresolved(this.id, ctx.entityName, MOVING_FILTER)
+		if (composed === "moving") return ctx.findings.unresolved(this.id, ctx.entityName, MOVING_COLLECTION)
 		const { expected, extra, got, missing, onlyA, onlyB, setA, setB } = composed
 		if (missing.length === 0 && extra.length === 0) return ASSERTED
 

@@ -5,7 +5,7 @@ import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { andThen, ready, when } from "../../core/plan.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, filterable, pageSize, q } from "../../query/capabilities.ts"
-import { collectSet } from "../../sets/compare.ts"
+import { collectSet, unlessMoved } from "../../sets/compare.ts"
 import { ids } from "../../sets/list.ts"
 import { overlapPlan, sortFieldBeside, type Subset } from "./plans.ts"
 
@@ -69,6 +69,17 @@ export const filterSearchSortCompose: Check<Subset & { token: string; sortField:
 		const missing = [...expected].filter((id) => !got.has(id))
 		const extraIds = [...got].filter((id) => !expected.has(id))
 		if (missing.length === 0 && extraIds.length === 0) return ASSERTED
+		const moved = await unlessMoved(ctx, this.id, {
+			reads: [pair, triple],
+			terms: [
+				{ query: { ...term, ...q(ctx, { search: token }) } as Record<string, string> },
+				{
+					order: sortTerm(conventions, { direction: "desc", field: sortField }),
+					query: { ...term, ...q(ctx, { search: token }) } as Record<string, string>,
+				},
+			],
+		})
+		if (moved !== null) return moved
 
 		return ctx.findings.backend(this.id, ctx.entityName, {
 			summary: "adding a sort changes which records a filter and a search return",

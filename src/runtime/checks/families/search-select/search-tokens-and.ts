@@ -4,7 +4,7 @@ import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, pageSize, q } from "../../query/capabilities.ts"
-import { listAll, sameSet, setOf } from "../../sets/compare.ts"
+import { listAll, sameSet, setOf, unlessMoved } from "../../sets/compare.ts"
 
 export const searchTokensAnd: Check<{ a: string; b: string }> = defineCheck<{ a: string; b: string }>({
 	plan: (ctx) => {
@@ -52,6 +52,9 @@ export const searchTokensAnd: Check<{ a: string; b: string }> = defineCheck<{ a:
 		const expected = new Set([...setA].filter((id) => setB.has(id)))
 		const got = setOf(both.items, ctx.identity)
 		if (sameSet(expected, got) || sameSet(got, new Set([...setA, ...setB]))) return ASSERTED
+		const terms = [a, b, `${a} ${b}`].map((search) => ({ query: q(ctx, { search }) as Record<string, string> }))
+		const moved = await unlessMoved(ctx, this.id, { reads: [onlyA, onlyB, both], terms })
+		if (moved !== null) return moved
 		return ctx.findings.backend(this.id, ctx.entityName, {
 			summary: "two search tokens are not applied as AND",
 			detail: `q="${a} ${b}" returned ${got.size}; the intersection of each token is ${expected.size}.`,

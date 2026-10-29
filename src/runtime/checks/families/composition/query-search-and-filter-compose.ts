@@ -4,7 +4,7 @@ import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { andThen, when } from "../../core/plan.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, filterable, pageSize, q } from "../../query/capabilities.ts"
-import { collectSet } from "../../sets/compare.ts"
+import { collectSet, unlessMoved } from "../../sets/compare.ts"
 import { ids } from "../../sets/list.ts"
 import { overlapPlan, type Subset } from "./plans.ts"
 
@@ -81,6 +81,10 @@ export const searchAndFilterCompose: Check<Subset & { token: string }> = defineC
 		const missing = [...expected].filter((id) => !got.has(id))
 		const extraIds = [...got].filter((id) => !expected.has(id))
 		if (missing.length === 0 && extraIds.length === 0) return ASSERTED
+		const search = q(ctx, { search: token }) as Record<string, string>
+		const terms = [{ query: term }, { query: search }, { query: { ...term, ...search } }]
+		const moved = await unlessMoved(ctx, this.id, { reads: [filtered, searched, both], terms })
+		if (moved !== null) return moved
 
 		return ctx.findings.backend(this.id, ctx.entityName, {
 			summary: "a filter and a search do not compose as their intersection",

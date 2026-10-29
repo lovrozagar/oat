@@ -6,7 +6,14 @@ import { isFilterOp } from "../../../../spec/query/ops.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { when } from "../../core/plan.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
-import { asTermValue, conv, filterable, FOUNDATIONS, MOVING_FILTER, resolvedCaps } from "../../query/capabilities.ts"
+import {
+	asTermValue,
+	conv,
+	filterable,
+	FOUNDATIONS,
+	MOVING_COLLECTION,
+	resolvedCaps,
+} from "../../query/capabilities.ts"
 import { readSettled, sameSet, setOf } from "../../sets/compare.ts"
 import type { SetRead } from "../../sets/read.ts"
 
@@ -41,7 +48,7 @@ export const filterAliasMatchesCanonical: Check = defineCheck({
 			if (reads === "incomplete") {
 				return ctx.findings.unresolved(this.id, ctx.entityName, "the collection is larger than the walk covers")
 			}
-			if (reads === "moving") return ctx.findings.unresolved(this.id, ctx.entityName, MOVING_FILTER)
+			if (reads === "moving") return ctx.findings.unresolved(this.id, ctx.entityName, MOVING_COLLECTION)
 			/* One read per term, in the order the terms were given. */
 			const [left, right] = reads as [SetRead, SetRead]
 			if (!agree(reads)) {

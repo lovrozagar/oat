@@ -1,13 +1,14 @@
 import type { Check } from "../../core/check.ts"
 import { defineCheck } from "../../core/define.ts"
 import { sortTerm } from "../../../../spec/conventions/sort.ts"
+import type { SortValue } from "../../../../spec/render/sort.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { idOf, type Record_ } from "../../../world/records.ts"
 import type { Listed } from "../../core/context.ts"
 import { andThen, ready, when } from "../../core/plan.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, filterable } from "../../query/capabilities.ts"
-import { collectSet } from "../../sets/compare.ts"
+import { collectSet, unlessMoved } from "../../sets/compare.ts"
 import type { SetRead } from "../../sets/read.ts"
 import { ids } from "../../sets/list.ts"
 import { type Subset, subsetPlan } from "./plans.ts"
@@ -22,7 +23,7 @@ async function walkBothWays(
 	ctx: Listed,
 	term: Record<string, string>,
 	matches: (row: Record_) => boolean,
-): Promise<{ everything: SetRead | null; serverSide: SetRead | null }> {
+): Promise<{ everything: SetRead | null; serverSide: SetRead | null; order: SortValue | undefined }> {
 	const tiebreak = ctx.query?.sortable.includes(ctx.identity) === true ? ctx.identity : undefined
 	const walkOrder = tiebreak === undefined ? undefined : sortTerm(conv(ctx), { direction: "asc", field: tiebreak })
 	const everything = await collectSet(ctx, ROWS_PER_PAGE, {}, { order: walkOrder })
@@ -33,10 +34,11 @@ async function walkBothWays(
 	if (walkOrder !== undefined && serverSide !== null && !serverSide.items.every(matches)) {
 		return {
 			everything: await collectSet(ctx, ROWS_PER_PAGE, {}),
+			order: undefined,
 			serverSide: await collectSet(ctx, ROWS_PER_PAGE, term),
 		}
 	}
-	return { everything, serverSide }
+	return { everything, order: walkOrder, serverSide }
 }
 
 /**
@@ -75,7 +77,7 @@ export const filterAndPagingCompose: Check<Subset & { value: unknown }> = define
 	subjects: subjectsOf.list,
 	async run(ctx, { field, term, value }): Promise<Outcome> {
 		const matches = (row: Record_): boolean => JSON.stringify(row[field]) === JSON.stringify(value)
-		const { everything, serverSide } = await walkBothWays(ctx, term, matches)
+		const { everything, order, serverSide } = await walkBothWays(ctx, term, matches)
 		if (everything === null || serverSide === null) {
 			return ctx.findings.unresolved(
 				this.id,
@@ -104,6 +106,12 @@ export const filterAndPagingCompose: Check<Subset & { value: unknown }> = define
 		const returned = new Set(ids(serverSide.items, ctx.identity))
 		const skipped = [...clientSide].filter((id) => !returned.has(id))
 		if (skipped.length === 0) return ASSERTED
+		const terms = [
+			{ order, size: ROWS_PER_PAGE },
+			{ order, query: term, size: ROWS_PER_PAGE },
+		]
+		const moved = await unlessMoved(ctx, this.id, { reads: [everything, serverSide], terms })
+		if (moved !== null) return moved
 
 		return ctx.findings.backend(this.id, ctx.entityName, {
 			summary: "paging a filtered query skips records that match the filter",

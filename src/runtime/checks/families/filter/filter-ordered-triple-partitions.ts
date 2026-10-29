@@ -6,7 +6,7 @@ import { idOf } from "../../../world/records.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { storedFieldsUnknown } from "../../planning/stand-down.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
-import { conv, FOUNDATIONS, MOVING_FILTER } from "../../query/capabilities.ts"
+import { conv, FOUNDATIONS, MOVING_COLLECTION } from "../../query/capabilities.ts"
 import { readSettled, setOf } from "../../sets/compare.ts"
 import { ids } from "../../sets/list.ts"
 import type { SetRead } from "../../sets/read.ts"
@@ -71,7 +71,7 @@ export const filterOrderedTriplePartitions: Check<{
 		if (reads === "incomplete") {
 			return ctx.findings.unresolved(this.id, ctx.entityName, "the collection is larger than the walk covers")
 		}
-		if (reads === "moving") return ctx.findings.unresolved(this.id, ctx.entityName, MOVING_FILTER)
+		if (reads === "moving") return ctx.findings.unresolved(this.id, ctx.entityName, MOVING_COLLECTION)
 		/* One read per term, in the order the terms were given. */
 		const [all, lower, equal, higher] = reads as [SetRead, SetRead, SetRead, SetRead]
 		const sets = [setOf(lower.items, ctx.identity), setOf(equal.items, ctx.identity), setOf(higher.items, ctx.identity)]

@@ -4,7 +4,7 @@ import { filterTerm } from "../../../../spec/conventions/filter.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
-import { asTermValue, conv, filterable, FOUNDATIONS, MOVING_FILTER } from "../../query/capabilities.ts"
+import { asTermValue, conv, filterable, FOUNDATIONS, MOVING_COLLECTION } from "../../query/capabilities.ts"
 import { readSettled, sameSet, setOf } from "../../sets/compare.ts"
 import { ids } from "../../sets/list.ts"
 import type { SetRead } from "../../sets/read.ts"
@@ -54,7 +54,7 @@ export const filterInIsUnionOfEq: Check<{
 		if (reads === "incomplete") {
 			return ctx.findings.unresolved(this.id, ctx.entityName, "the collection is larger than the walk covers")
 		}
-		if (reads === "moving") return ctx.findings.unresolved(this.id, ctx.entityName, MOVING_FILTER)
+		if (reads === "moving") return ctx.findings.unresolved(this.id, ctx.entityName, MOVING_COLLECTION)
 		/* One read per term, in the order the terms were given. */
 		const [together, onlyA, onlyB] = reads as [SetRead, SetRead, SetRead]
 		const expected = union(onlyA, onlyB)

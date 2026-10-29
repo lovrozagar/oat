@@ -5,7 +5,7 @@ import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { andThen, cannot, ready, when } from "../../core/plan.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, filterable, pageSize } from "../../query/capabilities.ts"
-import { collectSet } from "../../sets/compare.ts"
+import { collectSet, unlessMoved } from "../../sets/compare.ts"
 import { ids } from "../../sets/list.ts"
 import { projectionBeside, sortFieldBeside, type Subset, subsetPlan } from "./plans.ts"
 
@@ -88,6 +88,14 @@ export const filterSortSelectCompose: Check<
 		const missing = [...alone].filter((id) => !combined.has(id))
 		const extraIds = [...combined].filter((id) => !alone.has(id))
 		if (missing.length === 0 && extraIds.length === 0) return ASSERTED
+		const moved = await unlessMoved(ctx, this.id, {
+			reads: [filtered, triple],
+			terms: [
+				{ query: term },
+				{ order: sortTerm(conventions, { direction: "desc", field: sortField }), query: { ...term, ...projection } },
+			],
+		})
+		if (moved !== null) return moved
 
 		return ctx.findings.backend(this.id, ctx.entityName, {
 			summary: "adding a sort and a select together changes which records a filter returns",

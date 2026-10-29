@@ -2,7 +2,8 @@ import type { FilterQuery } from "../../../spec/render/filter-types.ts"
 import type { SortValue } from "../../../spec/render/sort.ts"
 import type { Record_ } from "../../world/records.ts"
 import type { Listed } from "../core/context.ts"
-import { conv, pageSize, type Query } from "../query/capabilities.ts"
+import type { Outcome } from "../../finding.ts"
+import { conv, MOVING_COLLECTION, pageSize, type Query, REREAD_REFUSED } from "../query/capabilities.ts"
 import { ids, type ListResult } from "./list.ts"
 import { readSet, type SetRead } from "./read.ts"
 
@@ -107,23 +108,63 @@ export async function readSettled(
 	agree: (reads: SetRead[]) => boolean,
 ): Promise<SetRead[] | "rejected" | "incomplete" | "moving"> {
 	const limit = pageSize(ctx)
-	const read = async (fresh: boolean): Promise<SetRead[] | "rejected" | "incomplete"> => {
-		const reads: SetRead[] = []
-		for (const term of terms) {
-			const set = await collectSet(ctx, limit, term, { fresh })
-			if (set === null) return "rejected"
-			reads.push(set)
-		}
-		return reads.every((set) => set.complete) ? reads : "incomplete"
+	const reads: SetRead[] = []
+	for (const term of terms) {
+		const set = await collectSet(ctx, limit, term)
+		if (set === null) return "rejected"
+		reads.push(set)
 	}
-	const first = await read(false)
-	if (typeof first === "string" || agree(first)) return first
-	const again = await read(true)
-	if (typeof again === "string") return again
-	/* Both reads cover the same terms, in order, so each term's rows are compared with its own. */
-	const now = again.map((set) => membership(set.items, ctx.identity))
-	const moved = first.some((set, i) => membership(set.items, ctx.identity) !== now[i])
-	return moved ? "moving" : again
+	if (!reads.every((set) => set.complete)) return "incomplete"
+	if (agree(reads)) return reads
+	const moved = await movedSince(
+		ctx,
+		reads.map((read, index) => ({ query: terms[index], read })),
+	)
+	return moved === null ? "rejected" : moved ? "moving" : reads
+}
+
+/** One term of a comparison as its check walked it: the query, and the walk's order and page size. */
+export interface SettledTerm {
+	query?: FilterQuery | undefined
+	order?: SortValue | undefined
+	size?: number
+}
+
+/**
+ * Whether the collection moved under reads that disagree. Each term is walked again as it was
+ * walked; when one now holds other rows, another writer (an entity in another lane, writing to the
+ * same collection) moved it between the reads, and the disagreement is no defect of the query. When
+ * none moved, the reads hold what the backend serves and their disagreement is its own. `null` when
+ * a walk was refused this time.
+ */
+async function movedSince(
+	ctx: Listed,
+	walked: ReadonlyArray<SettledTerm & { read: { items: Record_[] } }>,
+): Promise<boolean | null> {
+	for (const { order, query, read, size } of walked) {
+		const again = await collectSet(ctx, size ?? pageSize(ctx), query ?? {}, { fresh: true, order })
+		if (again === null) return null
+		if (membership(again.items, ctx.identity) !== membership(read.items, ctx.identity)) return true
+	}
+	return false
+}
+
+/**
+ * What `check` reports for reads that disagree before it blames the backend: unresolved when the
+ * collection moved under them or a reread was refused, `null` when the disagreement is the backend's.
+ * `terms[i]` is how `reads[i]` was walked.
+ */
+export async function unlessMoved(
+	ctx: Listed,
+	check: string,
+	{ terms, reads }: { terms: ReadonlyArray<SettledTerm>; reads: ReadonlyArray<{ items: Record_[] }> },
+): Promise<Outcome | null> {
+	const moved = await movedSince(
+		ctx,
+		reads.map((read, index) => ({ ...terms[index], read })),
+	)
+	if (moved === false) return null
+	return ctx.findings.unresolved(check, ctx.entityName, moved === null ? REREAD_REFUSED : MOVING_COLLECTION)
 }
 
 export function duplicates(values: string[]): string[] {

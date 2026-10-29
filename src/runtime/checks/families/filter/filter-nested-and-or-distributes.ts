@@ -12,7 +12,7 @@ import {
 	filterIdentity,
 	FOUNDATIONS,
 	identityIsFilterable,
-	MOVING_FILTER,
+	MOVING_COLLECTION,
 } from "../../query/capabilities.ts"
 import { readSettled, sameSet, setOf } from "../../sets/compare.ts"
 import type { SetRead } from "../../sets/read.ts"
@@ -75,7 +75,7 @@ export const filterNestedAndOrDistributes: Check<{
 		if (reads === "incomplete") {
 			return ctx.findings.unresolved(this.id, ctx.entityName, "the collection is larger than the walk covers")
 		}
-		if (reads === "moving") return ctx.findings.unresolved(this.id, ctx.entityName, MOVING_FILTER)
+		if (reads === "moving") return ctx.findings.unresolved(this.id, ctx.entityName, MOVING_COLLECTION)
 		/* One read per term, in the order the terms were given. */
 		const [onlyA, onlyB, onlyC, combined] = reads as [SetRead, SetRead, SetRead, SetRead]
 		const setA = setOf(onlyA.items, ctx.identity)

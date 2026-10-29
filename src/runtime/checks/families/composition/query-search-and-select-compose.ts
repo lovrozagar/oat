@@ -5,7 +5,7 @@ import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, pageSize, q } from "../../query/capabilities.ts"
-import { listAll, sameSet, setOf } from "../../sets/compare.ts"
+import { listAll, sameSet, setOf, unlessMoved } from "../../sets/compare.ts"
 
 export const querySearchAndSelectCompose: Check<{
 	field: string
@@ -49,6 +49,14 @@ export const querySearchAndSelectCompose: Check<{
 			return ctx.findings.unresolved(this.id, ctx.entityName, "projection omitted the identity")
 		}
 		if (sameSet(setOf(searched.items, ctx.identity), setOf(combined.items, ctx.identity))) return ASSERTED
+		const moved = await unlessMoved(ctx, this.id, {
+			reads: [searched, combined],
+			terms: [
+				{ query: q(ctx, { search: token }) as Record<string, string> },
+				{ query: { ...q(ctx, { search: token }), ...projection } as Record<string, string> },
+			],
+		})
+		if (moved !== null) return moved
 		return ctx.findings.backend(this.id, ctx.entityName, {
 			summary: "adding a select changes which records a search returns",
 			detail: `q=${JSON.stringify(token)} alone matched ${searched.items.length}; with select it matched ${combined.items.length}.`,

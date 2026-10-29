@@ -8,6 +8,7 @@ import {
 	bodyPropertyNames,
 	collisionUpdatePatch,
 	idempotencyHeaderRequired,
+	leakedCollisions,
 	probeableUniqueSets,
 	uniqueProbeHeaders,
 } from "../../../unique.ts"
@@ -133,12 +134,16 @@ async function judgeUpdateProbe(
 	const after = await listAll(ctx, q(ctx, { limit: probe.listLimit }))
 	const listResolved = before.exchange.status < 400 && before.complete
 	if (sent.status === 409) {
-		if (listResolved && after.exchange.status < 400 && after.complete && after.items.length > before.items.length) {
+		if (!listResolved || after.exchange.status >= 400 || !after.complete) return
+		const around = { after: after.items, before: before.items, identity: ctx.identity, scope: ctx.scope }
+		const leaked = leakedCollisions(set, probe.source, around)
+		if (leaked.length > 0) {
 			ctx.findings.backend(check, ctx.entityName, {
 				summary: "a unique-conflict 409 still grew the collection",
 				detail:
 					`PATCH colliding ${set.join(", ")} returned 409 but the list grew from ` +
-					`${before.items.length} to ${after.items.length}.`,
+					`${before.items.length} to ${after.items.length}, by ${leaked.slice(0, 3).join(", ")}, ` +
+					`which holds the colliding values.`,
 				evidence: [before.exchange, sent, after.exchange],
 			})
 		}

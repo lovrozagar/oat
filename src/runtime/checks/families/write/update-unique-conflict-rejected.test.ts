@@ -32,10 +32,17 @@ const answerPatches =
 	(method) =>
 		method === "PATCH" ? answer : undefined
 
-/* A 409 that made a row all the same. */
-const growsAnyway: Override = (server) => (method) => {
+/* A 409 that stored the colliding values as a row all the same. */
+const growsAnyway: Override = (server) => (method, _path, options) => {
 	if (method !== "PATCH") return undefined
-	server.respond("POST", "/notes", { body: { name: "stray" } })
+	server.respond("POST", "/notes", { body: { ...(options.body as Note) } })
+	return { status: 409 }
+}
+
+/* A 409, while another lane's entity adds a row of its own to the same collection. */
+const elsewhere: Override = (server) => (method, path, options) => {
+	if (method !== "PATCH" || !collides(server, path, options.body as Note)) return undefined
+	server.respond("POST", "/notes", { body: { code: "other", name: "other" } })
 	return { status: 409 }
 }
 
@@ -87,6 +94,12 @@ describe("update.unique-conflict-rejected verdicts", () => {
 		const { ctx, findings } = backend(growsAnyway)
 		await runCheck(uniqueConflictUpdate, ctx)
 		expect(findings.findings[0]?.summary).toBe("a unique-conflict 409 still grew the collection")
+	})
+
+	it("passes a 409 while another writer adds a row of its own between the two listings", async () => {
+		const { ctx, findings } = backend(elsewhere)
+		expect(await runCheck(uniqueConflictUpdate, ctx)).toEqual({ kind: "asserted" })
+		expect(findings.findings).toEqual([])
 	})
 
 	it("fails a collision that crashes the handler, and is unresolved for another refusal", async () => {

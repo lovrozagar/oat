@@ -5,7 +5,7 @@ import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, filterable, pageSize } from "../../query/capabilities.ts"
-import { collectSet } from "../../sets/compare.ts"
+import { collectSet, unlessMoved } from "../../sets/compare.ts"
 import { ids } from "../../sets/list.ts"
 import { sortFieldBeside, type Subset, subsetPlan } from "./plans.ts"
 
@@ -77,6 +77,11 @@ export const queryAxesCompose: Check<Subset & { sortField: string }> = defineChe
 		const missing = [...alone].filter((id) => !combined.has(id))
 		const extra = [...combined].filter((id) => !alone.has(id))
 		if (missing.length === 0 && extra.length === 0) return ASSERTED
+		const moved = await unlessMoved(ctx, this.id, {
+			reads: [filtered, both],
+			terms: [{ query: term }, { order: sortTerm(conventions, { direction: "desc", field: sortField }), query: term }],
+		})
+		if (moved !== null) return moved
 
 		return ctx.findings.backend(this.id, ctx.entityName, {
 			summary: "adding a sort changes which records a filter returns",

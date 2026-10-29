@@ -6,7 +6,7 @@ import { idOf } from "../../../world/records.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { storedFieldsUnknown } from "../../planning/stand-down.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
-import { asTermValue, canUseOp, conv, filterable, FOUNDATIONS, MOVING_FILTER } from "../../query/capabilities.ts"
+import { asTermValue, canUseOp, conv, filterable, FOUNDATIONS, MOVING_COLLECTION } from "../../query/capabilities.ts"
 import { readSettled, setOf } from "../../sets/compare.ts"
 import { ids } from "../../sets/list.ts"
 import type { SetRead } from "../../sets/read.ts"
@@ -67,7 +67,7 @@ export const filterNinComplementsIn: Check<{
 		if (reads === "incomplete") {
 			return ctx.findings.unresolved(this.id, ctx.entityName, "the collection is larger than the walk covers")
 		}
-		if (reads === "moving") return ctx.findings.unresolved(this.id, ctx.entityName, MOVING_FILTER)
+		if (reads === "moving") return ctx.findings.unresolved(this.id, ctx.entityName, MOVING_COLLECTION)
 		/* One read per term, in the order the terms were given. */
 		const [all, inside, outside] = reads as [SetRead, SetRead, SetRead]
 		const inIds = setOf(inside.items, ctx.identity)

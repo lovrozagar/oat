@@ -55,6 +55,13 @@ const storesAnyway: Override = (server) => (method, path, options) => {
 	return { status: 409 }
 }
 
+/* A 409, while another lane's entity adds a row of its own to the same collection: it grows, nothing collides. */
+const elsewhere: Override = (server) => (method, path, options) => {
+	if (method !== "POST" || !repeats(server, options.body as Note)) return undefined
+	server.respond("POST", path, { body: { code: "other", name: "other", title: "t" } })
+	return { status: 409 }
+}
+
 /* A backend whose deletes throw `error`. */
 const failing =
 	(error: Error): Override =>
@@ -99,6 +106,12 @@ describe("create.unique-conflict-rejected verdicts", () => {
 })
 
 describe("create.unique-conflict-rejected other answers", () => {
+	it("passes a 409 while another writer adds a row of its own between the two listings", async () => {
+		const { ctx, findings } = backend(elsewhere)
+		expect(await runCheck(uniqueConflictCreate, ctx)).toEqual({ kind: "asserted" })
+		expect(findings.findings).toEqual([])
+	})
+
 	it("fails a duplicate that crashes the handler", async () => {
 		const { ctx, findings } = backend(answerPosts({ status: 500 }))
 		await runCheck(uniqueConflictCreate, ctx)
