@@ -12,6 +12,7 @@ import {
 	validBody,
 	withheldProperties,
 } from "./body.ts"
+import { recordUpdateDrops } from "./update-drops.ts"
 
 /*
  * Request bodies the checks send: a valid body to base a negative probe on, a changed value for a
@@ -76,6 +77,13 @@ describe("pickWritableStringField", () => {
 		const { ctx } = notesContext()
 		const record = { created_at: "t", id: "n1", owner_id: "o", rank: 1, title: "", name: "a" }
 		expect(pickWritableStringField(ctx, record)).toBe("name")
+	})
+
+	it("passes over a field the update is known to drop: update.persists-submitted-fields reports it", () => {
+		const { ctx } = notesContext()
+		recordUpdateDrops(ctx, ["name"])
+		expect(pickWritableStringField(ctx, { code: "c", name: "a" })).toBe("code")
+		expect(pickWritableStringField(ctx, { name: "a" })).toBeNull()
 	})
 
 	it("passes over fields the update declares immutable or generated", () => {

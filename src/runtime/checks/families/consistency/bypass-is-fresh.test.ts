@@ -108,3 +108,24 @@ describe("consistency.bypass-is-fresh", () => {
 		expect(await runCheck(bypassIsFresh, ctx)).toEqual({ kind: "asserted" })
 	})
 })
+
+describe("consistency.bypass-is-fresh and an update that keeps the old value", () => {
+	it("stands down when the update's own answer shows the old value: no cache is to blame", async () => {
+		const server = notesServer()
+		const respond: Responder = (method, path, options) =>
+			method === "PATCH"
+				? { body: server.records.get(path.slice("/notes/".length)), status: 200 }
+				: server.respond(method, path, options)
+		const model = notesModel()
+		const readOp = op(model, "note.get")
+		const { ctx, findings } = notesContext(model, respond, {
+			readOp: { ...readOp, consistency: { bypass: BYPASS, stalenessMs: 1000 } },
+			records: [],
+		})
+		expect(await runCheck(bypassIsFresh, ctx)).toEqual({
+			kind: "stood-down",
+			reason: "the update's own answer does not show it, so update.persists-submitted-fields judges that, not a cache",
+		})
+		expect(findings.findings).toEqual([])
+	})
+})

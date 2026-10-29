@@ -69,6 +69,7 @@
                 "response.status-is-documented",
                 "schema.problem-json-shape",
                 "tenant.item-not-writable-cross-tenant",
+                "update.persists-submitted-fields",
                 "update.unique-conflict-rejected"
               ],
               "suppressed": [
@@ -101,7 +102,8 @@
                 "request.invalid-body-refused",
                 "response.status-is-documented",
                 "schema.problem-json-shape",
-                "tenant.item-not-writable-cross-tenant"
+                "tenant.item-not-writable-cross-tenant",
+                "update.persists-submitted-fields"
               ],
               "suppressed": [
                 "concurrency.no-lost-update"
@@ -133,7 +135,8 @@
                 "request.invalid-body-refused",
                 "response.status-is-documented",
                 "schema.problem-json-shape",
-                "tenant.item-not-writable-cross-tenant"
+                "tenant.item-not-writable-cross-tenant",
+                "update.persists-submitted-fields"
               ],
               "suppressed": [
                 "concurrency.no-lost-update"
@@ -165,7 +168,8 @@
                 "request.invalid-body-refused",
                 "response.status-is-documented",
                 "schema.problem-json-shape",
-                "tenant.item-not-writable-cross-tenant"
+                "tenant.item-not-writable-cross-tenant",
+                "update.persists-submitted-fields"
               ],
               "suppressed": [
                 "concurrency.no-lost-update"
@@ -201,6 +205,7 @@
                 "response.status-is-documented",
                 "schema.problem-json-shape",
                 "tenant.item-not-writable-cross-tenant",
+                "update.persists-submitted-fields",
                 "update.unique-conflict-rejected"
               ],
               "suppressed": []
@@ -235,7 +240,8 @@
                 "request.invalid-body-refused",
                 "response.status-is-documented",
                 "schema.problem-json-shape",
-                "tenant.item-not-writable-cross-tenant"
+                "tenant.item-not-writable-cross-tenant",
+                "update.persists-submitted-fields"
               ],
               "suppressed": []
             },
@@ -269,7 +275,8 @@
                 "request.invalid-body-refused",
                 "response.status-is-documented",
                 "schema.problem-json-shape",
-                "tenant.item-not-writable-cross-tenant"
+                "tenant.item-not-writable-cross-tenant",
+                "update.persists-submitted-fields"
               ],
               "suppressed": []
             },
@@ -303,7 +310,8 @@
                 "request.invalid-body-refused",
                 "response.status-is-documented",
                 "schema.problem-json-shape",
-                "tenant.item-not-writable-cross-tenant"
+                "tenant.item-not-writable-cross-tenant",
+                "update.persists-submitted-fields"
               ],
               "suppressed": []
             },
@@ -323,8 +331,8 @@
     "teardown": {
       "records": {},
       "removed": {
-        "now": 133,
-        "was": 137
+        "now": 137,
+        "was": 141
       }
     },
     "findings": {
@@ -385,7 +393,7 @@
         },
         {
           "check": "patch.minimality",
-          "detail": "patching only \"name\" also changed 2 other field(s): url \"Quarterly Report 0 a7a7a7a7b54.3.0\" → \"\"; description \"Quarterly Report 0\" → null. PATCH is a partial update; behaving as PUT silently destroys data callers never sent.",
+          "detail": "patching only \"name\" also changed 2 other field(s): url \"Quarterly Report 0 a7a7a7a7b55.3.0\" → \"\"; description \"Quarterly Report 0\" → null. PATCH is a partial update; behaving as PUT silently destroys data callers never sent.",
           "entity": "webhook",
           "operations": [
             "webhook.update"
@@ -412,7 +420,7 @@
         },
         {
           "check": "patch.minimality",
-          "detail": "patching only \"name\" also changed 3 other field(s): slug \"Quarterly Report 0 a7a7a7a7b54.0.0\" → \"\"; position 1 → 0; description \"Quarterly Report 0\" → null. PATCH is a partial update; behaving as PUT silently destroys data callers never sent.",
+          "detail": "patching only \"name\" also changed 3 other field(s): slug \"Quarterly Report 0 a7a7a7a7b55.0.0\" → \"\"; position 1 → 0; description \"Quarterly Report 0\" → null. PATCH is a partial update; behaving as PUT silently destroys data callers never sent.",
           "entity": "table",
           "operations": [
             "table.update"

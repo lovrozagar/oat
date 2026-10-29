@@ -64,7 +64,20 @@ describe("updating a record", () => {
 		expect(status).toBe(200)
 		expect(body).toMatchObject({ description: "d", name: "renamed", position: 2 })
 	})
+})
 
+describe("updating a record under UPDATE_DROPS_FIELD", () => {
+	it("answers 200 and keeps a table's description unchanged under UPDATE_DROPS_FIELD, applying the rest", async () => {
+		const { call, item } = await withTable({ defects: ["UPDATE_DROPS_FIELD"] })
+		const before = (await call("GET", item)).body as Record<string, unknown>
+		const { status, body } = await call("PATCH", item, { body: { description: "changed", name: "renamed" } })
+		expect(status).toBe(200)
+		expect(body).toMatchObject({ description: before["description"], name: "renamed" })
+		expect((await call("GET", item)).body).toMatchObject({ description: before["description"], name: "renamed" })
+	})
+})
+
+describe("updating a record it refuses", () => {
 	it("refuses a viewer, a body that is not JSON, another tenant, an invalid body and a taken name", async () => {
 		const { call, item, table } = await withTable()
 		await table("taken")

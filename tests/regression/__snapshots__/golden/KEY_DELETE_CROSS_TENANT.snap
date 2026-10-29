@@ -60,7 +60,8 @@
                 "patch.minimality",
                 "payload.string-survives",
                 "request.invalid-body-refused",
-                "response.status-is-documented"
+                "response.status-is-documented",
+                "update.persists-submitted-fields"
               ],
               "suppressed": []
             },
@@ -116,7 +117,8 @@
                 "payload.string-survives",
                 "request.invalid-body-refused",
                 "response.status-is-documented",
-                "tenant.item-not-writable-cross-tenant"
+                "tenant.item-not-writable-cross-tenant",
+                "update.persists-submitted-fields"
               ],
               "suppressed": []
             },

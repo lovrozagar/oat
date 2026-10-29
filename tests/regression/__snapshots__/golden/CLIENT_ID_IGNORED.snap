@@ -7,7 +7,7 @@
         "was": 0
       },
       "reason": {
-        "now": "records may remain: 20 creates answered 2xx with no readable id",
+        "now": "records may remain: 21 creates answered 2xx with no readable id",
         "was": "no defects found in what was graded"
       },
       "result": {
@@ -758,6 +758,14 @@
             "table.delete",
             "table.update"
           ]
+        },
+        {
+          "check": "update.persists-submitted-fields",
+          "entity": "table",
+          "reason": "a record for this check could not be made: the create answered 201 without an id oat could read",
+          "operations": [
+            "table.update"
+          ]
         }
       ]
     },
@@ -802,7 +810,8 @@
                 "patch.immutable-field-rejected",
                 "patch.minimality",
                 "payload.string-survives",
-                "tenant.item-not-writable-cross-tenant"
+                "tenant.item-not-writable-cross-tenant",
+                "update.persists-submitted-fields"
               ],
               "passed": [],
               "suppressed": []
@@ -1227,6 +1236,7 @@
                 "response.status-is-documented",
                 "schema.problem-json-shape",
                 "tenant.item-not-writable-cross-tenant",
+                "update.persists-submitted-fields",
                 "update.unique-conflict-rejected"
               ],
               "suppressed": []
@@ -1261,7 +1271,8 @@
                 "request.invalid-body-refused",
                 "response.status-is-documented",
                 "schema.problem-json-shape",
-                "tenant.item-not-writable-cross-tenant"
+                "tenant.item-not-writable-cross-tenant",
+                "update.persists-submitted-fields"
               ],
               "suppressed": []
             },
@@ -1697,7 +1708,19 @@
           {
             "entity": "row",
             "id": "ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "row",
+            "id": "ID",
             "principal": "alpha_member",
+            "removed": true
+          },
+          {
+            "entity": "table",
+            "id": "ID",
+            "principal": "alpha",
             "removed": true
           },
           {
@@ -1901,11 +1924,18 @@
         ]
       },
       "removed": {
-        "now": 75,
-        "was": 137
+        "now": 77,
+        "was": 141
       },
       "unidentified": {
         "added": [
+          {
+            "entity": "table",
+            "method": "POST",
+            "operationId": "table.create",
+            "status": 201,
+            "url": "http://reference.test/v1/projects/proj_alpha/tables"
+          },
           {
             "entity": "table",
             "method": "POST",
@@ -2793,6 +2823,11 @@
             "skipped": 5
           },
           {
+            "check": "update.persists-submitted-fields",
+            "ran": 5,
+            "skipped": 2
+          },
+          {
             "check": "update.unique-conflict-rejected",
             "ran": 2,
             "skipped": 5
@@ -3393,6 +3428,11 @@
             "check": "tenant.parent-not-reachable-from-another-root",
             "ran": 3,
             "skipped": 5
+          },
+          {
+            "check": "update.persists-submitted-fields",
+            "ran": 6,
+            "skipped": 2
           },
           {
             "check": "update.unique-conflict-rejected",

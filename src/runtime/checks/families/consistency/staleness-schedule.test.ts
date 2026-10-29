@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest"
-import { MAX_STALENESS_READS, stalenessSchedule, UNDECLARED_CAP_MS } from "./staleness-schedule.ts"
+import {
+	MAX_STALENESS_READS,
+	MAX_WATCH_MS,
+	stalenessSchedule,
+	UNDECLARED_CAP_MS,
+	watchCapMs,
+} from "./staleness-schedule.ts"
 
 describe("stalenessSchedule", () => {
 	it("reads at once, then backs off from a tenth of a 1 s bound, each gap at most a quarter of it", () => {
@@ -15,11 +21,25 @@ describe("stalenessSchedule", () => {
 		expect(stalenessSchedule(UNDECLARED_CAP_MS)).toEqual([0, 250, 750, 1750, 3750, 6250, 8750, 11_250])
 	})
 
+	it("always ends at the cap, even where twelve doubling reads fall short of it", () => {
+		const tenMinutes = stalenessSchedule(MAX_WATCH_MS)
+		expect(tenMinutes).toHaveLength(12)
+		expect(tenMinutes.at(-1)).toBe(600_000)
+		expect(tenMinutes.at(-2)).toBeLessThan(600_000)
+	})
+
+	it("watches 10 minutes at most, whatever the bound declares", () => {
+		expect(MAX_WATCH_MS).toBe(600_000)
+		expect(watchCapMs(86_400_000)).toBe(600_000)
+		expect(watchCapMs(1000)).toBe(1000)
+		expect(watchCapMs(null)).toBe(UNDECLARED_CAP_MS)
+	})
+
 	it("never reads more than 12 times, however long the bound", () => {
 		for (const cap of [1000, 30_000, 600_000, 86_400_000]) {
 			expect(stalenessSchedule(cap).length).toBeLessThanOrEqual(MAX_STALENESS_READS)
 		}
 		expect(MAX_STALENESS_READS).toBe(12)
-		expect(stalenessSchedule(86_400_000).at(-1)).toBeLessThan(86_400_000)
+		expect(stalenessSchedule(86_400_000).at(-1)).toBe(86_400_000)
 	})
 })

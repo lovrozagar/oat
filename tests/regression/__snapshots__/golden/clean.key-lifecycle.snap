@@ -129,6 +129,7 @@
       "tenant.item-not-readable-cross-tenant",
       "tenant.item-not-writable-cross-tenant",
       "tenant.parent-not-reachable-from-another-root",
+      "update.persists-submitted-fields",
       "update.unique-conflict-rejected",
       "validation.content-type-enforced",
       "validation.enum-enforced",
@@ -4597,6 +4598,11 @@
         "needs": "a list operation"
       },
       {
+        "check": "update.persists-submitted-fields",
+        "entity": "notice",
+        "needs": "a create, an update and an item read"
+      },
+      {
         "check": "update.unique-conflict-rejected",
         "entity": "api-key",
         "needs": "x-unique, an update operation with a probeable set, a create, and a known row"
@@ -5191,6 +5197,7 @@
               "response.status-is-documented",
               "schema.problem-json-shape",
               "tenant.item-not-writable-cross-tenant",
+              "update.persists-submitted-fields",
               "update.unique-conflict-rejected"
             ],
             "suppressed": []
@@ -5283,7 +5290,8 @@
               "request.invalid-body-refused",
               "response.status-is-documented",
               "schema.problem-json-shape",
-              "tenant.item-not-writable-cross-tenant"
+              "tenant.item-not-writable-cross-tenant",
+              "update.persists-submitted-fields"
             ],
             "suppressed": []
           },
@@ -5317,7 +5325,8 @@
               "request.invalid-body-refused",
               "response.status-is-documented",
               "schema.problem-json-shape",
-              "tenant.item-not-writable-cross-tenant"
+              "tenant.item-not-writable-cross-tenant",
+              "update.persists-submitted-fields"
             ],
             "suppressed": []
           },
@@ -5351,7 +5360,8 @@
               "request.invalid-body-refused",
               "response.status-is-documented",
               "schema.problem-json-shape",
-              "tenant.item-not-writable-cross-tenant"
+              "tenant.item-not-writable-cross-tenant",
+              "update.persists-submitted-fields"
             ],
             "suppressed": []
           },
@@ -5490,7 +5500,8 @@
               "payload.string-survives",
               "request.invalid-body-refused",
               "response.status-is-documented",
-              "tenant.item-not-writable-cross-tenant"
+              "tenant.item-not-writable-cross-tenant",
+              "update.persists-submitted-fields"
             ],
             "suppressed": []
           },
@@ -6244,6 +6255,12 @@
         {
           "entity": "api-key",
           "id": "apikey_ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "api-key",
+          "id": "apikey_ID",
           "principal": "alpha_member",
           "removed": true
         },
@@ -6430,6 +6447,12 @@
         {
           "entity": "job",
           "id": "job_ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "job",
+          "id": "job_ID",
           "principal": "alpha_member",
           "removed": true
         },
@@ -6604,7 +6627,19 @@
         {
           "entity": "row",
           "id": "row_ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "row",
+          "id": "row_ID",
           "principal": "alpha_member",
+          "removed": true
+        },
+        {
+          "entity": "table",
+          "id": "table_ID",
+          "principal": "alpha",
           "removed": true
         },
         {
@@ -6964,11 +6999,17 @@
         {
           "entity": "webhook",
           "id": "webhook_ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "webhook",
+          "id": "webhook_ID",
           "principal": "alpha_member",
           "removed": true
         }
       ],
-      "removed": 147,
+      "removed": 152,
       "unidentified": [],
       "unsupported": []
     },
@@ -7312,6 +7353,9 @@
       },
       {
         "check": "tenant.parent-not-reachable-from-another-root"
+      },
+      {
+        "check": "update.persists-submitted-fields"
       },
       {
         "check": "update.unique-conflict-rejected"
@@ -8016,6 +8060,11 @@
           "check": "tenant.parent-not-reachable-from-another-root",
           "ran": 3,
           "skipped": 5
+        },
+        {
+          "check": "update.persists-submitted-fields",
+          "ran": 7,
+          "skipped": 1
         },
         {
           "check": "update.unique-conflict-rejected",

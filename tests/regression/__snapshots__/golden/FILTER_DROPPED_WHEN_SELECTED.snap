@@ -585,7 +585,7 @@
       "added": [
         {
           "check": "query.filter-and-select-compose",
-          "detail": "filter on \"active\" alone matched 12 record(s); the same filter with select=id,table_id matched 15. Appeared: row_ID, row_ID, row_ID. A projection must change which columns come back, never which rows — a filter that only holds while every column is selected is one a query plan is dropping once it has to name the columns.",
+          "detail": "filter on \"active\" alone matched 12 record(s); the same filter with select=id,table_id matched 16. Appeared: row_ID, row_ID, row_ID. A projection must change which columns come back, never which rows — a filter that only holds while every column is selected is one a query plan is dropping once it has to name the columns.",
           "entity": "row",
           "operations": [
             "row.list"
@@ -607,7 +607,7 @@
         },
         {
           "check": "query.filter-and-select-compose",
-          "detail": "filter on \"kind\" alone matched 10 record(s); the same filter with select=id,project_id matched 14. Appeared: job_ID, job_ID, job_ID. A projection must change which columns come back, never which rows — a filter that only holds while every column is selected is one a query plan is dropping once it has to name the columns.",
+          "detail": "filter on \"kind\" alone matched 10 record(s); the same filter with select=id,project_id matched 15. Appeared: job_ID, job_ID, job_ID. A projection must change which columns come back, never which rows — a filter that only holds while every column is selected is one a query plan is dropping once it has to name the columns.",
           "entity": "job",
           "operations": [
             "job.list"
@@ -629,7 +629,7 @@
         },
         {
           "check": "query.filter-and-select-compose",
-          "detail": "filter on \"status\" alone matched 13 record(s); the same filter with select=id,project_id matched 17. Appeared: table_ID, table_ID, table_ID. A projection must change which columns come back, never which rows — a filter that only holds while every column is selected is one a query plan is dropping once it has to name the columns.",
+          "detail": "filter on \"status\" alone matched 14 record(s); the same filter with select=id,project_id matched 18. Appeared: table_ID, table_ID, table_ID. A projection must change which columns come back, never which rows — a filter that only holds while every column is selected is one a query plan is dropping once it has to name the columns.",
           "entity": "table",
           "operations": [
             "table.list"

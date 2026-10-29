@@ -553,7 +553,7 @@
       "added": [
         {
           "check": "query.filter-search-sort-compose",
-          "detail": "filter on \"active\" with q=\"alphabetically\" matched 2; the same request with order=label desc matched 3. Appeared: row_ID. A sort must reorder the intersection, never change it.",
+          "detail": "filter on \"active\" with q=\"alphabetically\" matched 2; the same request with order=label desc matched 4. Appeared: row_ID, row_ID. A sort must reorder the intersection, never change it.",
           "entity": "row",
           "operations": [
             "row.list"
@@ -575,7 +575,7 @@
         },
         {
           "check": "query.filter-search-sort-compose",
-          "detail": "filter on \"kind\" with q=\"alphabetically\" matched 1; the same request with order=name desc matched 3. Appeared: job_ID, job_ID. A sort must reorder the intersection, never change it.",
+          "detail": "filter on \"kind\" with q=\"alphabetically\" matched 2; the same request with order=name desc matched 4. Appeared: job_ID, job_ID. A sort must reorder the intersection, never change it.",
           "entity": "job",
           "operations": [
             "job.list"
@@ -597,7 +597,7 @@
         },
         {
           "check": "query.filter-search-sort-compose",
-          "detail": "filter on \"status\" with q=\"a7a7a7a7\" matched 12; the same request with order=name desc matched 16. Appeared: table_ID, table_ID, table_ID. A sort must reorder the intersection, never change it.",
+          "detail": "filter on \"status\" with q=\"a7a7a7a7\" matched 13; the same request with order=name desc matched 17. Appeared: table_ID, table_ID, table_ID. A sort must reorder the intersection, never change it.",
           "entity": "table",
           "operations": [
             "table.list"

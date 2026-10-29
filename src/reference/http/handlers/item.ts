@@ -96,6 +96,8 @@ function changesOf(state: ReferenceState, call: ItemCall, sent: { patch: Row; re
 			? { ...replacementDefaults(entity), ...sent.patch }
 			: { ...sent.patch }
 	changes["updated_at"] = state.ids.stamp()
+	/* answers success, and the table's description it was sent never reaches the row */
+	if (defects.has("UPDATE_DROPS_FIELD") && entity.name === state.table.name) delete changes["description"]
 	delete changes[entity.identity]
 	/* Under `tableKey: "slug"` the slug is the identity a client knows: no write changes it. */
 	if (state.shape.tableKey === "slug" && entity.name === state.table.name) delete changes["slug"]

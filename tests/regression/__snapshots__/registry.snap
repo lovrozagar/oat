@@ -549,6 +549,15 @@
     "needs": "x-unique, an update operation with a probeable set, a create, and a known row"
   },
   {
+    "id": "update.persists-submitted-fields",
+    "dependsOn": [
+      "create.persists-submitted-fields"
+    ],
+    "mutates": true,
+    "judgesTranscript": false,
+    "needs": "a create, an update and an item read"
+  },
+  {
     "id": "patch.minimality",
     "dependsOn": [],
     "mutates": true,

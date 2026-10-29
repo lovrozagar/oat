@@ -166,3 +166,15 @@ describe("consistency.staleness-within-bound when it cannot write", () => {
 		})
 	})
 })
+
+describe("consistency.staleness-within-bound past its longest watch", () => {
+	it("watches a long declared bound for 10 minutes at most, and notes a read still stale then without failing", async () => {
+		const { ctx, findings, sent } = cached(20 * 60_000, { deleteOp: false, stalenessMs: 86_400_000 })
+		expect(await runCheck(stalenessWithinBound, ctx)).toEqual({
+			kind: "asserted",
+			note: "after the update the read was still stale at 600000ms, the longest oat watches; the declared 86400000ms is not judged past it",
+		})
+		expect(findings.findings).toEqual([])
+		expect(sent.filter((s) => s.options.cache === "use").length).toBeLessThanOrEqual(1 + 12)
+	})
+})

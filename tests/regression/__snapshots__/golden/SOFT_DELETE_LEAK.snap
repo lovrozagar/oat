@@ -7,7 +7,7 @@
         "was": 0
       },
       "reason": {
-        "now": "records may remain: 33 teardown could not show gone",
+        "now": "records may remain: 34 teardown could not show gone",
         "was": "no defects found in what was graded"
       },
       "result": {
@@ -451,6 +451,12 @@
           {
             "entity": "table",
             "id": "table_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "table",
+            "id": "table_ID",
             "principal": "alpha_member",
             "reason": "delete answered 2xx but the record is still listed"
           },
@@ -470,6 +476,12 @@
       },
       "records": {
         "added": [
+          {
+            "entity": "table",
+            "id": "table_ID",
+            "principal": "alpha",
+            "removed": false
+          },
           {
             "entity": "table",
             "id": "table_ID",
@@ -853,6 +865,12 @@
           {
             "entity": "table",
             "id": "table_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "table",
+            "id": "table_ID",
             "principal": "alpha_member",
             "removed": true
           },
@@ -871,8 +889,8 @@
         ]
       },
       "removed": {
-        "now": 104,
-        "was": 137
+        "now": 107,
+        "was": 141
       }
     },
     "findings": {

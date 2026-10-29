@@ -546,7 +546,7 @@
       "added": [
         {
           "check": "query.search-and-filter-compose",
-          "detail": "filter on \"status\" matched 14; q=\"a7a7a7a7\" matched 16; both together matched 13 (intersection is 12). Extra: table_ID. A structured predicate and a free-text search must narrow each other. When they do not, one of them is being dropped the moment the other is present.",
+          "detail": "filter on \"status\" matched 15; q=\"a7a7a7a7\" matched 17; both together matched 14 (intersection is 13). Extra: table_ID. A structured predicate and a free-text search must narrow each other. When they do not, one of them is being dropped the moment the other is present.",
           "entity": "table",
           "operations": [
             "table.list"

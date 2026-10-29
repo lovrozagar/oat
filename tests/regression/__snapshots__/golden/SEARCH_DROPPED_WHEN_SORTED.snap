@@ -575,7 +575,7 @@
         },
         {
           "check": "query.filter-search-sort-compose",
-          "detail": "filter on \"kind\" with q=\"alphabetically\" matched 1; the same request with order=name desc matched 2. Appeared: job_ID. A sort must reorder the intersection, never change it.",
+          "detail": "filter on \"kind\" with q=\"alphabetically\" matched 2; the same request with order=name desc matched 3. Appeared: job_ID. A sort must reorder the intersection, never change it.",
           "entity": "job",
           "operations": [
             "job.list"
@@ -597,7 +597,7 @@
         },
         {
           "check": "query.filter-search-sort-compose",
-          "detail": "filter on \"status\" with q=\"a7a7a7a7\" matched 12; the same request with order=name desc matched 13. Appeared: table_ID. A sort must reorder the intersection, never change it.",
+          "detail": "filter on \"status\" with q=\"a7a7a7a7\" matched 13; the same request with order=name desc matched 14. Appeared: table_ID. A sort must reorder the intersection, never change it.",
           "entity": "table",
           "operations": [
             "table.list"
@@ -655,7 +655,7 @@
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows?limit=5&q=Quarterly%20Report%200&page=2"
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows?limit=5&q=Quarterly%20Report%200&page=3"
             }
           ],
           "summary": "adding a sort changes which records a search returns",

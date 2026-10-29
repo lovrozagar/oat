@@ -341,6 +341,7 @@
                 "response.status-is-documented",
                 "schema.problem-json-shape",
                 "tenant.item-not-writable-cross-tenant",
+                "update.persists-submitted-fields",
                 "update.unique-conflict-rejected"
               ],
               "suppressed": []
@@ -420,7 +421,8 @@
                 "request.invalid-body-refused",
                 "response.status-is-documented",
                 "schema.problem-json-shape",
-                "tenant.item-not-writable-cross-tenant"
+                "tenant.item-not-writable-cross-tenant",
+                "update.persists-submitted-fields"
               ],
               "suppressed": []
             },
@@ -451,7 +453,8 @@
                 "request.invalid-body-refused",
                 "response.status-is-documented",
                 "schema.problem-json-shape",
-                "tenant.item-not-writable-cross-tenant"
+                "tenant.item-not-writable-cross-tenant",
+                "update.persists-submitted-fields"
               ],
               "suppressed": []
             },
@@ -482,7 +485,8 @@
                 "request.invalid-body-refused",
                 "response.status-is-documented",
                 "schema.problem-json-shape",
-                "tenant.item-not-writable-cross-tenant"
+                "tenant.item-not-writable-cross-tenant",
+                "update.persists-submitted-fields"
               ],
               "suppressed": []
             },
@@ -1074,6 +1078,7 @@
                 "response.status-is-documented",
                 "schema.problem-json-shape",
                 "tenant.item-not-writable-cross-tenant",
+                "update.persists-submitted-fields",
                 "update.unique-conflict-rejected"
               ],
               "suppressed": []
@@ -1162,7 +1167,8 @@
                 "request.invalid-body-refused",
                 "response.status-is-documented",
                 "schema.problem-json-shape",
-                "tenant.item-not-writable-cross-tenant"
+                "tenant.item-not-writable-cross-tenant",
+                "update.persists-submitted-fields"
               ],
               "suppressed": []
             },
@@ -1196,7 +1202,8 @@
                 "request.invalid-body-refused",
                 "response.status-is-documented",
                 "schema.problem-json-shape",
-                "tenant.item-not-writable-cross-tenant"
+                "tenant.item-not-writable-cross-tenant",
+                "update.persists-submitted-fields"
               ],
               "suppressed": []
             },
@@ -1230,7 +1237,8 @@
                 "request.invalid-body-refused",
                 "response.status-is-documented",
                 "schema.problem-json-shape",
-                "tenant.item-not-writable-cross-tenant"
+                "tenant.item-not-writable-cross-tenant",
+                "update.persists-submitted-fields"
               ],
               "suppressed": []
             },
@@ -1476,8 +1484,8 @@
     "teardown": {
       "records": {},
       "removed": {
-        "now": 142,
-        "was": 137
+        "now": 146,
+        "was": 141
       }
     },
     "findings": {

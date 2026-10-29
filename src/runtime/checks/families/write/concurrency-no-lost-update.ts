@@ -14,6 +14,7 @@ import { itemParamFor, subjectsOf } from "../../planning/subjects.ts"
 import { NO_RECORD } from "./records.ts"
 import type { JsonSchema } from "../../../../spec/types.ts"
 import { admits, stringConstraints } from "../../../generate/string-constraints.ts"
+import { updateDrops } from "../../payloads/update-drops.ts"
 
 /* What the two concurrent patches write, one into each field. */
 const RACE_VALUES = ["oat-concurrent-a", "oat-concurrent-b"] as const
@@ -69,8 +70,17 @@ export const noLostUpdate: Check<{ updateOp: OperationModel; readOp: OperationMo
 
 		/* Two distinct writable string fields, so the writes cannot legitimately clobber each
 		 * other — last-write-wins on the *same* field would be a defensible policy. */
-		const fields = writableStringFields(ctx, original.record).slice(0, 2)
+		const dropped = updateDrops(ctx)
+		const fields = writableStringFields(ctx, original.record)
+			.filter((field) => !dropped.has(field))
+			.slice(0, 2)
 		const [first, second] = fields
+		if ((first === undefined || second === undefined) && dropped.size > 0) {
+			/* A field the update never stores is not lost to a race: that check reports it. */
+			return standDown(
+				`two fields the update stores; it drops ${[...dropped].join(", ")}, which update.persists-submitted-fields reports`,
+			)
+		}
 		if (first === undefined || second === undefined) {
 			return ctx.findings.unresolved(
 				this.id,

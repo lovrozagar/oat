@@ -197,15 +197,15 @@
     "teardown": {
       "records": {},
       "removed": {
-        "now": 140,
-        "was": 137
+        "now": 144,
+        "was": 141
       }
     },
     "findings": {
       "added": [
         {
           "check": "idempotency.replay-does-not-duplicate",
-          "detail": "the replay carrying Idempotency-Key: \"oat-idem-NONCE-job\" answered with the original job job_ID, yet the collection went from 14 to 15 records. The response hides a duplicate the retry still made.",
+          "detail": "the replay carrying Idempotency-Key: \"oat-idem-NONCE-job\" answered with the original job job_ID, yet the collection went from 15 to 16 records. The response hides a duplicate the retry still made.",
           "entity": "job",
           "operations": [
             "job.create"
@@ -237,7 +237,7 @@
         },
         {
           "check": "idempotency.replay-does-not-duplicate",
-          "detail": "the replay carrying Idempotency-Key: \"oat-idem-NONCE-row\" answered with the original row row_ID, yet the collection went from 14 to 15 records. The response hides a duplicate the retry still made.",
+          "detail": "the replay carrying Idempotency-Key: \"oat-idem-NONCE-row\" answered with the original row row_ID, yet the collection went from 15 to 16 records. The response hides a duplicate the retry still made.",
           "entity": "row",
           "operations": [
             "row.create"
@@ -246,7 +246,7 @@
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows?limit=5&page=3"
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows?limit=5&page=4"
             },
             {
               "method": "GET",
@@ -269,7 +269,7 @@
         },
         {
           "check": "idempotency.replay-does-not-duplicate",
-          "detail": "the replay carrying Idempotency-Key: \"oat-idem-NONCE-table\" answered with the original table table_ID, yet the collection went from 17 to 18 records. The response hides a duplicate the retry still made.",
+          "detail": "the replay carrying Idempotency-Key: \"oat-idem-NONCE-table\" answered with the original table table_ID, yet the collection went from 18 to 19 records. The response hides a duplicate the retry still made.",
           "entity": "table",
           "operations": [
             "table.create"

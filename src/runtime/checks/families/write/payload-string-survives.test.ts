@@ -4,6 +4,7 @@ import { REQUIRED_IDS, STRING_PAYLOADS } from "../../../payloads.ts"
 import { contextFor, modelOf, op, type Responder } from "../../__fixtures__/harness.ts"
 import type { Listed } from "../../core/context.ts"
 import { runCheck } from "../../core/run.ts"
+import { recordUpdateDrops } from "../../payloads/update-drops.ts"
 import { ASCII_PAYLOAD_PROBE, writePathOf } from "./payload-cases.ts"
 import { PayloadClaims } from "./payload-claims.ts"
 import { stringPayloadSurvives } from "./payload-string-survives.ts"
@@ -328,5 +329,18 @@ describe("payload.string-survives plan", () => {
 			needs: "a writable string field without a format or pattern to probe payloads against",
 			ok: false,
 		})
+	})
+})
+
+describe("payload.string-survives and a field the update drops", () => {
+	it("stands down before sending a payload into a field the update never stores", async () => {
+		const { ctx, findings, sent } = stage(widgetApi())
+		recordUpdateDrops(ctx, ["note"])
+		expect(await runCheck(stringPayloadSurvives, ctx)).toEqual({
+			kind: "stood-down",
+			reason: "the update drops note, which update.persists-submitted-fields reports",
+		})
+		expect(findings.findings).toEqual([])
+		expect(sent).toEqual([])
 	})
 })

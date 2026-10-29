@@ -575,7 +575,7 @@
         },
         {
           "check": "query.filter-search-select-compose",
-          "detail": "filter on \"kind\" with q=\"alphabetically\" matched 1; the same request with select=id,project_id matched 2. Appeared: job_ID. A projection must change columns, never the intersection a filter and a search already agreed on.",
+          "detail": "filter on \"kind\" with q=\"alphabetically\" matched 2; the same request with select=id,project_id matched 3. Appeared: job_ID. A projection must change columns, never the intersection a filter and a search already agreed on.",
           "entity": "job",
           "operations": [
             "job.list"
@@ -597,7 +597,7 @@
         },
         {
           "check": "query.filter-search-select-compose",
-          "detail": "filter on \"status\" with q=\"a7a7a7a7\" matched 12; the same request with select=id,project_id matched 13. Appeared: table_ID. A projection must change columns, never the intersection a filter and a search already agreed on.",
+          "detail": "filter on \"status\" with q=\"a7a7a7a7\" matched 13; the same request with select=id,project_id matched 14. Appeared: table_ID. A projection must change columns, never the intersection a filter and a search already agreed on.",
           "entity": "table",
           "operations": [
             "table.list"
@@ -619,7 +619,7 @@
         },
         {
           "check": "query.search-and-select-compose",
-          "detail": "q=\"Quarterly Report 0 a7a7a7a7\" alone matched 11; with select it matched 17.",
+          "detail": "q=\"Quarterly Report 0 a7a7a7a7\" alone matched 12; with select it matched 18.",
           "entity": "table",
           "operations": [
             "table.list"
@@ -641,7 +641,29 @@
         },
         {
           "check": "query.search-and-select-compose",
-          "detail": "q=\"Quarterly Report 0\" alone matched 8; with select it matched 14.",
+          "detail": "q=\"Quarterly Report 0\" alone matched 10; with select it matched 16.",
+          "entity": "row",
+          "operations": [
+            "row.list"
+          ],
+          "evidence": [
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows?limit=5&q=Quarterly%20Report%200&page=3"
+            },
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows?limit=5&q=Quarterly%20Report%200&select=id%2Clabel&page=4"
+            }
+          ],
+          "summary": "adding a select changes which records a search returns",
+          "verdict": "BACKEND_BUG"
+        },
+        {
+          "check": "query.search-and-select-compose",
+          "detail": "q=\"Quarterly Report 0\" alone matched 9; with select it matched 15.",
           "entity": "job",
           "operations": [
             "job.list"
@@ -656,28 +678,6 @@
               "method": "GET",
               "status": 200,
               "url": "http://reference.test/v1/projects/proj_alpha/jobs?limit=100&q=Quarterly%20Report%200&select=id%2Cname&page=1"
-            }
-          ],
-          "summary": "adding a select changes which records a search returns",
-          "verdict": "BACKEND_BUG"
-        },
-        {
-          "check": "query.search-and-select-compose",
-          "detail": "q=\"Quarterly Report 0\" alone matched 9; with select it matched 15.",
-          "entity": "row",
-          "operations": [
-            "row.list"
-          ],
-          "evidence": [
-            {
-              "method": "GET",
-              "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows?limit=5&q=Quarterly%20Report%200&page=2"
-            },
-            {
-              "method": "GET",
-              "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows?limit=5&q=Quarterly%20Report%200&select=id%2Clabel&page=4"
             }
           ],
           "summary": "adding a select changes which records a search returns",

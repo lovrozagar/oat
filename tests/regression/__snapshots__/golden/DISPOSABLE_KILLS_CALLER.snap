@@ -7,7 +7,7 @@
         "was": 0
       },
       "reason": {
-        "now": "records may remain: 124 teardown could not show gone",
+        "now": "records may remain: 128 teardown could not show gone",
         "was": "no defects found in what was graded"
       },
       "result": {
@@ -556,6 +556,7 @@
                 "response.status-is-documented",
                 "schema.problem-json-shape",
                 "tenant.item-not-writable-cross-tenant",
+                "update.persists-submitted-fields",
                 "update.unique-conflict-rejected"
               ],
               "suppressed": []
@@ -585,7 +586,8 @@
                 "payload.string-survives",
                 "response.status-is-documented",
                 "schema.problem-json-shape",
-                "tenant.item-not-writable-cross-tenant"
+                "tenant.item-not-writable-cross-tenant",
+                "update.persists-submitted-fields"
               ],
               "suppressed": []
             },
@@ -614,7 +616,8 @@
                 "payload.string-survives",
                 "response.status-is-documented",
                 "schema.problem-json-shape",
-                "tenant.item-not-writable-cross-tenant"
+                "tenant.item-not-writable-cross-tenant",
+                "update.persists-submitted-fields"
               ],
               "suppressed": []
             },
@@ -643,7 +646,8 @@
                 "payload.string-survives",
                 "response.status-is-documented",
                 "schema.problem-json-shape",
-                "tenant.item-not-writable-cross-tenant"
+                "tenant.item-not-writable-cross-tenant",
+                "update.persists-submitted-fields"
               ],
               "suppressed": []
             },
@@ -1058,6 +1062,7 @@
                 "response.status-is-documented",
                 "schema.problem-json-shape",
                 "tenant.item-not-writable-cross-tenant",
+                "update.persists-submitted-fields",
                 "update.unique-conflict-rejected"
               ],
               "suppressed": []
@@ -1146,7 +1151,8 @@
                 "request.invalid-body-refused",
                 "response.status-is-documented",
                 "schema.problem-json-shape",
-                "tenant.item-not-writable-cross-tenant"
+                "tenant.item-not-writable-cross-tenant",
+                "update.persists-submitted-fields"
               ],
               "suppressed": []
             },
@@ -1180,7 +1186,8 @@
                 "request.invalid-body-refused",
                 "response.status-is-documented",
                 "schema.problem-json-shape",
-                "tenant.item-not-writable-cross-tenant"
+                "tenant.item-not-writable-cross-tenant",
+                "update.persists-submitted-fields"
               ],
               "suppressed": []
             },
@@ -1214,7 +1221,8 @@
                 "request.invalid-body-refused",
                 "response.status-is-documented",
                 "schema.problem-json-shape",
-                "tenant.item-not-writable-cross-tenant"
+                "tenant.item-not-writable-cross-tenant",
+                "update.persists-submitted-fields"
               ],
               "suppressed": []
             },
@@ -1668,8 +1676,20 @@
           {
             "entity": "job",
             "id": "job_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/projects/proj_alpha/jobs/job_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
             "principal": "alpha_member",
             "reason": "DELETE /v1/projects/proj_alpha/jobs/job_ID returned alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/projects/proj_alpha/tables/table_ID/rows/row_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: 401"
           },
           {
             "entity": "row",
@@ -1986,6 +2006,12 @@
           {
             "entity": "table",
             "id": "table_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/projects/proj_alpha/tables/table_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
+          },
+          {
+            "entity": "table",
+            "id": "table_ID",
             "principal": "alpha_member",
             "reason": "DELETE /v1/projects/proj_alpha/tables/table_ID returned alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
           },
@@ -2000,6 +2026,12 @@
             "id": "table_ID",
             "principal": "beta",
             "reason": "DELETE /v1/projects/proj_beta/tables/table_ID returned beta: 401"
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "reason": "DELETE /v1/projects/proj_alpha/webhooks/webhook_ID returned alpha: not sent (signed in again, and the new credential is refused where the old one was accepted (profile.get)), alpha_member: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get)), alpha_viewer: not sent (signed in again, and the new credential is refused where the old one was accepted (table.get))"
           },
           {
             "entity": "webhook",
@@ -2386,6 +2418,12 @@
           {
             "entity": "job",
             "id": "job_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
             "principal": "alpha_member",
             "removed": false
           },
@@ -2542,7 +2580,19 @@
           {
             "entity": "row",
             "id": "row_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
             "principal": "alpha_member",
+            "removed": false
+          },
+          {
+            "entity": "table",
+            "id": "table_ID",
+            "principal": "alpha",
             "removed": false
           },
           {
@@ -2717,6 +2767,12 @@
             "entity": "table",
             "id": "table_ID",
             "principal": "beta",
+            "removed": false
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
             "removed": false
           },
           {
@@ -2923,7 +2979,7 @@
       },
       "removed": {
         "now": 13,
-        "was": 137
+        "was": 141
       }
     },
     "findings": {

@@ -585,7 +585,7 @@
       "added": [
         {
           "check": "query.axes-compose",
-          "detail": "filter on \"active\" alone matched 12 record(s); the same filter with order=label desc matched 15. Appeared: row_ID, row_ID, row_ID. Ordering must reorder a result, never change its membership — a filter that only holds while unsorted is one an index or query plan is silently dropping.",
+          "detail": "filter on \"active\" alone matched 12 record(s); the same filter with order=label desc matched 16. Appeared: row_ID, row_ID, row_ID. Ordering must reorder a result, never change its membership — a filter that only holds while unsorted is one an index or query plan is silently dropping.",
           "entity": "row",
           "operations": [
             "row.list"
@@ -607,7 +607,7 @@
         },
         {
           "check": "query.axes-compose",
-          "detail": "filter on \"kind\" alone matched 10 record(s); the same filter with order=name desc matched 14. Appeared: job_ID, job_ID, job_ID. Ordering must reorder a result, never change its membership — a filter that only holds while unsorted is one an index or query plan is silently dropping.",
+          "detail": "filter on \"kind\" alone matched 10 record(s); the same filter with order=name desc matched 15. Appeared: job_ID, job_ID, job_ID. Ordering must reorder a result, never change its membership — a filter that only holds while unsorted is one an index or query plan is silently dropping.",
           "entity": "job",
           "operations": [
             "job.list"
@@ -629,7 +629,7 @@
         },
         {
           "check": "query.axes-compose",
-          "detail": "filter on \"status\" alone matched 13 record(s); the same filter with order=name desc matched 17. Appeared: table_ID, table_ID, table_ID. Ordering must reorder a result, never change its membership — a filter that only holds while unsorted is one an index or query plan is silently dropping.",
+          "detail": "filter on \"status\" alone matched 14 record(s); the same filter with order=name desc matched 18. Appeared: table_ID, table_ID, table_ID. Ordering must reorder a result, never change its membership — a filter that only holds while unsorted is one an index or query plan is silently dropping.",
           "entity": "table",
           "operations": [
             "table.list"

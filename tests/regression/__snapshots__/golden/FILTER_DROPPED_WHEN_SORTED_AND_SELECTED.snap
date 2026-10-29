@@ -553,7 +553,7 @@
       "added": [
         {
           "check": "query.filter-sort-select-compose",
-          "detail": "filter on \"active\" alone matched 12; the same filter with order=label desc and select=id,table_id matched 15. Appeared: row_ID, row_ID, row_ID. Each pair composes; the triple must too. A filter that only holds until both a sort and a projection are present is one a three-axis query plan is dropping.",
+          "detail": "filter on \"active\" alone matched 12; the same filter with order=label desc and select=id,table_id matched 16. Appeared: row_ID, row_ID, row_ID. Each pair composes; the triple must too. A filter that only holds until both a sort and a projection are present is one a three-axis query plan is dropping.",
           "entity": "row",
           "operations": [
             "row.list"
@@ -575,7 +575,7 @@
         },
         {
           "check": "query.filter-sort-select-compose",
-          "detail": "filter on \"kind\" alone matched 10; the same filter with order=name desc and select=id,project_id matched 14. Appeared: job_ID, job_ID, job_ID. Each pair composes; the triple must too. A filter that only holds until both a sort and a projection are present is one a three-axis query plan is dropping.",
+          "detail": "filter on \"kind\" alone matched 10; the same filter with order=name desc and select=id,project_id matched 15. Appeared: job_ID, job_ID, job_ID. Each pair composes; the triple must too. A filter that only holds until both a sort and a projection are present is one a three-axis query plan is dropping.",
           "entity": "job",
           "operations": [
             "job.list"
@@ -597,7 +597,7 @@
         },
         {
           "check": "query.filter-sort-select-compose",
-          "detail": "filter on \"status\" alone matched 13; the same filter with order=name desc and select=id,project_id matched 17. Appeared: table_ID, table_ID, table_ID. Each pair composes; the triple must too. A filter that only holds until both a sort and a projection are present is one a three-axis query plan is dropping.",
+          "detail": "filter on \"status\" alone matched 14; the same filter with order=name desc and select=id,project_id matched 18. Appeared: table_ID, table_ID, table_ID. Each pair composes; the triple must too. A filter that only holds until both a sort and a projection are present is one a three-axis query plan is dropping.",
           "entity": "table",
           "operations": [
             "table.list"

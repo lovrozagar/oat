@@ -40,15 +40,23 @@ oat 0.26.0 tests a cached API's freshness against the staleness it declares, and
 Goal: The admin gate reads platform admin from D1 on every request, and TOTP codes are single-use through an atomic D1 insert, deployed to prod with its migration.
 Why: Both are live security defects that need nothing from oat. Shipping them first also removes two caches before the presets slice reshapes the rest.
 Location: .tmp/grunt/plans/14-anyrow-security-cache-fixes-20261028T232743Z.md
-2 [ ] Title: oat 0.26.0 freshness support
+2 [x] Title: oat 0.26.0 freshness support
 Goal: oat 0.26.0 is released, reading `x-consistency` and the standard cache headers, sending the bypass on verification reads, and shipping `consistency.staleness-within-bound` and `consistency.bypass-is-fresh` with reference defects, goldens and docs.
 Why: anyrow's declarations in slice 3 are only provable once a released oat can test them.
 Location: .tmp/grunt/plans/15-oat-freshness-support-20261028T234729Z.md
-3 [ ] Title: anyrow cache presets and declarations
+3 [x] Title: anyrow cache presets and declarations
 Goal: anyrow runs on prod with every cache on a `SHORT`, `STANDARD` or `LONG` preset, a generated `x-consistency` on every cached read, `Cache-Control: no-cache` honored like `x-fresh`, and `Cache-Status` and `Age` on cached answers.
 Why: It depends on slice 2's checks to be verified, and it fixes the template delete's 5-minute staleness by moving it to `STANDARD`.
-4 [ ] Title: joint freshness retest
-Goal: A full anyrow prod acceptance run on oat 0.26.0 shows the consistency checks within the declared bounds, a revoked admin and a replayed TOTP refused at once, and `targets.yml` still green.
+Location: .tmp/grunt/plans/16-anyrow-cache-presets-declarations-20261029T042517Z.md
+4 [ ] Title: oat 0.27.0 attribution and caps
+Goal: oat 0.27.0 is released, where a write whose own answer or bypass read drops a submitted field is reported once as `update.persists-submitted-fields` (never as staleness or a lost update), `consistency.*` and `concurrency.no-lost-update` stand down on such fields, and `consistency.staleness-within-bound` caps its watch at 10 minutes whatever the declared bound, reporting "still stale at cap" without failing.
+Why: The joint retest must attribute causes correctly, and a declared 24 h bound must not plan a 24 h watch.
+Location: .tmp/grunt/plans/17-oat-attribution-and-caps-20261029T092754Z.md
+5 [ ] Title: anyrow writer freshness and org update
+Goal: anyrow's org.update body documents only the fields it writes, and the generated SDK sends `x-fresh: 1` on reads a mutation's `x-invalidate` marked stale (for the route's declared staleness), turned on in the dashboard.
+Why: It removes the over-claim the new check exposed, and gives writers real read-your-writes, which nothing does today.
+6 [ ] Title: joint freshness retest
+Goal: A full anyrow prod acceptance run on oat 0.27.0 shows the consistency checks within the declared bounds, a revoked admin and a replayed TOTP refused at once, and `targets.yml` still green.
 Why: It proves the whole program end to end on the real API, the way the 0.25 releases were proven.
 
 ## Watch-outs
@@ -60,7 +68,7 @@ Why: It proves the whole program end to end on the real API, the way the 0.25 re
 
 ## Verify
 
-5 [ ] Verify
-5.1 [ ] All four child plans have finished their Verify.
-5.2 [ ] npm serves `@lovrozagar/oat@0.26.0` with provenance, and its CI and `targets.yml` passed on the tag commit.
-5.3 [ ] The anyrow prod run on 0.26.0 reports no staleness past a declared bound, and both security probes pass on prod.
+7 [ ] Verify
+7.1 [ ] All six child plans have finished their Verify.
+7.2 [ ] npm serves `@lovrozagar/oat@0.26.0` and `@lovrozagar/oat@0.27.0` with provenance, and each one's CI and `targets.yml` passed on its tag commit.
+7.3 [ ] The anyrow prod run on 0.27.0 reports no staleness past a declared bound, and both security probes pass on prod.

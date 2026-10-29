@@ -20,7 +20,7 @@ describe("DEFECTS", () => {
 			FRESHNESS_DEFECTS,
 		]
 		expect(Object.keys(DEFECTS)).toEqual(families.flatMap((family) => Object.keys(family)))
-		expect(Object.keys(DEFECTS)).toHaveLength(138)
+		expect(Object.keys(DEFECTS)).toHaveLength(139)
 		expect(DEFECTS.UNSTABLE_SORT).toBe(CORE_DEFECTS.UNSTABLE_SORT)
 	})
 

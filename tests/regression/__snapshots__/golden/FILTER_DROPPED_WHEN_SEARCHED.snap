@@ -585,7 +585,7 @@
       "added": [
         {
           "check": "query.search-and-filter-compose",
-          "detail": "filter on \"active\" matched 12; q=\"alphabetically\" matched 3; both together matched 3 (intersection is 2). Extra: row_ID. A structured predicate and a free-text search must narrow each other. When they do not, one of them is being dropped the moment the other is present.",
+          "detail": "filter on \"active\" matched 12; q=\"alphabetically\" matched 4; both together matched 4 (intersection is 2). Extra: row_ID, row_ID. A structured predicate and a free-text search must narrow each other. When they do not, one of them is being dropped the moment the other is present.",
           "entity": "row",
           "operations": [
             "row.list"
@@ -612,7 +612,7 @@
         },
         {
           "check": "query.search-and-filter-compose",
-          "detail": "filter on \"kind\" matched 2; q=\"alphabetically\" matched 3; both together matched 3 (intersection is 1). Extra: job_ID, job_ID. A structured predicate and a free-text search must narrow each other. When they do not, one of them is being dropped the moment the other is present.",
+          "detail": "filter on \"kind\" matched 3; q=\"alphabetically\" matched 4; both together matched 4 (intersection is 2). Extra: job_ID, job_ID. A structured predicate and a free-text search must narrow each other. When they do not, one of them is being dropped the moment the other is present.",
           "entity": "job",
           "operations": [
             "job.list"
@@ -639,7 +639,7 @@
         },
         {
           "check": "query.search-and-filter-compose",
-          "detail": "filter on \"status\" matched 13; q=\"a7a7a7a7\" matched 16; both together matched 16 (intersection is 12). Extra: table_ID, table_ID, table_ID. A structured predicate and a free-text search must narrow each other. When they do not, one of them is being dropped the moment the other is present.",
+          "detail": "filter on \"status\" matched 14; q=\"a7a7a7a7\" matched 17; both together matched 17 (intersection is 13). Extra: table_ID, table_ID, table_ID. A structured predicate and a free-text search must narrow each other. When they do not, one of them is being dropped the moment the other is present.",
           "entity": "table",
           "operations": [
             "table.list"

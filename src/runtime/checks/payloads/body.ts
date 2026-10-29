@@ -16,6 +16,7 @@ import type { CheckContext } from "../core/context.ts"
 import { reserveClientIdentity, saltOf } from "./identity.ts"
 import { itemSchemaOf } from "./item-schema.ts"
 import type { JsonSchema } from "../../../spec/types.ts"
+import { updateDrops } from "./update-drops.ts"
 
 /** The schema of `field` as the item's representation declares it. */
 export function propertySchemaOf(
@@ -57,8 +58,9 @@ function writeOnlyProperties(ctx: Pick<CheckContext, "model">, op: OperationMode
 }
 
 /**
- * The first non-empty string field of `record` the update may change: not fixed, not withheld, and
- * one a read can return — never one the create or the update marks writeOnly, a secret say.
+ * The first non-empty string field of `record` the update may change: not fixed, not withheld, not
+ * one the update is known to drop, and one a read can return — never one the create or the update
+ * marks writeOnly, a secret say.
  */
 export function pickWritableStringField(ctx: CheckContext, record: Record_): string | null {
 	const immutable = new Set([
@@ -67,6 +69,8 @@ export function pickWritableStringField(ctx: CheckContext, record: Record_): str
 		...withheldProperties(ctx, ctx.updateOp),
 		...writeOnlyProperties(ctx, ctx.createOp),
 		...writeOnlyProperties(ctx, ctx.updateOp),
+		/* a field the update answers success to and never stores: update.persists-submitted-fields reports it */
+		...updateDrops(ctx),
 	])
 	for (const [key, value] of Object.entries(record)) {
 		if (immutable.has(key) || key === ctx.identity) continue

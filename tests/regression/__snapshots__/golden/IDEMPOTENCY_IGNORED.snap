@@ -213,8 +213,8 @@
     "teardown": {
       "records": {},
       "removed": {
-        "now": 139,
-        "was": 137
+        "now": 143,
+        "was": 141
       }
     },
     "findings": {

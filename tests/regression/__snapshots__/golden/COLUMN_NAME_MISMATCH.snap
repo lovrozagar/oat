@@ -273,6 +273,21 @@
           "because": "create.persists-submitted-fields",
           "check": "sort.reverse-symmetry",
           "entity": "table"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "update.persists-submitted-fields",
+          "entity": "job"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "update.persists-submitted-fields",
+          "entity": "table"
+        },
+        {
+          "because": "create.persists-submitted-fields",
+          "check": "update.persists-submitted-fields",
+          "entity": "webhook"
         }
       ]
     },
@@ -441,7 +456,8 @@
                 "update.unique-conflict-rejected"
               ],
               "suppressed": [
-                "concurrency.no-lost-update"
+                "concurrency.no-lost-update",
+                "update.persists-submitted-fields"
               ]
             },
             "entity": "table",
@@ -683,7 +699,8 @@
                 "tenant.item-not-writable-cross-tenant"
               ],
               "suppressed": [
-                "concurrency.no-lost-update"
+                "concurrency.no-lost-update",
+                "update.persists-submitted-fields"
               ]
             },
             "entity": "job",
@@ -718,7 +735,8 @@
                 "tenant.item-not-writable-cross-tenant"
               ],
               "suppressed": [
-                "concurrency.no-lost-update"
+                "concurrency.no-lost-update",
+                "update.persists-submitted-fields"
               ]
             },
             "entity": "webhook",
@@ -995,6 +1013,7 @@
                 "response.status-is-documented",
                 "schema.problem-json-shape",
                 "tenant.item-not-writable-cross-tenant",
+                "update.persists-submitted-fields",
                 "update.unique-conflict-rejected"
               ],
               "suppressed": []
@@ -1029,7 +1048,8 @@
                 "request.invalid-body-refused",
                 "response.status-is-documented",
                 "schema.problem-json-shape",
-                "tenant.item-not-writable-cross-tenant"
+                "tenant.item-not-writable-cross-tenant",
+                "update.persists-submitted-fields"
               ],
               "suppressed": []
             },
@@ -1063,7 +1083,8 @@
                 "request.invalid-body-refused",
                 "response.status-is-documented",
                 "schema.problem-json-shape",
-                "tenant.item-not-writable-cross-tenant"
+                "tenant.item-not-writable-cross-tenant",
+                "update.persists-submitted-fields"
               ],
               "suppressed": []
             },
@@ -1170,8 +1191,8 @@
     "teardown": {
       "records": {},
       "removed": {
-        "now": 129,
-        "was": 137
+        "now": 130,
+        "was": 141
       }
     },
     "findings": {
@@ -1464,6 +1485,11 @@
             "check": "sort.reverse-symmetry",
             "ran": 3,
             "skipped": 3
+          },
+          {
+            "check": "update.persists-submitted-fields",
+            "ran": 3,
+            "skipped": 2
           }
         ],
         "removed": [
@@ -1616,6 +1642,11 @@
             "check": "sort.reverse-symmetry",
             "ran": 5,
             "skipped": 3
+          },
+          {
+            "check": "update.persists-submitted-fields",
+            "ran": 6,
+            "skipped": 2
           }
         ]
       }

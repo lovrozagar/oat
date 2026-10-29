@@ -1,0 +1,239 @@
+{
+  "exitCode": 1,
+  "report": {
+    "outcome": {
+      "exitCode": {
+        "now": 1,
+        "was": 0
+      },
+      "reason": {
+        "now": "1 root-cause finding",
+        "was": "no defects found in what was graded"
+      },
+      "result": {
+        "now": "defects",
+        "was": "clean"
+      }
+    },
+    "checksSkipped": {
+      "added": [
+        {
+          "check": "payload.string-survives",
+          "entity": "table",
+          "needs": "the update drops description, which update.persists-submitted-fields reports"
+        }
+      ]
+    },
+    "scope": {
+      "operations": {
+        "added": [
+          {
+            "checks": {
+              "failed": [
+                "update.persists-submitted-fields"
+              ],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.privileged-field-ignored",
+                "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
+                "concurrency.if-match-enforced",
+                "concurrency.no-lost-update",
+                "consistency.staleness-within-bound",
+                "patch.immutable-field-rejected",
+                "patch.minimality",
+                "request.invalid-body-refused",
+                "response.status-is-documented",
+                "schema.problem-json-shape",
+                "tenant.item-not-writable-cross-tenant",
+                "update.unique-conflict-rejected"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 1,
+            "operationId": "table.update",
+            "reason": null,
+            "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.alternative-accepted",
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic",
+                "auth.scope-enforced",
+                "concurrency.if-match-enforced",
+                "consistency.projections-agree",
+                "consistency.staleness-within-bound",
+                "invalidation.declared-route-changes",
+                "response.status-is-documented",
+                "schema.error-response-matches-document",
+                "schema.read-response-matches-document",
+                "tenant.denial-does-not-reveal-existence",
+                "tenant.item-not-readable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.get",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          }
+        ],
+        "removed": [
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.alternative-accepted",
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic",
+                "auth.scope-enforced",
+                "concurrency.if-match-enforced",
+                "consistency.projections-agree",
+                "consistency.staleness-within-bound",
+                "invalidation.declared-route-changes",
+                "payload.string-survives",
+                "response.status-is-documented",
+                "schema.error-response-matches-document",
+                "schema.read-response-matches-document",
+                "tenant.denial-does-not-reveal-existence",
+                "tenant.item-not-readable-cross-tenant"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.get",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.privileged-field-ignored",
+                "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
+                "concurrency.if-match-enforced",
+                "concurrency.no-lost-update",
+                "consistency.staleness-within-bound",
+                "patch.immutable-field-rejected",
+                "patch.minimality",
+                "payload.string-survives",
+                "request.invalid-body-refused",
+                "response.status-is-documented",
+                "schema.problem-json-shape",
+                "tenant.item-not-writable-cross-tenant",
+                "update.persists-submitted-fields",
+                "update.unique-conflict-rejected"
+              ],
+              "suppressed": []
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.update",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          }
+        ]
+      }
+    },
+    "teardown": {
+      "records": {},
+      "removed": {
+        "now": 137,
+        "was": 141
+      }
+    },
+    "findings": {
+      "added": [
+        {
+          "check": "update.persists-submitted-fields",
+          "detail": "the update answered success and stored none of \"description\" as sent: neither its answer nor a read past the cache shows them. Callers are told the write succeeded.",
+          "entity": "table",
+          "operations": [
+            "table.update"
+          ],
+          "evidence": [
+            {
+              "method": "GET",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID"
+            },
+            {
+              "method": "PATCH",
+              "status": 200,
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID"
+            }
+          ],
+          "summary": "update silently discards submitted fields",
+          "verdict": "BACKEND_BUG"
+        }
+      ]
+    },
+    "observed": {
+      "removed": [
+        {
+          "check": "payload.string-survives",
+          "entity": "table",
+          "note": "12 of 159 payload cases sent to \"description\": the whole catalog already ran against this write path on job, so this field got one case of each family. Set `payloads: \"full\"` to send every case to every field."
+        }
+      ]
+    },
+    "summary": {
+      "BACKEND_BUG": {
+        "now": 1,
+        "was": null
+      }
+    },
+    "coverage": {
+      "partial": {
+        "added": [
+          {
+            "check": "payload.string-survives",
+            "ran": 5,
+            "skipped": 3
+          }
+        ],
+        "removed": [
+          {
+            "check": "payload.string-survives",
+            "ran": 6,
+            "skipped": 2
+          }
+        ]
+      }
+    }
+  }
+}

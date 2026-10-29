@@ -1079,7 +1079,8 @@
                 "request.invalid-body-refused",
                 "response.status-is-documented",
                 "schema.problem-json-shape",
-                "tenant.item-not-writable-cross-tenant"
+                "tenant.item-not-writable-cross-tenant",
+                "update.persists-submitted-fields"
               ],
               "suppressed": [
                 "update.unique-conflict-rejected"
@@ -1537,6 +1538,7 @@
                 "response.status-is-documented",
                 "schema.problem-json-shape",
                 "tenant.item-not-writable-cross-tenant",
+                "update.persists-submitted-fields",
                 "update.unique-conflict-rejected"
               ],
               "suppressed": []
@@ -1756,8 +1758,8 @@
     "teardown": {
       "records": {},
       "removed": {
-        "now": 130,
-        "was": 137
+        "now": 134,
+        "was": 141
       }
     },
     "findings": {

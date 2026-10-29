@@ -526,7 +526,7 @@
       "added": [
         {
           "check": "query.filter-search-sort-select-compose",
-          "detail": "the four-axis listing returned 16; filter+search alone returned 12.",
+          "detail": "the four-axis listing returned 17; filter+search alone returned 13.",
           "entity": "table",
           "operations": [
             "table.list"
@@ -548,7 +548,7 @@
         },
         {
           "check": "query.filter-search-sort-select-compose",
-          "detail": "the four-axis listing returned 3; filter+search alone returned 1.",
+          "detail": "the four-axis listing returned 4; filter+search alone returned 2.",
           "entity": "job",
           "operations": [
             "job.list"
@@ -570,7 +570,7 @@
         },
         {
           "check": "query.filter-search-sort-select-compose",
-          "detail": "the four-axis listing returned 3; filter+search alone returned 2.",
+          "detail": "the four-axis listing returned 4; filter+search alone returned 2.",
           "entity": "row",
           "operations": [
             "row.list"

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
 import { contextFor, modelOf, op, type Responder } from "../../__fixtures__/harness.ts"
 import { runCheck } from "../../core/run.ts"
+import { recordUpdateDrops } from "../../payloads/update-drops.ts"
 import { noLostUpdate } from "./concurrency-no-lost-update.ts"
 import { overriding, type Rows, widgetApi, widgetDoc, type WidgetDocOptions } from "./__fixtures__/widget-api.ts"
 
@@ -240,5 +241,28 @@ describe("concurrency.no-lost-update under a guard pattern on every string", () 
 			needs: "two independently writable string fields; widget's update takes only name",
 			ok: false,
 		})
+	})
+})
+
+describe("concurrency.no-lost-update and a field the update drops", () => {
+	it("races two fields the update stores, never one it drops", async () => {
+		const { ctx, sent } = stage(widgetApi())
+		recordUpdateDrops(ctx, ["label"])
+		expect(await runCheck(noLostUpdate, ctx)).toEqual({ kind: "asserted" })
+		expect(sent.filter((s) => s.method === "PATCH").map((s) => Object.keys(s.options.body as object))).toEqual([
+			["name"],
+			["note"],
+		])
+	})
+
+	it("stands down, naming the dropped fields, when fewer than two fields the update stores are left", async () => {
+		const { ctx, findings, sent } = stage(widgetApi())
+		recordUpdateDrops(ctx, ["label", "note"])
+		expect(await runCheck(noLostUpdate, ctx)).toEqual({
+			kind: "stood-down",
+			reason: "two fields the update stores; it drops label, note, which update.persists-submitted-fields reports",
+		})
+		expect(findings.findings).toEqual([])
+		expect(sent.filter((s) => s.method === "PATCH")).toEqual([])
 	})
 })

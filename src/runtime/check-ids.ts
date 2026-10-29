@@ -132,6 +132,7 @@ const PREFIXED_CHECK_IDS = [
 	"tenant.item-not-readable-cross-tenant",
 	"tenant.parent-not-reachable-from-another-root",
 	"tenant.item-not-writable-cross-tenant",
+	"update.persists-submitted-fields",
 	"update.unique-conflict-rejected",
 	"validation.content-type-enforced",
 	"validation.enum-enforced",

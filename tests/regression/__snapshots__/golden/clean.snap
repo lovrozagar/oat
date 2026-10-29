@@ -129,6 +129,7 @@
       "tenant.item-not-readable-cross-tenant",
       "tenant.item-not-writable-cross-tenant",
       "tenant.parent-not-reachable-from-another-root",
+      "update.persists-submitted-fields",
       "update.unique-conflict-rejected",
       "validation.content-type-enforced",
       "validation.enum-enforced",
@@ -4542,6 +4543,16 @@
         "needs": "a list operation"
       },
       {
+        "check": "update.persists-submitted-fields",
+        "entity": "api-key",
+        "needs": "a create, an update and an item read"
+      },
+      {
+        "check": "update.persists-submitted-fields",
+        "entity": "notice",
+        "needs": "a create, an update and an item read"
+      },
+      {
         "check": "update.unique-conflict-rejected",
         "entity": "api-key",
         "needs": "a list operation"
@@ -5136,6 +5147,7 @@
               "response.status-is-documented",
               "schema.problem-json-shape",
               "tenant.item-not-writable-cross-tenant",
+              "update.persists-submitted-fields",
               "update.unique-conflict-rejected"
             ],
             "suppressed": []
@@ -5224,7 +5236,8 @@
               "request.invalid-body-refused",
               "response.status-is-documented",
               "schema.problem-json-shape",
-              "tenant.item-not-writable-cross-tenant"
+              "tenant.item-not-writable-cross-tenant",
+              "update.persists-submitted-fields"
             ],
             "suppressed": []
           },
@@ -5258,7 +5271,8 @@
               "request.invalid-body-refused",
               "response.status-is-documented",
               "schema.problem-json-shape",
-              "tenant.item-not-writable-cross-tenant"
+              "tenant.item-not-writable-cross-tenant",
+              "update.persists-submitted-fields"
             ],
             "suppressed": []
           },
@@ -5292,7 +5306,8 @@
               "request.invalid-body-refused",
               "response.status-is-documented",
               "schema.problem-json-shape",
-              "tenant.item-not-writable-cross-tenant"
+              "tenant.item-not-writable-cross-tenant",
+              "update.persists-submitted-fields"
             ],
             "suppressed": []
           },
@@ -6255,6 +6270,12 @@
         {
           "entity": "job",
           "id": "job_ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "job",
+          "id": "job_ID",
           "principal": "alpha_member",
           "removed": true
         },
@@ -6429,7 +6450,19 @@
         {
           "entity": "row",
           "id": "row_ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "row",
+          "id": "row_ID",
           "principal": "alpha_member",
+          "removed": true
+        },
+        {
+          "entity": "table",
+          "id": "table_ID",
+          "principal": "alpha",
           "removed": true
         },
         {
@@ -6789,11 +6822,17 @@
         {
           "entity": "webhook",
           "id": "webhook_ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "webhook",
+          "id": "webhook_ID",
           "principal": "alpha_member",
           "removed": true
         }
       ],
-      "removed": 137,
+      "removed": 141,
       "unidentified": [],
       "unsupported": []
     },
@@ -7137,6 +7176,9 @@
       },
       {
         "check": "tenant.parent-not-reachable-from-another-root"
+      },
+      {
+        "check": "update.persists-submitted-fields"
       },
       {
         "check": "update.unique-conflict-rejected"
@@ -7831,6 +7873,11 @@
           "check": "tenant.parent-not-reachable-from-another-root",
           "ran": 3,
           "skipped": 5
+        },
+        {
+          "check": "update.persists-submitted-fields",
+          "ran": 6,
+          "skipped": 2
         },
         {
           "check": "update.unique-conflict-rejected",

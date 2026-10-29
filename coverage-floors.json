@@ -1263,6 +1263,12 @@
 		"functions": 100,
 		"lines": 100
 	},
+	"src/runtime/checks/families/write/update-persists-submitted-fields.ts": {
+		"statements": 97,
+		"branches": 81,
+		"functions": 100,
+		"lines": 100
+	},
 	"src/runtime/checks/families/write/update-unique-conflict-rejected.ts": {
 		"statements": 100,
 		"branches": 100,
@@ -1275,6 +1281,7 @@
 	"src/runtime/checks/payloads/create.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/checks/payloads/identity.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/checks/payloads/lanes.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/runtime/checks/payloads/update-drops.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/checks/planning/declarations.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/checks/planning/refusal.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/checks/planning/stand-down.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },

@@ -7,6 +7,7 @@ import { STRING_PAYLOADS } from "../../../payloads.ts"
 import type { Record_ } from "../../../world/records.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { scratchRecord } from "../../isolation/scratch.ts"
+import { updateDrops } from "../../payloads/update-drops.ts"
 import { standDownForFeatureGate, standDownForRateLimit } from "../../planning/stand-down.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 import { ASCII_PAYLOAD_PROBE, payloadCases, type PayloadField, pickPayloadField, writePathOf } from "./payload-cases.ts"
@@ -46,6 +47,10 @@ export const stringPayloadSurvives: Check<{
 	needs: "an update or create+delete, an item route, and a writable unconstrained string",
 	subjects: subjectsOf.writeAndRead,
 	async run(ctx, { field, readOp, writeOp }): Promise<Outcome> {
+		/* A payload sent into a field the update never stores proves nothing about the payload. */
+		if (ctx.updateOp !== undefined && updateDrops(ctx).has(field.name)) {
+			return standDown(`the update drops ${field.name}, which update.persists-submitted-fields reports`)
+		}
 		let id = ""
 		let current: Record_ = {}
 		if (ctx.updateOp !== undefined) {

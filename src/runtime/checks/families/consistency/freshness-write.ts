@@ -82,6 +82,19 @@ async function update(
 		body: { ...whole, [field]: next },
 	})
 	if (write.status >= 300) return { outcome: standDown(`the update answered ${write.status}`) }
+	/* An update whose own answer keeps the old value dropped the field: no cache is to blame. */
+	const answered = readRecord(updateOp, write)
+	if (
+		answered !== undefined &&
+		Object.hasOwn(answered, field) &&
+		JSON.stringify(answered[field]) !== JSON.stringify(next)
+	) {
+		return {
+			outcome: standDown(
+				"the update's own answer does not show it, so update.persists-submitted-fields judges that, not a cache",
+			),
+		}
+	}
 	return { shows: (answer) => JSON.stringify(readRecord(readOp, answer)?.[field]) === JSON.stringify(next), write }
 }
 

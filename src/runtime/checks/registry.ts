@@ -127,6 +127,7 @@ import { immutableRejected } from "./families/write/patch-immutable-field-reject
 import { patchMinimality } from "./families/write/patch-minimality.ts"
 import { stringPayloadSurvives } from "./families/write/payload-string-survives.ts"
 import { softDeleteHidden } from "./families/write/softdelete-absent-from-default-list.ts"
+import { updatePersistsFields } from "./families/write/update-persists-submitted-fields.ts"
 import { uniqueConflictUpdate } from "./families/write/update-unique-conflict-rejected.ts"
 
 export const CHECKS: readonly RegisteredCheck[] = [
@@ -197,6 +198,9 @@ export const CHECKS: readonly RegisteredCheck[] = [
 	/* write semantics */
 	uniqueConflictCreate,
 	uniqueConflictUpdate,
+	/* After the paging checks, so its scratch record never shifts a page boundary they walk; before
+	 * every check that writes a field, so they all pick around what the update drops. */
+	updatePersistsFields,
 	patchMinimality,
 	immutableRejected,
 	stringPayloadSurvives,

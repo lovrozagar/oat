@@ -12,6 +12,7 @@ type WriteDefect = Extract<
 	| "PATCH_REPLACES"
 	| "SOFT_DELETE_LEAK"
 	| "CREATE_DROPS_FIELD"
+	| "UPDATE_DROPS_FIELD"
 	| "READ_DROPS_FIELD"
 	| "STRING_PAYLOAD_MANGLED"
 	| "COLUMN_NAME_MISMATCH"
@@ -39,6 +40,7 @@ export const WRITE_EXPECTED: Record<WriteDefect, FindingId | FindingId[]> = {
 	PATCH_REPLACES: ["patch.minimality", "consistency.projections-agree", "schema.read-response-matches-document"],
 	SOFT_DELETE_LEAK: "softdelete.absent-from-default-list",
 	CREATE_DROPS_FIELD: "create.persists-submitted-fields",
+	UPDATE_DROPS_FIELD: "update.persists-submitted-fields",
 	READ_DROPS_FIELD: ["payload.string-survives", "consistency.projections-agree"],
 	STRING_PAYLOAD_MANGLED: "payload.string-survives",
 	COLUMN_NAME_MISMATCH: [

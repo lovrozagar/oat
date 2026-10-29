@@ -26,6 +26,14 @@
           ]
         },
         {
+          "check": "idempotency.replay-does-not-duplicate",
+          "entity": "row",
+          "reason": "the collection could not be read whole around the replay, so growth was not ruled out",
+          "operations": [
+            "row.create"
+          ]
+        },
+        {
           "check": "query.filter-selects-from-whole-set",
           "entity": "job",
           "reason": "the collection is larger than the walk covers, so the two sets are not comparable",
@@ -48,6 +56,22 @@
           "operations": [
             "table.list"
           ]
+        },
+        {
+          "check": "query.search-and-select-compose",
+          "entity": "row",
+          "reason": "the sets are larger than a read covers",
+          "operations": [
+            "row.list"
+          ]
+        },
+        {
+          "check": "query.search-and-sort-compose",
+          "entity": "row",
+          "reason": "the sets are larger than a read covers",
+          "operations": [
+            "row.list"
+          ]
         }
       ]
     },
@@ -62,7 +86,9 @@
               "gaps": [],
               "inconclusive": [
                 "filter.gte-is-gt-or-eq",
-                "query.filter-selects-from-whole-set"
+                "query.filter-selects-from-whole-set",
+                "query.search-and-select-compose",
+                "query.search-and-sort-compose"
               ],
               "passed": [
                 "consistency.projections-agree",
@@ -97,8 +123,6 @@
                 "query.filter-search-sort-select-compose",
                 "query.filter-sort-select-compose",
                 "query.search-and-filter-compose",
-                "query.search-and-select-compose",
-                "query.search-and-sort-compose",
                 "query.sort-and-select-compose",
                 "query.unknown-parameter-consistent",
                 "response.status-is-documented",
@@ -301,6 +325,37 @@
             "operationId": "job.list",
             "reason": null,
             "status": "failed"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [
+                "idempotency.replay-does-not-duplicate"
+              ],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "invalidation.declared-route-changes",
+                "list.read-after-write",
+                "schema.success-response-matches-document",
+                "tenant.parent-not-reachable-from-another-root",
+                "validation.content-type-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "row",
+            "findings": 0,
+            "operationId": "row.create",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
           }
         ],
         "removed": [
@@ -470,6 +525,36 @@
             "entity": "job",
             "findings": 0,
             "operationId": "job.list",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [],
+              "passed": [
+                "auth.rank-is-monotonic-on-writes",
+                "create.persists-submitted-fields",
+                "create.status-matches-document",
+                "idempotency.replay-does-not-duplicate",
+                "invalidation.declared-route-changes",
+                "list.read-after-write",
+                "schema.success-response-matches-document",
+                "tenant.parent-not-reachable-from-another-root",
+                "validation.content-type-enforced",
+                "validation.max-length-enforced",
+                "validation.required-enforced"
+              ],
+              "suppressed": []
+            },
+            "entity": "row",
+            "findings": 0,
+            "operationId": "row.create",
             "reason": null,
             "status": "passed",
             "evidence": {},

@@ -88,8 +88,8 @@
         ]
       },
       "removed": {
-        "now": 135,
-        "was": 137
+        "now": 139,
+        "was": 141
       }
     },
     "findings": {
@@ -123,7 +123,7 @@
         },
         {
           "check": "effects.declared-effect-occurs",
-          "detail": "x-effects declares create × 1 on \"job\", but the collection went from 23 to 23 (0 added, 0 removed). A declared effect that does not occur means callers cannot rely on the operation having done anything.",
+          "detail": "x-effects declares create × 1 on \"job\", but the collection went from 24 to 24 (0 added, 0 removed). A declared effect that does not occur means callers cannot rely on the operation having done anything.",
           "entity": "job",
           "operations": [
             "job.start"
