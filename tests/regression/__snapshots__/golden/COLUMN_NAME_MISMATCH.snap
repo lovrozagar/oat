@@ -294,6 +294,14 @@
     "inconclusive": {
       "added": [
         {
+          "check": "auth.privileged-field-ignored",
+          "entity": "table.update",
+          "reason": "no rank below alpha can update the record (alpha_member 409, alpha_viewer 403), so whether one may set verified is untested",
+          "operations": [
+            "table.update"
+          ]
+        },
+        {
           "check": "concurrency.if-match-enforced",
           "entity": "table",
           "reason": "an update naming the record's current ETag answered 409, so no accepted write left it stale",
@@ -401,6 +409,44 @@
               "failed": [],
               "gaps": [],
               "inconclusive": [
+                "auth.privileged-field-ignored",
+                "concurrency.if-match-enforced",
+                "payload.string-survives"
+              ],
+              "passed": [
+                "auth.invalid-credential-refused",
+                "auth.missing-credential-refused",
+                "auth.rank-is-monotonic-on-writes",
+                "auth.role-enforced",
+                "auth.scope-enforced",
+                "consistency.staleness-within-bound",
+                "patch.immutable-field-rejected",
+                "patch.minimality",
+                "request.invalid-body-refused",
+                "response.status-is-documented",
+                "tenant.item-not-writable-cross-tenant",
+                "update.unique-conflict-rejected"
+              ],
+              "suppressed": [
+                "concurrency.no-lost-update",
+                "update.persists-submitted-fields"
+              ]
+            },
+            "entity": "table",
+            "findings": 0,
+            "operationId": "table.update",
+            "reason": null,
+            "status": "passed",
+            "evidence": {},
+            "sufficiency": "verified",
+            "tier": "verified",
+            "why": "a later exchange shows what this call did"
+          },
+          {
+            "checks": {
+              "failed": [],
+              "gaps": [],
+              "inconclusive": [
                 "concurrency.if-match-enforced",
                 "payload.string-survives"
               ],
@@ -425,44 +471,6 @@
             "entity": "table",
             "findings": 0,
             "operationId": "table.get",
-            "reason": null,
-            "status": "passed",
-            "evidence": {},
-            "sufficiency": "verified",
-            "tier": "verified",
-            "why": "a later exchange shows what this call did"
-          },
-          {
-            "checks": {
-              "failed": [],
-              "gaps": [],
-              "inconclusive": [
-                "concurrency.if-match-enforced",
-                "payload.string-survives"
-              ],
-              "passed": [
-                "auth.invalid-credential-refused",
-                "auth.missing-credential-refused",
-                "auth.privileged-field-ignored",
-                "auth.rank-is-monotonic-on-writes",
-                "auth.role-enforced",
-                "auth.scope-enforced",
-                "consistency.staleness-within-bound",
-                "patch.immutable-field-rejected",
-                "patch.minimality",
-                "request.invalid-body-refused",
-                "response.status-is-documented",
-                "tenant.item-not-writable-cross-tenant",
-                "update.unique-conflict-rejected"
-              ],
-              "suppressed": [
-                "concurrency.no-lost-update",
-                "update.persists-submitted-fields"
-              ]
-            },
-            "entity": "table",
-            "findings": 0,
-            "operationId": "table.update",
             "reason": null,
             "status": "passed",
             "evidence": {},

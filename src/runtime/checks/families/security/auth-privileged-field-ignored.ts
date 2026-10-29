@@ -4,12 +4,12 @@ import { defineCheck } from "../../core/define.ts"
 import type { OperationContext, OperationWriteContext, WriteTarget } from "../../core/operation-context.ts"
 import { isUntested, targetPlan } from "../../core/operation.ts"
 import { andThen, cannot, type Plan, ready } from "../../core/plan.ts"
-import { ASSERTED, standDown } from "../../../finding.ts"
+import { ASSERTED, type Outcome, standDown } from "../../../finding.ts"
 import { noSecurityReason } from "../../../no-security.ts"
 import { requestContent } from "../../../../spec/collection/request.ts"
 import type { OperationModel } from "../../../../spec/graph/types.ts"
 import type { OperationObject } from "../../../../spec/types.ts"
-import { unlessUnsatisfied } from "./lifecycle.ts"
+import { type SchemeOutcome, unlessUnsatisfied } from "./lifecycle.ts"
 import { isSignUp, signUpAndJudge, type SignUpProbe, signUpPlan } from "./privileged-signup.ts"
 import { currentOf, readOf, recordAt, writableBody } from "./writable.ts"
 
@@ -22,7 +22,8 @@ interface RecordProbe {
 	read: OperationModel
 	/** What any writer may send of the record as it is now; the marked properties are set on it. */
 	body: Fields
-	writer: Actor
+	/** Every rank below the top of the owner's tenant, highest first: the next writes when one cannot. */
+	writers: Actor[]
 	top: Actor
 	changes: ReadonlyArray<[path: string, value: unknown]>
 }
@@ -36,7 +37,9 @@ type PrivilegedProbe = RecordProbe | SignUpProbe
  * session): the record's current state cut to what the request body accepts, each marked property
  * changed. The verdict is the record as its owner re-reads it, not the status: a marked property
  * left as it was passes, whether the write drew a 403, a 400 naming it, or a 200; one that changed is
- * the finding. A server error, or a record that cannot be re-read, leaves it unresolved. A sign-up,
+ * the finding. A refusal passes only once the same writer's harmless write is accepted: a writer whose
+ * role cannot update the record proves nothing, and the next rank below the top writes instead. A
+ * server error, a record that cannot be re-read, or no rank able to write leaves it unresolved. A sign-up,
  * which anyone may send, must not grant one either: see `privileged-signup.ts`.
  */
 export const privilegedFieldIgnored: OperationCheck<PrivilegedProbe> = defineCheck<PrivilegedProbe>({
@@ -63,7 +66,7 @@ export const privilegedFieldIgnored: OperationCheck<PrivilegedProbe> = defineChe
 			if (record === undefined) return cannot("the target record's current state, for a harmless body")
 			const body = writableBody(ctx, record)
 			return andThen(changesOf(ctx, { body, record }), (changes) =>
-				andThen(writerOf(ctx, target), (pair) => ready({ ...pair, body, changes, kind: "record", read, target })),
+				andThen(writersOf(ctx, target), (pair) => ready({ ...pair, body, changes, kind: "record", read, target })),
 			)
 		})
 	},
@@ -74,19 +77,7 @@ export const privilegedFieldIgnored: OperationCheck<PrivilegedProbe> = defineChe
 		for (const set of ctx.operation.security.alternatives) {
 			const scheme = set.length === 1 ? set[0] : undefined
 			if (scheme === undefined) continue
-			/* The write spends nothing of the credential, so one of the writer's serves every such probe. */
-			const dedicated = await ctx.probe.dedicated({
-				principal: probe.writer.id,
-				reusable: true,
-				scheme: scheme.scheme,
-				scopes: scheme.scopes,
-			})
-			if (isUntested(dedicated)) {
-				reasons.push(`${scheme.scheme}: ${dedicated.untested}`)
-				continue
-			}
-			const as = { principal: dedicated.actor.principal, scheme: scheme.scheme }
-			const outcome = await unlessUnsatisfied(scheme.scheme, () => writeAndJudge(ctx, { as, probe }))
+			const outcome = await acrossWriters(ctx, { probe, scheme })
 			if (!("untested" in outcome)) return outcome
 			reasons.push(outcome.untested)
 		}
@@ -96,11 +87,51 @@ export const privilegedFieldIgnored: OperationCheck<PrivilegedProbe> = defineChe
 
 const CHECK = "auth.privileged-field-ignored"
 
+/** One scheme of the write, as its single member. */
+type Scheme = OperationModel["security"]["alternatives"][number][number]
+
+/**
+ * Each writer in turn, until one can update the record at all. A writer refused even the harmless
+ * write proves nothing about the marked properties (its role may not update this record), so the next
+ * rank below the top writes. Unresolved when every such rank was refused; untested when none could be
+ * sent as.
+ */
+async function acrossWriters(
+	ctx: OperationWriteContext,
+	{ probe, scheme }: { probe: RecordProbe; scheme: Scheme },
+): Promise<SchemeOutcome> {
+	const refused: string[] = []
+	const untested: string[] = []
+	for (const writer of probe.writers) {
+		/* The write spends nothing of the credential, so one of the writer's serves every such probe. */
+		const dedicated = await ctx.probe.dedicated({
+			principal: writer.id,
+			reusable: true,
+			scheme: scheme.scheme,
+			scopes: scheme.scopes,
+		})
+		if (isUntested(dedicated)) {
+			untested.push(`${scheme.scheme}: ${dedicated.untested}`)
+			continue
+		}
+		const as = { principal: dedicated.actor.principal, scheme: scheme.scheme }
+		const outcome = await unlessUnsatisfied(scheme.scheme, () => writeAndJudge(ctx, { as, probe, writer }))
+		if ("untested" in outcome) untested.push(outcome.untested)
+		else if ("refused" in outcome) refused.push(outcome.refused)
+		else return outcome
+	}
+	/* One reason per scheme, however many writers it stopped. */
+	if (refused.length === 0) return { untested: [...new Set(untested)].join("; ") }
+	const names = probe.changes.map(([path]) => path).join(", ")
+	const reason = `no rank below ${probe.top.id} can update the record (${refused.join(", ")}), so whether one may set ${names} is untested`
+	return ctx.findings.unresolved(CHECK, ctx.subject, reason)
+}
+
 async function writeAndJudge(
 	ctx: OperationWriteContext,
-	{ as, probe }: { as: { principal: string; scheme: string }; probe: RecordProbe },
-) {
-	const { changes, read, target, top, writer } = probe
+	{ as, probe, writer }: { as: { principal: string; scheme: string }; probe: RecordProbe; writer: Actor },
+): Promise<Outcome | { refused: string }> {
+	const { changes, read, target, top } = probe
 	const { method, operationId, requiredQuery: query } = ctx.operation
 	const names = changes.map(([path]) => path).join(", ")
 	const body = structuredClone(probe.body)
@@ -124,7 +155,7 @@ async function writeAndJudge(
 		return ctx.findings.unresolved(CHECK, ctx.subject, reason)
 	}
 	const applied = changes.filter(([path, value]) => Object.is(valueAt(state, path), value)).map(([path]) => path)
-	if (applied.length === 0) return ASSERTED
+	if (applied.length === 0) return wrote.status < 400 ? ASSERTED : controlled(ctx, { as, probe, writer })
 	return ctx.findings.security(CHECK, ctx.subject, {
 		detail:
 			`${writer.id} (rank ${writer.rank}) wrote ${applied.join(", ")}, marked x-privileged, on a record ` +
@@ -135,15 +166,34 @@ async function writeAndJudge(
 	})
 }
 
-/* The writer: the highest-ranked principal below the top of the target owner's tenant. */
-function writerOf(ctx: OperationContext, target: WriteTarget): Plan<{ writer: Actor; top: Actor }> {
+/*
+ * A refused probe, told apart: the same writer sends the harmless body alone. Accepted, the refusal
+ * was the marked properties' (a pass); refused too, this writer cannot update the record at all.
+ */
+async function controlled(
+	ctx: OperationWriteContext,
+	{ as, probe, writer }: { as: { principal: string; scheme: string }; probe: RecordProbe; writer: Actor },
+): Promise<Outcome | { refused: string }> {
+	const { method, operationId, requiredQuery: query } = ctx.operation
+	const control = await ctx.client.request(method, probe.target.path, {
+		as,
+		body: structuredClone(probe.body),
+		operationId,
+		probe: true,
+		query,
+	})
+	return control.status < 300 ? ASSERTED : { refused: `${writer.id} ${control.status}` }
+}
+
+/* The writers: every principal of the target owner's tenant ranked below its highest, highest first. */
+function writersOf(ctx: OperationContext, target: WriteTarget): Plan<{ writers: Actor[]; top: Actor }> {
 	const owner = ctx.principals.find((actor) => actor.id === target.owner) ?? ctx.actor
 	const home = ctx.principals.filter((actor) => actor.tenant === owner.tenant).toSorted((a, b) => b.rank - a.rank)
 	const top = home[0] as Actor
-	const writer = home.find((actor) => actor.rank < top.rank)
-	return writer === undefined
+	const writers = home.filter((actor) => actor.rank < top.rank)
+	return writers.length === 0
 		? cannot("a principal ranked below the highest of the target owner's tenant")
-		: ready({ top, writer })
+		: ready({ top, writers })
 }
 
 /*

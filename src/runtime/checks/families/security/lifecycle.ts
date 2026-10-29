@@ -175,7 +175,10 @@ export type SchemeOutcome = Outcome | { untested: string }
  * What `work` decided, or untested with why when a credential it sends cannot be: BLOCKED by a failed
  * login, mint or renewal, or none that meets the security. `label` names whose request it was.
  */
-export async function unlessUnsatisfied(label: string, work: () => Promise<Outcome>): Promise<SchemeOutcome> {
+export async function unlessUnsatisfied<T = Outcome>(
+	label: string,
+	work: () => Promise<T>,
+): Promise<T | { untested: string }> {
 	try {
 		return await work()
 	} catch (error) {

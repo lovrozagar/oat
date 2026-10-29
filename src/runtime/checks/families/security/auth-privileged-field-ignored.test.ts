@@ -42,18 +42,33 @@ function staged(operationId: string, staging: Staging = {}) {
 	})
 }
 
-/* The member's probe draws `write`; a re-read shows `verified` as `shown`. */
+/* The member's probe draws `write` and its control write (no marked property) 200; a re-read shows `verified` as `shown`. */
 const scripted =
 	(write: number, shown: unknown): SentResponder =>
 	(sent: Sent) => {
+		const probe = typeof sent.options.body === "object" && sent.options.body !== null && "verified" in sent.options.body
 		if (sender(sent) === "alpha_member#probe-1")
-			return { body: { ...NOTE_TARGET.current, verified: shown }, status: write }
+			return { body: { ...NOTE_TARGET.current, verified: shown }, status: probe ? write : 200 }
 		if (sent.method === "GET") return { body: { ...NOTE_TARGET.current, verified: shown }, status: 200 }
 		return undefined
 	}
 
+/*
+ * A role lattice turned over for updates: every write of the ranks in `refused` draws 403, and any other
+ * rank's write applies what it sends.
+ */
+function inverted(refused: readonly string[]): SentResponder {
+	let record: Record<string, unknown> = { ...NOTE_TARGET.current }
+	return (sent: Sent) => {
+		if (sent.method === "GET") return { body: record, status: 200 }
+		if (refused.includes(sender(sent) ?? "")) return { status: 403 }
+		record = { ...record, ...(sent.options.body as Record<string, unknown>) }
+		return { body: record, status: 200 }
+	}
+}
+
 describe("auth.privileged-field-ignored", () => {
-	it("passes when the member's write is refused, sent by a dedicated credential with the field flipped", async () => {
+	it("passes when the member's write is refused and its control write is not, sent by a dedicated credential with the field flipped", async () => {
 		const stage = staged("notes.update", { respond: scripted(403, false) })
 		expect(await runOperationCheck(privilegedFieldIgnored, stage.ctx)).toEqual({ kind: "asserted" })
 		expect(stage.calls.dedicated).toEqual([{ principal: "alpha_member", reusable: true, scheme: "jwt", scopes: [] }])
@@ -66,6 +81,7 @@ describe("auth.privileged-field-ignored", () => {
 				true,
 			],
 			["GET", NOTE_TARGET.path, { principal: "alpha" }, undefined, undefined],
+			["PATCH", NOTE_TARGET.path, { principal: "alpha_member#probe-1", scheme: "jwt" }, { title: "first" }, true],
 		])
 		expect(privilegedFieldIgnored.mutates).toBe(true)
 	})
@@ -107,6 +123,30 @@ describe("auth.privileged-field-ignored", () => {
 		expected.set(NOTE_TARGET.path, { id: "n1", title: "first", verified: true })
 		expect(backend.records).toEqual(expected)
 		expect(backend.records.get(FOREIGN_PATH)).toEqual(untouched().get(FOREIGN_PATH))
+	})
+})
+
+describe("auth.privileged-field-ignored when a writer cannot update at all", () => {
+	it("steps down to a rank that can write, and fails when that rank's write applies the field", async () => {
+		const stage = staged("notes.update", { respond: inverted(["alpha_member#probe-1"]) })
+		expect(await runOperationCheck(privilegedFieldIgnored, stage.ctx)).toEqual({ kind: "finding", verdict: "SECURITY" })
+		expect(stage.findings.findings[0]?.detail).toMatch(/alpha_viewer \(rank 0\) wrote verified/)
+	})
+
+	it("is unresolved when no rank below the highest can update the record", async () => {
+		const stage = staged("notes.update", { respond: inverted(["alpha_member#probe-1", "alpha_viewer#probe-1"]) })
+		expect(await runOperationCheck(privilegedFieldIgnored, stage.ctx)).toMatchObject({ kind: "unresolved" })
+		expect(stage.findings.inconclusive[0]?.reason).toContain("alpha_viewer")
+	})
+
+	it("passes on a refusal of the field alone: the same writer's control write is accepted", async () => {
+		const stage = staged("notes.update", { respond: scripted(403, false) })
+		expect(await runOperationCheck(privilegedFieldIgnored, stage.ctx)).toEqual({ kind: "asserted" })
+		expect(stage.sent.map((s) => [s.method, s.options.as, s.options.body])).toEqual([
+			["PATCH", { principal: "alpha_member#probe-1", scheme: "jwt" }, { title: "first", verified: true }],
+			["GET", { principal: "alpha" }, undefined],
+			["PATCH", { principal: "alpha_member#probe-1", scheme: "jwt" }, { title: "first" }],
+		])
 	})
 })
 
