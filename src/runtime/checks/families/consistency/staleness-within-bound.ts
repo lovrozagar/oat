@@ -7,7 +7,7 @@ import { asserted, type Outcome, standDown } from "../../../finding.ts"
 import type { WriteContext } from "../../core/context.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
-import { primedWrite, type Step, type WriteKind, writeKinds } from "./freshness-write.ts"
+import { primedWrite, readAfter, type Step, type WriteKind, writeKinds } from "./freshness-write.ts"
 import { stalenessSchedule, UNDECLARED_CAP_MS } from "./staleness-schedule.ts"
 import { type Bracket, SYSTEM_CLOCK, type WatchClock, watchUntilFresh } from "./staleness-watch.ts"
 
@@ -66,18 +66,25 @@ async function measure(
 	const written = await primedWrite(ctx, { check: ID, kind: ask.kind, readOp: ask.readOp })
 	if ("outcome" in written) return written
 	const capMs = ask.boundMs ?? UNDECLARED_CAP_MS
+	let pastStatus = 0
 	const bracket = await watchUntilFresh({
 		capMs,
 		clock: STALENESS_TIMING.clock,
 		fresh: written.shows,
-		read: () => ctx.client.get(written.path, { as: { principal: ctx.actor.id }, cache: "use" }),
+		read: () => ctx.client.get(written.path, { ...readAfter(written), as: { principal: ctx.actor.id }, cache: "use" }),
 		schedule: stalenessSchedule(capMs),
 		/* A stale read is a cache's doing only if a read past every cache shows the write. */
-		showsPastCache: async () => written.shows(await ctx.client.get(written.path, { as: { principal: ctx.actor.id } })),
+		showsPastCache: async () => {
+			const past = await ctx.client.get(written.path, { ...readAfter(written), as: { principal: ctx.actor.id } })
+			pastStatus = past.status
+			return written.shows(past)
+		},
 	})
 	if (bracket.neverTook) {
 		return {
-			outcome: standDown(`a read past the cache does not show the ${ask.kind} either, so the write did not take`),
+			outcome: standDown(
+				`a read past the cache answers ${pastStatus} too, so the ${ask.kind} never showed and no cache is to blame`,
+			),
 		}
 	}
 	return { bracket, kind: ask.kind, path: written.path, write: written.write }

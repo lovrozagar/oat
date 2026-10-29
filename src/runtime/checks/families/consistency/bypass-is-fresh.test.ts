@@ -42,7 +42,7 @@ function cached(
 
 describe("consistency.bypass-is-fresh on a delete", () => {
 	it("fails a deleted record a cache still serves past the bypass, with no Cache-Status to quote", async () => {
-		const { ctx, findings } = cached({ honors: false, plain: true })
+		const { ctx, findings, sent } = cached({ honors: false, plain: true })
 		expect(await runCheck(bypassIsFresh, { ...ctx, updateOp: undefined })).toEqual({
 			kind: "finding",
 			verdict: "BACKEND_BUG",
@@ -50,6 +50,7 @@ describe("consistency.bypass-is-fresh on a delete", () => {
 		expect(findings.findings[0]?.detail).toBe(
 			"right after the delete, GET /notes/n1 sent x-fresh: 1 answered the old record",
 		)
+		expect(sent.at(-1)?.options.probe).toBe(true)
 	})
 
 	it("cannot run without an update or a delete", () => {

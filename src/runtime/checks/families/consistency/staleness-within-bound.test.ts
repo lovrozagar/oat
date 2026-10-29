@@ -83,8 +83,17 @@ describe("consistency.staleness-within-bound", () => {
 			"DELETE /notes/n2",
 			"GET /notes/n2 (cache)",
 		])
+		/* A read of a record it deleted expects it gone: a probe, which no documentation judge grades. */
+		expect(sent.filter((s) => s.method === "GET").map((s) => s.options.probe === true)).toEqual([
+			false,
+			false,
+			false,
+			true,
+		])
 	})
+})
 
+describe("consistency.staleness-within-bound against a cache", () => {
 	it("passes a window inside the declared bound, and brackets it", async () => {
 		const { ctx, findings } = cached(400, { stalenessMs: 1000 })
 		expect(await runCheck(stalenessWithinBound, ctx)).toEqual({
@@ -126,7 +135,7 @@ describe("consistency.staleness-within-bound when it cannot write", () => {
 		const { ctx, findings, sent } = cached(0, { override: keeps, stalenessMs: 1000 })
 		expect(await runCheck(stalenessWithinBound, { ...ctx, updateOp: undefined })).toEqual({
 			kind: "stood-down",
-			reason: "a read past the cache does not show the delete either, so the write did not take",
+			reason: "a read past the cache answers 200 too, so the delete never showed and no cache is to blame",
 		})
 		expect(findings.findings).toEqual([])
 		expect(sent.at(-1)?.options.cache).toBeUndefined()

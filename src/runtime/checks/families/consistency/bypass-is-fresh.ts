@@ -7,7 +7,7 @@ import type { Exchange } from "../../../exchange.ts"
 import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
-import { primedWrite, writeKinds } from "./freshness-write.ts"
+import { primedWrite, readAfter, writeKinds } from "./freshness-write.ts"
 
 const ID = "consistency.bypass-is-fresh"
 
@@ -44,6 +44,7 @@ export const bypassIsFresh: Check<{ readOp: OperationModel; bypass: CacheBypass 
 		if ("outcome" in written) return written.outcome
 		/* Sent as the caller's own header, so the read carries it whatever layers the client adds. */
 		const answer = await ctx.client.get(written.path, {
+			...readAfter(written),
 			as: { principal: ctx.actor.id },
 			headers: { [bypass.name]: bypass.value },
 		})

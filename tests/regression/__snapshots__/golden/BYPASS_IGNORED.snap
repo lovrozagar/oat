@@ -20,12 +20,12 @@
         {
           "check": "consistency.staleness-within-bound",
           "entity": "job",
-          "needs": "a read past the cache does not show the update either, so the write did not take"
+          "needs": "a read past the cache answers 200 too, so the update never showed and no cache is to blame"
         },
         {
           "check": "consistency.staleness-within-bound",
           "entity": "row",
-          "needs": "a read past the cache does not show the update either, so the write did not take"
+          "needs": "a read past the cache answers 200 too, so the update never showed and no cache is to blame"
         },
         {
           "check": "consistency.staleness-within-bound",
@@ -35,7 +35,7 @@
         {
           "check": "consistency.staleness-within-bound",
           "entity": "webhook",
-          "needs": "a read past the cache does not show the update either, so the write did not take"
+          "needs": "a read past the cache answers 200 too, so the update never showed and no cache is to blame"
         }
       ]
     },

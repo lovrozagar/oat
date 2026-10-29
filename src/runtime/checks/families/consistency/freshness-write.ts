@@ -26,6 +26,15 @@ export interface FreshnessWrite {
 	shows: (answer: Exchange) => boolean
 }
 
+/**
+ * How a read after the write is sent: after a delete it expects the record gone, so it is a probe,
+ * whose status no documentation judge grades. A 400 an API answers for a missing id is the delete
+ * checks' to report, not noise of this read's making.
+ */
+export function readAfter(written: Pick<FreshnessWrite, "kind">): { probe?: true } {
+	return written.kind === "delete" ? { probe: true } : {}
+}
+
 /** The kinds of write the entity has, update first. */
 export function writeKinds(ctx: Pick<WriteContext, "updateOp" | "deleteOp">): WriteKind[] {
 	return [
