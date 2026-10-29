@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.26.0
+
+### Added
+
+- **Freshness.** A read declares how stale a cache may let it be, and the header that skips the
+  cache: `x-consistency: { staleness: "30s", bypass: "x-fresh: 1" }`.
+  `consistency.staleness-within-bound` writes, then reads the record as a client would, at once and
+  then backing off (at most 12 reads), until the read shows the write. Past the declared staleness
+  it is a finding with the bracket it measured and the stale answer's `Cache-Status` (RFC 9211) and
+  `Age`. With nothing declared the window is reported, never failed.
+  `consistency.bypass-is-fresh` reads once with the declared bypass right after a write: a stale
+  answer, or one a cache says it answered, is a finding.
+- `oat plan` names how many entities the staleness check measures, and how many against a declared
+  bound. `oat doctor` lists the bypass each read is sent.
+- The reference's `cached-reads` shape, with `STALE_PAST_BOUND` and `BYPASS_IGNORED`.
+
+### Changed
+
+- **Every read oat sends asks past the caches.** A documented GET or HEAD carries the bypass its
+  `x-consistency` declares, else `Cache-Control: no-cache` (RFC 9111), so a write is verified
+  against the database rather than a cache in front of it. A header `globalHeaders` or
+  `resolveHeaders` sets under that name wins, and config `cache: { bypass: false }` sends none.
+
 ## 0.25.1
 
 ### Fixed
