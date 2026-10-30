@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { Responder } from "../../__fixtures__/harness.ts"
 import { MOVING } from "../../query/capabilities.ts"
-import { carries, dropWhen, endlessWhen, pagedDoc } from "./__fixtures__/composition-b.ts"
+import { carries, dropWhen, endlessWhen, pagedDoc, rewriting } from "./__fixtures__/composition-b.ts"
 import { backend, NOTES, queryDoc, queryOf, REJECT, stage } from "./__fixtures__/query-api.ts"
 import { querySearchAndSortCompose } from "./query-search-and-sort-compose.ts"
 
@@ -35,6 +35,8 @@ describe("query.search-and-sort-compose judges", () => {
 		expect(staged.sent.map((sent) => sent.options.query)).toEqual([
 			{ limit: 50, q: "memo" },
 			{ limit: 50, order: "rank.asc", q: "memo" },
+			/* An ascending answer is checked against the descending one: a fixed order passes only one. */
+			{ limit: 50, order: "rank.desc", q: "memo" },
 		])
 	})
 
@@ -58,6 +60,16 @@ describe("query.search-and-sort-compose judges", () => {
 })
 
 describe("query.search-and-sort-compose gives up", () => {
+	it("fails an order ignored under a search whose fallback happens to ascend by the sort field", async () => {
+		const fixed = rewriting(
+			(query) => (carries(query, "q") && carries(query, "order") ? { ...query, order: "rank.asc" } : query),
+			MEMOS,
+		)
+		const staged = stage(querySearchAndSortCompose, { doc: BY_RANK, respond: fixed, rows: MEMOS })
+		expect(await staged.run()).toEqual({ kind: "finding", verdict: "BACKEND_BUG" })
+		expect(staged.sent.map((sent) => sent.options.query?.["order"]).filter(Boolean)).toContain("rank.desc")
+	})
+
 	it("is unresolved when a read is refused", async () => {
 		expect(await stage(querySearchAndSortCompose, { respond: () => REJECT }).run()).toEqual({
 			kind: "unresolved",

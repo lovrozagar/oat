@@ -5,7 +5,7 @@ import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, pageSize, q } from "../../query/capabilities.ts"
-import { observeTextOrder, sortedUnder } from "../../query/order.ts"
+import { observeTextOrder, orderIgnored, sortedUnder } from "../../query/order.ts"
 import { list } from "../../sets/list.ts"
 
 export const orderChangesResult: Check<{ field: string }> = defineCheck<{ field: string }>({
@@ -33,12 +33,9 @@ export const orderChangesResult: Check<{ field: string }> = defineCheck<{ field:
 			return ctx.findings.unresolved(this.id, ctx.entityName, "the sort field is absent from the listed records")
 		const order = sortedUnder(ctx, field, values)
 		if (order !== null) {
-			/* An ignored order can come back ascending by accident — a server's own tiebreak on
-			 * this very field does it — but not ascending and descending at once. */
-			const descending = await list(ctx, q(ctx, { limit, order: sortTerm(conv(ctx), { direction: "desc", field }) }))
-			const reversed = descending.items.map((item) => item[field])
-			const distinct = new Set(values.map((value) => JSON.stringify(value))).size
-			if (descending.exchange.status < 400 && distinct > 1 && JSON.stringify(reversed) === JSON.stringify(values)) {
+			const query = q(ctx, { limit, order: sortTerm(conv(ctx), { direction: "asc", field }) })
+			const descending = await orderIgnored(ctx, { ascending: values, field, query })
+			if (descending !== null) {
 				return ctx.findings.backend(this.id, ctx.entityName, {
 					summary: "order is accepted but has no effect",
 					detail:

@@ -6,7 +6,7 @@ import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, q } from "../../query/capabilities.ts"
-import { sortedUnder } from "../../query/order.ts"
+import { orderIgnored, sortedUnder } from "../../query/order.ts"
 import { list } from "../../sets/list.ts"
 
 export const querySortAndSelectCompose: Check<{
@@ -34,17 +34,23 @@ export const querySortAndSelectCompose: Check<{
 	needs: "sortable and selectable fields",
 	subjects: subjectsOf.list,
 	async run(ctx, { field, projection, requested }): Promise<Outcome> {
-		const result = await list(ctx, {
-			...q(ctx, { limit: 20, order: sortTerm(conv(ctx), { direction: "asc", field }) }),
-			...projection,
-		})
+		const query = { ...q(ctx, { limit: 20, order: sortTerm(conv(ctx), { direction: "asc", field }) }), ...projection }
+		const result = await list(ctx, query)
 		const [first, second] = result.items
 		if (result.exchange.status >= 400 || first === undefined || second === undefined) {
 			return ctx.findings.unresolved(this.id, ctx.entityName, "sort+select probe was rejected")
 		}
 		const extras = Object.keys(first).filter((key) => !requested.includes(key))
 		const values = result.items.map((item) => item[field])
-		if (extras.length === 0 && sortedUnder(ctx, field, values) !== null) return ASSERTED
+		if (extras.length === 0 && sortedUnder(ctx, field, values) !== null) {
+			const descending = await orderIgnored(ctx, { ascending: values, field, query })
+			if (descending === null) return ASSERTED
+			return ctx.findings.backend(this.id, ctx.entityName, {
+				summary: "sort and select do not compose",
+				detail: `order=${field}.asc and order=${field}.desc returned the same sequence under the projection.`,
+				evidence: [result.exchange, descending.exchange],
+			})
+		}
 		return ctx.findings.backend(this.id, ctx.entityName, {
 			summary: "sort and select do not compose",
 			detail:

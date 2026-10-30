@@ -1,6 +1,8 @@
 import type { CheckContext, Listed } from "../core/context.ts"
 import { memoTable } from "../sets/read.ts"
-import { resolvedCaps } from "./capabilities.ts"
+import { sortTerm } from "../../../spec/conventions/sort.ts"
+import { list, type ListResult } from "../sets/list.ts"
+import { conv, q, type Query, resolvedCaps } from "./capabilities.ts"
 
 /**
  * A sortable field whose values repeat across the cohort. Ties are what expose an unstable sort:
@@ -138,4 +140,24 @@ export function observeTextOrder(ctx: CheckContext, field: string, text: TextOrd
 				: ("last" as const)
 			: undefined
 	orders.set(field, nulls === undefined ? { text } : { nulls, text })
+}
+
+/**
+ * Whether an order that came back ascending was ignored: `query` sent again ordered descending holds
+ * the same sequence of `field` values, more than one of them distinct. An ignored order can come back
+ * ascending by accident (a server's own tiebreak on this very field does it), but not ascending and
+ * descending at once. The descending read when the order was ignored, else null.
+ */
+export async function orderIgnored(
+	ctx: Listed,
+	{ ascending, field, query }: { ascending: readonly unknown[]; field: string; query: Query },
+): Promise<ListResult | null> {
+	const descending = await list(ctx, {
+		...query,
+		...q(ctx, { order: sortTerm(conv(ctx), { direction: "desc", field }) }),
+	})
+	const reversed = descending.items.map((item) => item[field])
+	const distinct = new Set(ascending.map((value) => JSON.stringify(value))).size
+	const same = JSON.stringify(reversed) === JSON.stringify(ascending)
+	return descending.exchange.status < 400 && distinct > 1 && same ? descending : null
 }

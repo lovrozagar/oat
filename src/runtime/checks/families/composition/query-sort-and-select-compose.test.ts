@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { Responder } from "../../__fixtures__/harness.ts"
-import { dropWhen, fleetingSelect } from "./__fixtures__/composition-b.ts"
+import { carries, dropWhen, fleetingSelect, rewriting } from "./__fixtures__/composition-b.ts"
 import { NOTES, queryDoc, REJECT, stage } from "./__fixtures__/query-api.ts"
 import { querySortAndSelectCompose } from "./query-sort-and-select-compose.ts"
 
@@ -16,6 +16,8 @@ describe("query.sort-and-select-compose judges", () => {
 		expect(await staged.run()).toEqual({ kind: "asserted" })
 		expect(staged.sent.map((sent) => sent.options.query)).toEqual([
 			{ limit: 20, order: "title.asc", select: "id,title" },
+			/* An ascending answer is checked against the descending one: a fixed order passes only one. */
+			{ limit: 20, order: "title.desc", select: "id,title" },
 		])
 	})
 
@@ -27,6 +29,15 @@ describe("query.sort-and-select-compose judges", () => {
 			summary: "sort and select do not compose",
 		})
 		expect(staged.findings.findings[0]?.evidence).toHaveLength(1)
+	})
+
+	it("fails an order dropped under a select whose fallback happens to ascend by the sort field", async () => {
+		/* Whatever order is asked for, the projected listing comes back by title ascending. */
+		const fixed = rewriting((query) => (carries(query, "select") ? { ...query, order: "title.asc" } : query))
+		const staged = stage(querySortAndSelectCompose, { respond: fixed })
+		expect(await staged.run()).toEqual({ kind: "finding", verdict: "BACKEND_BUG" })
+		expect(staged.sent.map((sent) => sent.options.query?.["order"])).toEqual(["title.asc", "title.desc"])
+		expect(staged.findings.findings[0]?.evidence).toHaveLength(2)
 	})
 
 	it("fails a projection that leaks fields once an order is present", async () => {

@@ -5,7 +5,7 @@ import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
 import { conv, MOVING, pageSize, q } from "../../query/capabilities.ts"
-import { sortedUnder } from "../../query/order.ts"
+import { orderIgnored, sortedUnder } from "../../query/order.ts"
 import { listAgain, listAll, sameSet, setOf, settlePair } from "../../sets/compare.ts"
 
 export const querySearchAndSortCompose: Check<{
@@ -68,7 +68,15 @@ export const querySearchAndSortCompose: Check<{
 			})
 		}
 		const values = combined.items.map((item) => item[sortField])
-		if (sortedUnder(ctx, sortField, values) !== null) return ASSERTED
+		if (sortedUnder(ctx, sortField, values) !== null) {
+			const descending = await orderIgnored(ctx, { ascending: values, field: sortField, query: sorted })
+			if (descending === null) return ASSERTED
+			return ctx.findings.backend(this.id, ctx.entityName, {
+				summary: "search results are not ordered",
+				detail: `q + order=${sortField}.asc and .desc returned the same sequence of ${sortField} values.`,
+				evidence: [combined.exchange, descending.exchange],
+			})
+		}
 		return ctx.findings.backend(this.id, ctx.entityName, {
 			summary: "search results are not ordered",
 			detail: `q + order=${sortField}.asc did not keep ${sortField} ascending.`,
