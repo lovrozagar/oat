@@ -37,6 +37,9 @@ describe("nearestLimit", () => {
 		expect(nearestLimit("-4", 5)).toBe(1)
 		expect(nearestLimit("50", 5)).toBe(5)
 		expect(nearestLimit("50", undefined)).toBe(50)
+		/* A lifted ceiling (LIMIT_EXCEEDS_MAX) leaves the floor where it is. */
+		expect(nearestLimit("0", undefined)).toBe(1)
+		expect(nearestLimit("-4", undefined)).toBe(1)
 		expect(() => nearestLimit("x", 5)).toThrow('query parameter "limit" must be an integer')
 	})
 })
@@ -53,6 +56,11 @@ describe("pagingOf", () => {
 		expect(paging({ limit: "500" }, ["LIMIT_EXCEEDS_MAX"]).servedLimit).toBe(500)
 		expect(paging({ limit: "500" }, ["LIMIT_OUT_OF_RANGE_SERVED"]).servedLimit).toBe(100)
 		expect(paging({ limit: "0" }, ["LIMIT_OUT_OF_RANGE_SERVED"]).servedLimit).toBe(1)
+	})
+
+	it("keeps the floor of 1 under LIMIT_OUT_OF_RANGE_SERVED whichever way the ceiling goes missing", () => {
+		expect(paging({ limit: "0" }, ["LIMIT_OUT_OF_RANGE_SERVED", "LIMIT_EXCEEDS_MAX"]).servedLimit).toBe(1)
+		expect(paging({ limit: "-4" }, ["LIMIT_OUT_OF_RANGE_SERVED"], 3).servedLimit).toBe(1)
 	})
 
 	it("clamps silently to an undocumented ceiling instead of refusing", () => {

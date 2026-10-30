@@ -29,7 +29,7 @@ export function integerParam(raw: string | undefined, name: string, { min, max }
 /* LIMIT_OUT_OF_RANGE_SERVED: a page size outside the published range is quietly moved inside it. */
 export function nearestLimit(raw: string | undefined, max: number | undefined): number | undefined {
 	const value = integerParam(raw, "limit", { min: Number.MIN_SAFE_INTEGER })
-	return value === undefined ? undefined : Math.min(Math.max(value, 1), max ?? value)
+	return value === undefined ? undefined : Math.min(Math.max(value, 1), max ?? Number.POSITIVE_INFINITY)
 }
 
 /** Reads the limit, then the page, then the offset; throws `SqlError` for the first out of range. */
