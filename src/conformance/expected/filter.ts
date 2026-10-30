@@ -45,6 +45,10 @@ export const FILTER_EXPECTED: Record<FilterDefect, FindingId | FindingId[]> = {
 		"response.status-is-documented",
 		/* Every crash a filter probe draws that no filter check cited is failed on its own. */
 		"response.no-server-error",
+		/* The defect turns every refused filter into a 500, the over-limit in() and the condition cap
+		 * among them: when the primary is masked, these two report the same crash on their own. */
+		"filter.in-over-limit-rejected",
+		"filter.condition-cap-rejected",
 	],
 	FILTER_IGNORED: "filter.unknown-field-rejected",
 	LIKE_UNESCAPED: "filter.like-metacharacters-escaped",
