@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.27.2
+
+### Fixed
+
+- A check whose target a revoked or blocked credential made unreachable now reports the check
+  blocked, naming the credential, instead of standing down as a quiet skip.
+- `auth.privileged-field-ignored` reads a server error on its harmless control write as unresolved,
+  as it already did on its probe, instead of taking the writer as unable to update.
+- `error.malformed-filter-not-5xx` no longer passes a backend that accepts any filter. When the
+  garbage expression is accepted, it filters on a field the collection does not have; when that is
+  accepted too, the check is unresolved. It stands down on an operation with no filter-expression
+  parameter to send garbage to.
+- `query.sort-and-select-compose` and `query.search-and-sort-compose` also ask for a descending
+  order, as `sort.order-is-applied` does, so a server that ignores the sort can no longer pass when
+  its default order happens to ascend.
+- The reference backend behind `oat conformance` serves a page size of at least 1 when its page
+  ceiling is lifted.
+
 ## 0.27.1
 
 ### Fixed
