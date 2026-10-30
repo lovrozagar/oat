@@ -1281,6 +1281,7 @@
 	"src/runtime/checks/payloads/create.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/checks/payloads/identity.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/checks/payloads/lanes.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/runtime/checks/payloads/stored-as.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/checks/payloads/update-drops.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/checks/planning/declarations.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/checks/planning/refusal.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
