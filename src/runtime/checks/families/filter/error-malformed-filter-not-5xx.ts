@@ -7,14 +7,16 @@ import { ASSERTED, type Outcome } from "../../../finding.ts"
 import { when } from "../../core/plan.ts"
 import { asProbe } from "../../planning/refusal.ts"
 import { subjectsOf } from "../../planning/subjects.ts"
-import { conv, filterable, q } from "../../query/capabilities.ts"
+import { conv, q } from "../../query/capabilities.ts"
 import { list } from "../../sets/list.ts"
 
 export const malformedFilterNot5xx: Check = defineCheck({
-	plan: (ctx) => when(filterable(ctx)),
+	/* Malformed syntax needs a filter expression to be malformed in: per-field equality has none, and a
+	 * request without one would pass for a refusal it never was. */
+	plan: (ctx) => when(conv(ctx).filter !== undefined),
 	id: "error.malformed-filter-not-5xx",
 	lists: true,
-	needs: "a way to express a filter — a filter expression parameter, or filterable fields",
+	needs: "a filter expression parameter to send malformed syntax to",
 	subjects: subjectsOf.list,
 	async run(ctx): Promise<Outcome> {
 		const result = await list(asProbe(ctx), q(ctx, { filter: "((((", limit: 10 }))

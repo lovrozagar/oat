@@ -50,6 +50,15 @@ describe("error.malformed-filter-not-5xx", () => {
 		)
 	})
 
+	it("stands down under per-field equality filters, which have no expression to send malformed", async () => {
+		const { ctx, sent } = stage({
+			doc: { filterParam: false, xQuery: { filterable: ["status"], grammar: "equality" } },
+			records: COHORT,
+		})
+		expect(await runCheck(check, ctx)).toMatchObject({ kind: "stood-down" })
+		expect(sent).toEqual([])
+	})
+
 	it("stands down where no filter can be expressed", async () => {
 		const { ctx, sent } = stage({ doc: { filterParam: false }, records: COHORT })
 		expect(await runCheck(check, ctx)).toMatchObject({ kind: "stood-down" })

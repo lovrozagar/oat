@@ -199,7 +199,7 @@
     "dependsOn": [],
     "mutates": false,
     "judgesTranscript": false,
-    "needs": "a way to express a filter — a filter expression parameter, or filterable fields"
+    "needs": "a filter expression parameter to send malformed syntax to"
   },
   {
     "id": "sort.unknown-field-rejected",

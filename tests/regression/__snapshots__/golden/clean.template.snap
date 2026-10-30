@@ -2781,7 +2781,7 @@
       {
         "check": "error.malformed-filter-not-5xx",
         "entity": "notice",
-        "needs": "a way to express a filter — a filter expression parameter, or filterable fields"
+        "needs": "a filter expression parameter to send malformed syntax to"
       },
       {
         "check": "error.malformed-filter-not-5xx",
