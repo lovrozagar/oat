@@ -10,6 +10,7 @@ import type { CheckContext, WriteContext } from "../../core/context.ts"
 import { cannot, ready } from "../../core/plan.ts"
 import { readRecord, scratchRecord } from "../../isolation/scratch.ts"
 import { changedValue, requestSchemaOf, validBody, withheldProperties } from "../../payloads/body.ts"
+import { storedAs } from "../../payloads/stored-as.ts"
 import { recordUpdateDrops } from "../../payloads/update-drops.ts"
 import { itemParamFor, subjectsOf } from "../../planning/subjects.ts"
 
@@ -153,7 +154,7 @@ async function sendUpdate(
 
 /** Whether `record` holds the field as it was sent. */
 function holds(record: Record_ | undefined, [key, value]: [string, unknown]): boolean {
-	return record !== undefined && Object.hasOwn(record, key) && JSON.stringify(record[key]) === JSON.stringify(value)
+	return record !== undefined && Object.hasOwn(record, key) && storedAs(record[key], value)
 }
 
 /** The fields neither the update's answer nor a read past the cache holds as sent. */

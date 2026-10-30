@@ -12,6 +12,7 @@ import { cannot, ready } from "../../core/plan.ts"
 import { readRecord } from "../../isolation/scratch.ts"
 import { createExchange, requestSchemaOf } from "../../payloads/body.ts"
 import { itemSchemaOf } from "../../payloads/item-schema.ts"
+import { storedAs } from "../../payloads/stored-as.ts"
 import { itemParamFor, subjectsOf } from "../../planning/subjects.ts"
 import { readSet } from "../../sets/read.ts"
 import type { JsonSchema } from "../../../../spec/types.ts"
@@ -95,7 +96,7 @@ export const createPersistsFields: Check<Plan> = defineCheck<Plan>({
 
 /** Whether `record` holds the submitted field as it was sent. */
 function holds(record: Record_, [key, value]: [string, unknown]): boolean {
-	return Object.hasOwn(record, key) && JSON.stringify(record[key]) === JSON.stringify(value)
+	return Object.hasOwn(record, key) && storedAs(record[key], value)
 }
 
 /** The created record as the item read shows it, or why there is none; `id` is what it was read under. */

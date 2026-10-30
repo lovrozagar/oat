@@ -65,6 +65,28 @@ describe("update.persists-submitted-fields", () => {
 		expect([...updateDrops(ctx)]).toEqual(["code"])
 	})
 
+	it("counts a string stored case-folded or trimmed as stored, as a backend normalizing a slug does", async () => {
+		const server = notesServer([{ ...SEEDED }])
+		const normalizing: Responder = (method, path, options) => {
+			if (method !== "PATCH") return undefined
+			const id = path.slice("/notes/".length)
+			const sent = Object.entries(options.body as Note).map(([key, value]) => [
+				key,
+				typeof value === "string" ? ` ${value.toUpperCase()} ` : value,
+			])
+			const next = { ...(server.records.get(id) as Note), ...Object.fromEntries(sent) }
+			server.records.set(id, next)
+			return { body: { ...next }, status: 200 }
+		}
+		const { ctx, findings } = notesContext(
+			notesModel(),
+			(method, path, options) => normalizing(method, path, options) ?? server.respond(method, path, options),
+			{ records: [SEEDED] },
+		)
+		expect(await runCheck(updatePersistsFields, ctx)).toEqual({ kind: "asserted" })
+		expect(findings.findings).toEqual([])
+	})
+
 	it("sends each field alone when the whole update is refused, and calls a field refused alone refused, not dropped", async () => {
 		const { ctx, findings, sent } = backend(refuseTitle)
 		expect(await runCheck(updatePersistsFields, ctx)).toEqual({

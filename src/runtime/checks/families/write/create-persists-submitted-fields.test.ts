@@ -83,6 +83,14 @@ describe("create.persists-submitted-fields on JSON bodies", () => {
 		expect(findings.findings[0]?.detail).toContain("title sent")
 	})
 
+	it("counts a string stored case-folded or trimmed as stored, and a different string as changed", async () => {
+		const body = { name: "Quarterly Report 0", title: "t" }
+		const stored = { body: { id: "n1", name: " quarterly report 0 ", title: "T" }, status: 201 }
+		expect((await judge({ body }, stored)).outcome).toEqual({ kind: "asserted" })
+		const renamed = { body: { id: "n1", name: "quarterly-report-0", title: "t" }, status: 201 }
+		expect((await judge({ body }, renamed)).outcome).toEqual({ kind: "finding", verdict: "BACKEND_BUG" })
+	})
+
 	it("stands down on a create that answers only an acknowledgment and has no item read", async () => {
 		for (const answer of [{ status: 201 }, { body: { id: 5, message: "Order sent successfully." }, status: 200 }]) {
 			const { outcome, findings } = await judge({ body: { name: "a" } }, answer)

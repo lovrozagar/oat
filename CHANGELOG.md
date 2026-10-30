@@ -17,6 +17,9 @@
   its default order happens to ascend.
 - The reference backend behind `oat conformance` serves a page size of at least 1 when its page
   ceiling is lifted.
+- `create.persists-submitted-fields` and `update.persists-submitted-fields` count a string stored
+  trimmed or case-folded as stored. A backend that lowercased a submitted slug was reported as
+  discarding it.
 
 ## 0.27.1
 
