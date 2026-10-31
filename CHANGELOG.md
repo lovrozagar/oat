@@ -9,6 +9,13 @@
   knows finds it. A cursor walk, and teardown's, now follows a next cursor given as a number: an
   API answering `next_before: 1793400000` is paged by cursor instead of read as one page.
 
+### Fixed
+
+- A config `query.params` name that only one document declares no longer stops the run. 0.28.0
+  checked each name against every document on its own, so a parameter only the primary declares
+  stopped each secondary origin's run, and one only an origin declares stopped the primary. A name
+  is now checked once, against the primary document and every origin's.
+
 ## 0.28.0
 
 ### Added

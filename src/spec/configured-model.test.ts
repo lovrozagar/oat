@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { UsageError } from "../errors/usage-error.ts"
 import { doc, list, member, ok, query } from "./__fixtures__/documents.ts"
-import { buildConfiguredModel } from "./configured-model.ts"
+import { assertQueryNamesDeclared, buildConfiguredModel } from "./configured-model.ts"
 import { dereference } from "./load/dereference.ts"
 
 /* Three lists: one filters by `filter_by`, one by `where`, one answers its next cursor as `next_before`. */
@@ -21,7 +21,10 @@ const searched = dereference(
 	}),
 ).doc
 
-const typo = () => buildConfiguredModel(searched, { query: { params: { filter: "filtr_by" } } })
+/* The names checked against the model of `searched` alone. */
+const checked = (names: Record<string, unknown>) => () =>
+	assertQueryNamesDeclared({ query: names }, [buildConfiguredModel(searched, { query: names })])
+const typo = checked({ params: { filter: "filtr_by" } })
 const built = (params: unknown) => () => buildConfiguredModel(searched, { query: { params: params as never } })
 const filterOf = (model: ReturnType<typeof buildConfiguredModel>, id: string) =>
 	model.byOperationId.get(id)?.conventions.filter
@@ -42,9 +45,22 @@ describe("buildConfiguredModel", () => {
 	it("stops on a name no operation declares", () => {
 		expect(typo).toThrow(UsageError)
 		expect(typo).toThrow('query.params.filter names "filtr_by", which no operation declares')
-		expect(() => buildConfiguredModel(searched, { query: { params: { sort: "arrange" } } })).toThrow(
+		expect(checked({ params: { sort: "arrange" } })).toThrow(
 			'query.params.sort names "arrange", which no operation declares',
 		)
+	})
+
+	it("builds with a name no operation declares, and takes one any model of the run declares", () => {
+		const other = dereference(
+			doc({
+				"/v1/search": { get: { operationId: "search", parameters: [query("arrange")], responses: ok(list(member)) } },
+			}),
+		).doc
+		const config = { query: { params: { sort: "arrange" } } }
+		const model = buildConfiguredModel(searched, config)
+		expect(model.byOperationId.has("notes.list")).toBe(true)
+		expect(() => assertQueryNamesDeclared(config, [model, buildConfiguredModel(other, config)])).not.toThrow()
+		expect(() => assertQueryNamesDeclared({}, [model])).not.toThrow()
 	})
 
 	it("stops on params it cannot read", () => {
@@ -73,7 +89,7 @@ describe("buildConfiguredModel envelope names", () => {
 	})
 
 	it("stops on a name no list response declares", () => {
-		expect(enveloped({ nextCursor: "next_befor" })).toThrow(
+		expect(checked({ envelope: { nextCursor: "next_befor" } })).toThrow(
 			'query.envelope.nextCursor names "next_befor", which no list response declares',
 		)
 	})

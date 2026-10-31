@@ -169,4 +169,28 @@ describe("load and config query.params", () => {
 		await expect(loading).rejects.toThrow(UsageError)
 		await expect(loading).rejects.toThrow('query.params.filter names "filtr_by", which no operation declares')
 	})
+
+	it("takes a name only a secondary origin's document declares", async () => {
+		const origins = [
+			{ baseUrl: "http://search.test", id: "search", security: { bearer: "bearer" }, spec: onDisk(searchable()) },
+		]
+		const options = optionsFor(() => undefined, {
+			origins,
+			query: { params: { filter: "filter_by" } },
+			spec: onDisk(notesDoc()),
+		})
+		const loaded = await load({ ...options, network: {} })
+		expect(loaded.model.byOperationId.has("notes.list")).toBe(true)
+	})
+
+	it("leaves a secondary origin's run unchecked: the primary checked the names against every document", async () => {
+		const primary = await connected(optionsFor(notesApi()))
+		const shared = { mapping: {}, originOnly: new Set<string>(), store: primary.store }
+		const options = optionsFor(notesApi(), {
+			query: { envelope: { nextCursor: "next_before" }, params: { cursor: "before" } },
+			sharedCredentials: shared,
+		})
+		const loaded = await load(options)
+		expect(loaded.model.entities.has("note")).toBe(true)
+	})
 })

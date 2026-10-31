@@ -19,18 +19,26 @@ export function buildConfiguredModel(doc: OpenApiDocument, config: ModelConfig):
 	const params = readNames<QueryParamNames>(config.query?.params, PARAMS)
 	const envelope = readNames<QueryEnvelopeNames>(config.query?.envelope, ENVELOPE)
 	const model = buildModel(doc, { queryEnvelope: envelope, queryParams: params })
-	for (const [role, name] of Object.entries(params ?? {})) {
-		if (!model.operations.some((op) => op.queryParamNames.includes(name))) {
+	applyGrammarOverrides(model, config)
+	return model
+}
+
+/**
+ * Stops on a config name no model of the run declares. Config is run-wide, read against the primary
+ * document and each origin's, so a name only an origin declares is not a typo.
+ */
+export function assertQueryNamesDeclared(config: ModelConfig, models: readonly SpecModel[]): void {
+	const operations = models.flatMap((model) => model.operations)
+	for (const [role, name] of Object.entries(config.query?.params ?? {})) {
+		if (!operations.some((op) => op.queryParamNames.includes(name))) {
 			throw new UsageError(`query.params.${role} names "${name}", which no operation declares`)
 		}
 	}
-	for (const [role, name] of Object.entries(envelope ?? {})) {
-		if (!model.operations.some((op) => op.collection?.envelopeKeys.includes(name) === true)) {
+	for (const [role, name] of Object.entries(config.query?.envelope ?? {})) {
+		if (!operations.some((op) => op.collection?.envelopeKeys.includes(name) === true)) {
 			throw new UsageError(`query.envelope.${role} names "${name}", which no list response declares`)
 		}
 	}
-	applyGrammarOverrides(model, config)
-	return model
 }
 
 /* What a names object is read as: its config key, its roles, and what each value names. */

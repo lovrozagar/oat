@@ -153,8 +153,8 @@ describe("modeled and a config whose variables are not set", () => {
 	})
 })
 
-const searchable = (dir: string, params: Record<string, string>) => {
-	const doc = notesDoc({
+const searchDoc = () =>
+	notesDoc({
 		"/search": {
 			get: {
 				operationId: "notes.search",
@@ -163,6 +163,9 @@ const searchable = (dir: string, params: Record<string, string>) => {
 			},
 		},
 	})
+
+const searchable = (dir: string, params: Record<string, string>) => {
+	const doc = searchDoc()
 	return json(dir, "oat.config.json", {
 		baseUrl: "http://api.test",
 		principals: { alpha: { tenant: "t1" } },
@@ -183,5 +186,23 @@ describe("modeled and config query.params", () => {
 		const writer = bufferWriter()
 		expect(await modeled(writer, { config: searchable(folder(), { filter: "filtr_by" }) })).toBe(2)
 		expect(writer.text()).toContain('query.params.filter names "filtr_by", which no operation declares')
+	})
+
+	it("takes a name only an origin's document declares", async () => {
+		const dir = folder()
+		mkdirSync(join(dir, "search"))
+		notesSpec(join(dir, "search"), searchDoc())
+		const config = json(dir, "oat.config.json", {
+			baseUrl: "http://api.test",
+			origins: [
+				{ baseUrl: "http://search.test", id: "search", security: { bearer: "bearer" }, spec: "search/openapi.json" },
+			],
+			principals: { alpha: { tenant: "t1" } },
+			query: { params: { filter: "filter_by" } },
+			security: { bearer: { static: "t" } },
+			spec: notesSpec(dir),
+		})
+		const read = await modeled(bufferWriter(), { config })
+		expect(typeof read).not.toBe("number")
 	})
 })

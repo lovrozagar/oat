@@ -1,7 +1,7 @@
 import type { OriginSpec } from "../../config/types/config.ts"
 import { writerFirst } from "../../credentials/writer.ts"
 import { assertSecurity } from "../../credentials/validate/security.ts"
-import { buildConfiguredModel } from "../../spec/configured-model.ts"
+import { assertQueryNamesDeclared, buildConfiguredModel } from "../../spec/configured-model.ts"
 import { buildModel } from "../../spec/graph/build.ts"
 import { dereference } from "../../spec/load/dereference.ts"
 import { loadSpec } from "../../spec/load/source.ts"
@@ -59,7 +59,10 @@ export async function load(options: RunOptions): Promise<Loaded> {
 		fetchText: (url) => fetchSpecText(url, transportOpt(options)),
 	})
 	/* A secondary origin's run: the primary checked the config against this document already. */
-	if (options.sharedCredentials === undefined) assertSecurity({ ...options }, primary, origins)
+	if (options.sharedCredentials === undefined) {
+		assertQueryNamesDeclared(options, [primary.model, ...[...origins.values()].map((origin) => origin.model)])
+		assertSecurity({ ...options }, primary, origins)
+	}
 	return {
 		fence,
 		findings,

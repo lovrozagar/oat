@@ -3,7 +3,7 @@ import type { OatConfig } from "../../config/types/config.ts"
 import { UsageError } from "../../errors/usage-error.ts"
 import { fetchSpecText } from "../../runtime/network/fetch.ts"
 import { probeCreateFixtures } from "../../runtime/world/probe-fixtures.ts"
-import { buildConfiguredModel } from "../../spec/configured-model.ts"
+import { assertQueryNamesDeclared, buildConfiguredModel } from "../../spec/configured-model.ts"
 import type { SpecModel } from "../../spec/graph/types.ts"
 import { dereference } from "../../spec/load/dereference.ts"
 import { loadSpec } from "../../spec/load/source.ts"
@@ -84,12 +84,10 @@ export async function modeled(writer: Writer, flags: Args["flags"]): Promise<Mod
 		)
 		const model = buildConfiguredModel(doc, config ?? {})
 		if (config !== undefined) {
-			/* The credentials are checked as `run` checks them: against this document and each origin's. */
-			assertSecurity(
-				{ ...config },
-				{ doc, model },
-				await loadOrigins(config.origins ?? [], { dir: configDir, fetchText: fetchSpecText }),
-			)
+			/* The names and credentials are checked as `run` checks them: against this document and each origin's. */
+			const origins = await loadOrigins(config.origins ?? [], { dir: configDir, fetchText: fetchSpecText })
+			assertQueryNamesDeclared(config, [model, ...[...origins.values()].map((origin) => origin.model)])
+			assertSecurity({ ...config }, { doc, model }, origins)
 		}
 		/* A create whose fixtures cannot be built is recorded on the model as a gap. */
 		probeCreateFixtures(model)
