@@ -71,13 +71,53 @@ function takesStructuredInput(parameter: ParameterObject): boolean {
 	return KEY_VALUE.test(demonstrated(parameter))
 }
 
+/** Whether `role`'s alias list finds a parameter called `name`. */
+export function isAliasOf(name: string, role: Role): boolean {
+	return ALIASES[role].includes(normalize(name))
+}
+
 /**
  * The name of the first query parameter whose name is an alias of `role`. A search alias that
  * takes structured input is passed over: free text is the one thing a search check sends.
  */
-export function roleName(query: readonly ParameterObject[], role: Role): string | undefined {
-	return query.find((p) => ALIASES[role].includes(normalize(p.name)) && (role !== "search" || !takesStructuredInput(p)))
-		?.name
+function aliasName(query: readonly ParameterObject[], role: Role): string | undefined {
+	return query.find((p) => isAliasOf(p.name, role) && (role !== "search" || !takesStructuredInput(p)))?.name
+}
+
+/** A parameter name per role, as `x-query.params` or config names them. */
+export type NamedRoles = Partial<Record<Role, string>>
+
+export interface ResolvedRoles {
+	/** The parameter playing each role the operation has. */
+	roles: Partial<Record<Role, string>>
+	/** Names given for a role that the operation declares no parameter by. */
+	unmatched: Array<{ role: Role; name: string }>
+}
+
+/* The roles matched by alias alone, in the order they claim parameters. */
+const ALIASED = ["filter", "order", "select", "search", "searchMode", "cursor"] as const
+
+/**
+ * The parameter playing each role: the one a name points at when the operation declares it, else
+ * the first alias of the role among the parameters no name has claimed. A name the author gave is
+ * trusted as given; the guards the aliases need are for parameters nobody named.
+ */
+export function resolveRoles(query: readonly ParameterObject[], named: NamedRoles): ResolvedRoles {
+	const roles: ResolvedRoles["roles"] = {}
+	const unmatched: ResolvedRoles["unmatched"] = []
+	for (const [role, name] of Object.entries(named) as Array<[Role, string]>) {
+		if (query.some((p) => p.name === name)) roles[role] = name
+		else unmatched.push({ name, role })
+	}
+	const claimed = new Set(Object.values(roles))
+	const free = query.filter((p) => !claimed.has(p.name))
+	for (const role of ALIASED) {
+		/* A bare `mode` is too common to steal unless a search role is already present. */
+		if (roles[role] !== undefined || (role === "searchMode" && roles.search === undefined)) continue
+		const name = aliasName(free, role)
+		if (name !== undefined) roles[role] = name
+	}
+	return { roles: { ...roles, ...resolvePagingRoles(free, roles) }, unmatched }
 }
 
 /** The first query parameter called `name`. */
@@ -88,7 +128,7 @@ export function parameterNamed(
 	return query.find((p) => p.name === name)
 }
 
-export interface PagingRoles {
+interface PagingRoles {
 	limit?: string
 	page?: string
 	offset?: string
@@ -99,8 +139,12 @@ export interface PagingRoles {
  * belongs to the other's alias list — `count` most notoriously. The declared schema settles it:
  * a page size is the one with an upper bound, a page number the one that starts at 1.
  */
-export function resolvePagingRoles(candidates: readonly ParameterObject[]): PagingRoles {
+function resolvePagingRoles(candidates: readonly ParameterObject[], named: NamedRoles): PagingRoles {
 	const roles: PagingRoles = {}
+	for (const role of ["limit", "page", "offset"] as const) {
+		const name = named[role]
+		if (name !== undefined) roles[role] = name
+	}
 	for (const parameter of candidates) {
 		/* A page size or number is a number, however its nullability is spelled. */
 		const kinds = scalarKinds(schemaOf(parameter))

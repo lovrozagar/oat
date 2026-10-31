@@ -153,7 +153,8 @@ export const PLAIN: Dialect = {
  * matches a bare substring. Sort keys are `name_ascending` / `name_descending`, comma-joined.
  *
  * Nothing in oat may know this grammar except through the declaration, so every filter check that
- * still runs here is reading the template rather than a preset.
+ * still runs here is reading the template rather than a preset. Its parameter names are the same:
+ * no alias finds `filter_by` or `take`, so every check that sends one read it off `x-query.params`.
  */
 export const TEMPLATE: Dialect = {
 	envelope: {
@@ -178,13 +179,14 @@ export const TEMPLATE: Dialect = {
 	name: "template",
 	sortGrammar: "template",
 	sortTemplate: { asc: "ascending", desc: "descending", join: ",", term: "{field}_{direction}" },
+	declaresParams: true,
 	params: {
-		filter: "where",
-		limit: "limit",
-		order: "sort",
-		page: "page",
-		search: "search",
-		select: "fields",
+		filter: "filter_by",
+		limit: "take",
+		order: "arrange",
+		page: "leaf",
+		search: "needle",
+		select: "pick",
 	},
 }
 

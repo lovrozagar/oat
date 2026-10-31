@@ -90,3 +90,17 @@ export interface QueryCapabilities {
 export type DeclaredFilterGrammar = "postgrest" | "colon" | "equality" | Record<string, unknown>
 /** A sort grammar by preset name, or a template object the renderer validates. */
 export type DeclaredSortGrammar = "dotted" | "prefixed" | "colon" | "spaced" | Record<string, unknown>
+
+/** A query role, by the name the rest of the vocabulary uses: `sort` as in `sortable`, never `order`. */
+export type QueryParamRole =
+	| "filter"
+	| "sort"
+	| "select"
+	| "search"
+	| "searchMode"
+	| "limit"
+	| "page"
+	| "offset"
+	| "cursor"
+/** The query parameter each role is sent in, for a role whose parameter no alias oat knows names. */
+export type QueryParamNames = Partial<Record<QueryParamRole, string>>

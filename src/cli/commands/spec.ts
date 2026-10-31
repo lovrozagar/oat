@@ -3,8 +3,7 @@ import type { OatConfig } from "../../config/types/config.ts"
 import { UsageError } from "../../errors/usage-error.ts"
 import { fetchSpecText } from "../../runtime/network/fetch.ts"
 import { probeCreateFixtures } from "../../runtime/world/probe-fixtures.ts"
-import { applyGrammarOverrides } from "../../spec/grammar-overrides.ts"
-import { buildModel } from "../../spec/graph/build.ts"
+import { buildConfiguredModel } from "../../spec/configured-model.ts"
 import type { SpecModel } from "../../spec/graph/types.ts"
 import { dereference } from "../../spec/load/dereference.ts"
 import { loadSpec } from "../../spec/load/source.ts"
@@ -83,9 +82,8 @@ export async function modeled(writer: Writer, flags: Args["flags"]): Promise<Mod
 		const { danglingRefs, doc, externalRefs } = dereference(
 			prepareDocument(raw, config ?? {}, (ids) => (removed = ids)),
 		)
-		const model = buildModel(doc)
+		const model = buildConfiguredModel(doc, config ?? {})
 		if (config !== undefined) {
-			applyGrammarOverrides(model, config)
 			/* The credentials are checked as `run` checks them: against this document and each origin's. */
 			assertSecurity(
 				{ ...config },

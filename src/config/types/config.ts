@@ -1,7 +1,7 @@
 /* The config file's top level: the target, the principals, and every knob a run reads. */
 
 import type { Hooks, OutOfBandConfig, Uploads } from "./hooks.ts"
-import type { DeclaredFilterGrammar, DeclaredSortGrammar, QueryCapabilities } from "./query.ts"
+import type { DeclaredFilterGrammar, DeclaredSortGrammar, QueryCapabilities, QueryParamNames } from "./query.ts"
 import type { PrincipalsConfig, SecurityConfig } from "./security.ts"
 import type { Scenario } from "./steps.ts"
 
@@ -16,6 +16,11 @@ export type QueryConfig = QueryCapabilities & {
 	grammar?: DeclaredFilterGrammar
 	/** A preset name or a template; outranks `x-query.sortGrammar`. */
 	sortGrammar?: DeclaredSortGrammar
+	/**
+	 * The parameter each role is sent in, run-wide; outranks `x-query.params`. Per operation, use the
+	 * overlay. A name no operation declares stops the run.
+	 */
+	params?: QueryParamNames
 }
 
 /** A second host with its own OpenAPI. Its schemes send the primary's credentials only where `security` maps them. */

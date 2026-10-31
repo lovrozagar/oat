@@ -64,7 +64,18 @@ export const filterMalformedTermRejected: Check<{
 		const refused = judgeRefusal(ctx, this.id, ["validation"], result.exchange)
 		if (refused !== null) return refused
 		const baseline = await list(ctx, q(ctx, { limit: pageSize(ctx) }))
-		const same = ids(result.items, ctx.identity).join(",") === ids(baseline.items, ctx.identity).join(",")
+		const selected = (items: typeof result.items) => ids(items, ctx.identity).join(",")
+		const same = selected(result.items) === selected(baseline.items)
+		/* Applied, not dropped: a grammar that spells equality with or without its operator (Typesense's
+		 * `year:1` is `year:=1`) has no malformed term here to refuse. */
+		if (!same && selected(result.items) === selected(accepted.items)) {
+			return ctx.findings.unresolved(
+				this.id,
+				ctx.entityName,
+				`${Object.values(malformed).join("&")} selected exactly what ${Object.values(control).join("&")} did: ` +
+					"the server reads a term without its operator as that equality, so there is no malformed term to send it",
+			)
+		}
 		return ctx.findings.backend(this.id, ctx.entityName, {
 			summary: "a malformed filter term is accepted",
 			detail:

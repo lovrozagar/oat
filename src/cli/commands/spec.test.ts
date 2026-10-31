@@ -3,6 +3,7 @@ import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 import { bufferWriter } from "../writer.ts"
 import { folder, json, notesConfig, notesSpec } from "../__fixtures__/files.ts"
+import { notesDoc } from "../../runtime/run/__fixtures__/api.ts"
 import { modeled } from "./spec.ts"
 
 /* The document an offline command reads: from --spec or the config, modeled; refused with a reason. */
@@ -149,5 +150,38 @@ describe("modeled and a config whose variables are not set", () => {
 		)
 		const bare = await modeled(bufferWriter(), { spec: notesSpec() })
 		expect(typeof bare !== "number" && bare.unsetEnv).toBeUndefined()
+	})
+})
+
+const searchable = (dir: string, params: Record<string, string>) => {
+	const doc = notesDoc({
+		"/search": {
+			get: {
+				operationId: "notes.search",
+				parameters: [{ in: "query", name: "filter_by", schema: { type: "string" } }],
+				responses: { "200": { description: "ok" } },
+			},
+		},
+	})
+	return json(dir, "oat.config.json", {
+		baseUrl: "http://api.test",
+		principals: { alpha: { tenant: "t1" } },
+		query: { params },
+		security: { bearer: { static: "t" } },
+		spec: notesSpec(dir, doc),
+	})
+}
+
+describe("modeled and config query.params", () => {
+	it("models the operation that declares the name with it", async () => {
+		const read = await modeled(bufferWriter(), { config: searchable(folder(), { filter: "filter_by" }) })
+		if (typeof read === "number") throw new Error(`refused: ${read}`)
+		expect(read.model.byOperationId.get("notes.search")?.conventions.filter).toBe("filter_by")
+	})
+
+	it("refuses a name no operation declares", async () => {
+		const writer = bufferWriter()
+		expect(await modeled(writer, { config: searchable(folder(), { filter: "filtr_by" }) })).toBe(2)
+		expect(writer.text()).toContain('query.params.filter names "filtr_by", which no operation declares')
 	})
 })

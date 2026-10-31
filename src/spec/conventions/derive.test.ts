@@ -128,3 +128,38 @@ describe("deriveQueryConventions sort grammar", () => {
 		}
 	})
 })
+
+describe("deriveQueryConventions with named parameters", () => {
+	it("sends the filter in the named parameter and reads its grammar off that parameter", () => {
+		const filterBy = query("filter_by", { type: "string" }, { description: "e.g. name.eq.x" })
+		const conventions = deriveQueryConventions([filterBy, query("where")], null, { params: { filter: "filter_by" } })
+		expect(conventions.filter).toBe("filter_by")
+		expect(conventions.grammar).toBe("postgrest")
+		expect(deriveQueryConventions([filterBy], null).grammar).toBe("equality")
+	})
+
+	it("reads the select and sort grammars off the named parameters", () => {
+		const params = [query("pick[articles]"), query("arrange", { type: "string" }, { description: "e.g. -name" })]
+		const conventions = deriveQueryConventions(params, null, { params: { select: "pick[articles]", sort: "arrange" } })
+		expect(conventions).toMatchObject({
+			order: "arrange",
+			select: "pick[articles]",
+			selectGrammar: "bracketed",
+			sortGrammar: "prefixed",
+		})
+		expect(deriveQueryConventions(params, null)).toMatchObject({ selectGrammar: "csv", sortGrammar: "dotted" })
+	})
+
+	it("says when a named parameter is not one the operation declares, and falls back to the alias", () => {
+		const told: string[] = []
+		const conventions = deriveQueryConventions([query("where")], null, {
+			onUnmatched: (message) => told.push(message),
+			params: { filter: "filter_by", sort: "arrange" },
+		})
+		expect(conventions.filter).toBe("where")
+		expect(told).toEqual([
+			'params.filter names "filter_by", which the operation does not declare; oat finds the filter parameter by its aliases',
+			'params.sort names "arrange", which the operation does not declare; oat finds the sort parameter by its aliases',
+		])
+	})
+})

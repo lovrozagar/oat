@@ -11,6 +11,7 @@ import { GapCollector } from "../extensions/gaps.ts"
 import { documentDefs } from "../load/defs.ts"
 import { readSchemes } from "../security/schemes.ts"
 import type { OpenApiDocument } from "../types.ts"
+import type { QueryParamNames } from "../../config/types/query.ts"
 import { recordDangling } from "./dangling.ts"
 import { demoteNonEntities } from "./demote.ts"
 import { registerOperations } from "./entities.ts"
@@ -22,10 +23,15 @@ import type { EntityModel, OperationModel, SpecModel } from "./types.ts"
 import { recordUnmodeled, recordUnsendable } from "./unmodeled.ts"
 import { parseRouteRef } from "../routes.ts"
 
-export function buildModel(doc: OpenApiDocument): SpecModel {
+export interface BuildOptions {
+	/** Config `query.params`: the parameter each role is sent in, outranking `x-query.params`. */
+	queryParams?: QueryParamNames | undefined
+}
+
+export function buildModel(doc: OpenApiDocument, options: BuildOptions = {}): SpecModel {
 	const gaps = new GapCollector()
 	const endpoints = listEndpoints(doc)
-	const operations = endpoints.map((e) => modelOperation(e, doc, gaps))
+	const operations = endpoints.map((e) => modelOperation(e, { doc, gaps, queryParams: options.queryParams }))
 	recordUnsendable(operations, gaps)
 	const defs = documentDefs(doc)
 	recordDangling(endpoints, operations, { defs, gaps })

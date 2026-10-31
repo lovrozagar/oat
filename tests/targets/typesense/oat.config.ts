@@ -8,9 +8,9 @@ import { defineConfig, env } from "../../../src/index.ts"
  *
  * Scope: documents in a tenant's collection, API keys, and the collections a tenant can read.
  * The search route is the documents' list; each row wraps its document, which `recordPath`
- * points inside (`$.hits[*].document`). oat finds a filter parameter by name only, and `filter_by`
- * is not one it knows (docs/limits.md), so the filter checks stand down naming it. Collection writes
- * stay out of the document (`allow`): the run works inside the collections target.ts made.
+ * points inside (`$.hits[*].document`). No alias oat knows names Typesense's filter parameter, so
+ * `x-query.params` does: the filter checks run through `filter_by`. Collection writes stay out of
+ * the document (`allow`): the run works inside the collections target.ts made.
  */
 
 /* What alpha_books and beta_books index (target.ts): the document a create sends and a read answers. */
@@ -74,16 +74,19 @@ export default defineConfig({
 				],
 				"x-entity": { name: "document", action: "list", recordPath: "$.hits[*].document" },
 				"x-query": {
+					params: { filter: "filter_by" },
 					grammar: {
 						term: "{field}:{op}{value}",
 						ops: { eq: "=", neq: "!=", gt: ">", gte: ">=", lt: "<", lte: "<=" },
 						combine: { join: " && " },
 					},
 					sortGrammar: { term: "{field}:{direction}", asc: "asc", desc: "desc", join: "," },
+					// Closed lists, as Typesense 30.2 answers them: `!=` applies to a float and a bool, and
+					// `>` / `<` on a bool is a 400 ("Value of filter field `in_stock` must be `true` or `false`").
 					filterable: [
 						{ field: "year", type: "number", ops: ["eq", "neq", "gt", "gte", "lt", "lte"] },
-						{ field: "rating", type: "number", ops: ["eq", "gt", "gte", "lt", "lte"] },
-						{ field: "in_stock", type: "boolean", ops: ["eq"] },
+						{ field: "rating", type: "number", ops: ["eq", "neq", "gt", "gte", "lt", "lte"] },
+						{ field: "in_stock", type: "boolean", ops: ["eq", "neq"] },
 					],
 					sortable: [
 						{ field: "year", type: "number" },

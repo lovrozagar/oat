@@ -25,6 +25,8 @@ export type {
 	ProfileSpec,
 	QueryCapabilities,
 	QueryCapabilitiesRequest,
+	QueryParamNames,
+	QueryParamRole,
 	RateLimitSpec,
 	Recipe,
 	RequestStep,

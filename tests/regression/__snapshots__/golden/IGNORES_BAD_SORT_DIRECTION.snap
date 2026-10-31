@@ -509,12 +509,12 @@
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows?limit=5&sort=label_ascending"
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows?take=5&arrange=label_ascending"
             },
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows?limit=5&sort=label_oatsideways"
+              "url": "http://reference.test/v1/projects/proj_alpha/tables/table_ID/rows?take=5&arrange=label_oatsideways"
             }
           ],
           "summary": "an unknown sort direction is accepted",
@@ -531,12 +531,12 @@
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/jobs?limit=100&sort=name_ascending"
+              "url": "http://reference.test/v1/projects/proj_alpha/jobs?take=100&arrange=name_ascending"
             },
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/jobs?limit=100&sort=name_oatsideways"
+              "url": "http://reference.test/v1/projects/proj_alpha/jobs?take=100&arrange=name_oatsideways"
             }
           ],
           "summary": "an unknown sort direction is accepted",
@@ -553,12 +553,12 @@
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/tables?limit=100&sort=name_ascending"
+              "url": "http://reference.test/v1/projects/proj_alpha/tables?take=100&arrange=name_ascending"
             },
             {
               "method": "GET",
               "status": 200,
-              "url": "http://reference.test/v1/projects/proj_alpha/tables?limit=100&sort=name_oatsideways"
+              "url": "http://reference.test/v1/projects/proj_alpha/tables?take=100&arrange=name_oatsideways"
             }
           ],
           "summary": "an unknown sort direction is accepted",

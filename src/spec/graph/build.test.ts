@@ -199,3 +199,51 @@ describe("x-cleanup routes", () => {
 		])
 	})
 })
+
+const searched = (xQuery?: Record<string, unknown>) =>
+	dereference(
+		doc({
+			"/v1/notes": {
+				get: {
+					operationId: "notes.list",
+					parameters: [
+						{ in: "query", name: "filter_by", schema: { type: "string" } },
+						{ in: "query", name: "where", schema: { type: "string" } },
+					],
+					responses: ok(list(member)),
+					...(xQuery === undefined ? {} : { "x-query": xQuery }),
+				},
+			},
+		}),
+	).doc
+const conventionsOf = (model: ReturnType<typeof buildModel>) => model.byOperationId.get("notes.list")?.conventions
+const paramGaps = (model: ReturnType<typeof buildModel>) =>
+	model.gaps.gaps.filter((gap) => gap.tag === "x-query" && gap.detail.startsWith("params.")).map((gap) => gap.detail)
+
+describe("buildModel query parameter names", () => {
+	it("sends a role in the parameter x-query.params names", () => {
+		const model = buildModel(searched({ params: { filter: "filter_by" } }))
+		expect(conventionsOf(model)?.filter).toBe("filter_by")
+		expect(paramGaps(model)).toEqual([])
+		expect(conventionsOf(buildModel(searched()))?.filter).toBe("where")
+	})
+
+	it("records a gap for an x-query.params name the operation does not declare, and uses the alias", () => {
+		const model = buildModel(searched({ params: { filter: "filtr_by" } }))
+		expect(conventionsOf(model)?.filter).toBe("where")
+		expect(model.gaps.gaps).toContainEqual({
+			detail:
+				'params.filter names "filtr_by", which the operation does not declare; oat finds the filter parameter by its aliases',
+			operationId: "notes.list",
+			tag: "x-query",
+		})
+	})
+
+	it("lets config's names outrank x-query's, and skips one the operation does not declare without a gap", () => {
+		const configured = buildModel(searched({ params: { filter: "where" } }), { queryParams: { filter: "filter_by" } })
+		expect(conventionsOf(configured)?.filter).toBe("filter_by")
+		const elsewhere = buildModel(searched(), { queryParams: { filter: "other_by" } })
+		expect(conventionsOf(elsewhere)?.filter).toBe("where")
+		expect(paramGaps(elsewhere)).toEqual([])
+	})
+})

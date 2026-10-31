@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `x-query.params` and config `query.params` name the query parameter each role is sent in
+  (`filter`, `sort`, `select`, `search`, `searchMode`, `limit`, `page`, `offset`, `cursor`) when no
+  alias oat knows finds it. Typesense's `filter_by` is the case: its filter checks now run instead
+  of standing down. Config outranks the tag, and a config name no operation declares stops the run.
+
+### Fixed
+
+- `filter.malformed-term-rejected` is unresolved, not a backend bug, when the term without its
+  operator selects exactly what the well-formed term does. Typesense reads `year:1` as `year:=1`:
+  it applied the term rather than dropping it.
+
 ## 0.27.2
 
 ### Fixed

@@ -112,7 +112,7 @@ describe("a guessed capability", () => {
 				"/v1/projects/{project_id}/tables",
 			),
 			item,
-			gaps,
+			{ gaps },
 		)
 		expect(capability).toEqual({
 			filterable: ["id", "name", "nick", "project_id"],
@@ -157,7 +157,7 @@ describe("a guessed capability", () => {
 describe("an x-query that is not an object", () => {
 	it("guesses when the tag is not an object", () => {
 		const gaps = new GapCollector()
-		const guess = readQueryCapability(listing({ parameters: [query("filter")], "x-query": null }), item, gaps)
+		const guess = readQueryCapability(listing({ parameters: [query("filter")], "x-query": null }), item, { gaps })
 		expect(guess?.source).toBe("heuristic")
 		expect(gaps.gaps).toHaveLength(1)
 	})
@@ -179,5 +179,42 @@ describe("a guessed capability's scalar fields", () => {
 		}
 		const capability = readQueryCapability(listing({ parameters: [query("filter")] }), record)
 		expect(capability?.filterable).toEqual(["both", "code", "legacy", "note", "titled"])
+	})
+})
+
+describe("an x-query that names its parameters", () => {
+	const filterBy = [query("filter_by"), query("page", { type: "integer" })]
+
+	it("guesses the capabilities when the tag only names parameters, and says so", () => {
+		const gaps = new GapCollector()
+		const guess = readQueryCapability(
+			listing({ parameters: filterBy, "x-query": { params: { filter: "filter_by" } } }),
+			item,
+			{
+				gaps,
+			},
+		)
+		expect(guess).toMatchObject({ filterable: ["id", "name", "nick", "project_id"], source: "heuristic" })
+		expect(gaps.gaps[0]?.detail).toMatch(/^endpoint accepts filter_by but does not declare which fields/)
+		expect(readQueryCapability(listing({ parameters: filterBy }), item)).toBeNull()
+	})
+
+	it("counts a role config names, outranking the tag where the operation declares the name", () => {
+		const configured = readQueryCapability(listing({ parameters: filterBy }), item, { params: { filter: "filter_by" } })
+		expect(configured?.source).toBe("heuristic")
+		const tagged = listing({ parameters: filterBy, "x-query": { params: { filter: "nope" } } })
+		expect(readQueryCapability(tagged, item)).toBeNull()
+		expect(readQueryCapability(tagged, item, { params: { filter: "filter_by" } })?.source).toBe("heuristic")
+		const kept = listing({ parameters: filterBy, "x-query": { params: { filter: "filter_by" } } })
+		expect(readQueryCapability(kept, item, { params: { filter: "elsewhere" } })?.source).toBe("heuristic")
+	})
+
+	it("reads a tag that declares capabilities beside the names as declared", () => {
+		const declared = readQueryCapability(
+			listing({ parameters: filterBy, "x-query": { filterable: ["id"], params: { filter: "filter_by" } } }),
+			item,
+		)
+		expect(declared).toMatchObject({ filterable: ["id"], source: "tag" })
+		expect(readQueryCapability(listing({ parameters: filterBy, "x-query": {} }), item)?.source).toBe("tag")
 	})
 })

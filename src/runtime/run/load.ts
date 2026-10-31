@@ -1,7 +1,7 @@
 import type { OriginSpec } from "../../config/types/config.ts"
 import { writerFirst } from "../../credentials/writer.ts"
 import { assertSecurity } from "../../credentials/validate/security.ts"
-import { applyGrammarOverrides } from "../../spec/grammar-overrides.ts"
+import { buildConfiguredModel } from "../../spec/configured-model.ts"
 import { buildModel } from "../../spec/graph/build.ts"
 import { dereference } from "../../spec/load/dereference.ts"
 import { loadSpec } from "../../spec/load/source.ts"
@@ -76,8 +76,7 @@ export async function load(options: RunOptions): Promise<Loaded> {
 
 function modelOf(raw: Parameters<typeof prepareDocument>[0], options: RunOptions): LoadedOrigin {
 	const { doc } = dereference(prepareDocument(raw, options))
-	const model = buildModel(doc)
-	applyGrammarOverrides(model, options)
+	const model = buildConfiguredModel(doc, options)
 	/* A create whose fixtures cannot be built is recorded on the model as a gap, before any request. */
 	probeCreateFixtures(model)
 	return { doc, model }

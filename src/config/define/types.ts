@@ -46,6 +46,8 @@ export type {
 	FilterOp,
 	Nulls,
 	QueryCapabilities,
+	QueryParamNames,
+	QueryParamRole,
 	SearchMode,
 	SelectRelation,
 	SortableField,

@@ -47,7 +47,28 @@ describe("filter.malformed-term-rejected: run", () => {
 			"status.open returned 200. A term the declared grammar cannot parse must be rejected.",
 		)
 	})
+})
 
+describe("filter.malformed-term-rejected: run, past the refusal", () => {
+	it("is unresolved when the term without its operator selects what the well-formed term did", async () => {
+		/* Typesense: `year:1` is `year:=1`. A grammar that spells equality both ways dropped nothing. */
+		const correct = backend(COHORT)
+		const { ctx, findings } = stage({
+			doc: DECLARED,
+			records: COHORT,
+			respond: (method, path, options) =>
+				options.query?.["filter"] === "status.open"
+					? correct(method, path, { ...options, query: { ...options.query, filter: "status.eq.open" } })
+					: correct(method, path, options),
+		})
+		expect(await runCheck(check, ctx)).toEqual({
+			kind: "unresolved",
+			reason:
+				"status.open selected exactly what status.eq.open did: the server reads a term without its operator " +
+				"as that equality, so there is no malformed term to send it",
+		})
+		expect(findings.findings).toEqual([])
+	})
 	it("reports a malformed term that crashes the parser", async () => {
 		const { ctx, findings } = stage({ behavior: { policy: { malformed: 500 } }, doc: DECLARED, records: COHORT })
 		expect(await runCheck(check, ctx)).toMatchObject({ kind: "finding" })

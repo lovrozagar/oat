@@ -6,6 +6,7 @@ import type {
 	FilterableField,
 	Nulls,
 	QueryCapabilities,
+	QueryParamNames,
 	SortableField,
 } from "../../config/types/query.ts"
 
@@ -17,7 +18,7 @@ type SelectBlock = NonNullable<QueryCapabilities["select"]>
 
 /**
  * The catalog's own keys, with the field lists in their written form, plus the keys the tag adds:
- * the grammars, the list's caps and order, and the flat spellings of the `sort` and `select` blocks.
+ * the grammars, the parameter names, the list's caps and order, and the flat spellings of the `sort` and `select` blocks.
  */
 export interface QueryTag extends Omit<QueryCapabilities, "filterable" | "sortable" | "searchable" | "selectable"> {
 	filterable: Axis<FilterableField>
@@ -27,6 +28,7 @@ export interface QueryTag extends Omit<QueryCapabilities, "filterable" | "sortab
 	selectable: Axis<{ field: string }>
 	grammar: DeclaredFilterGrammar
 	sortGrammar: DeclaredSortGrammar
+	params: QueryParamNames
 	maxLimit: number
 	defaultOrder: string
 	stableTiebreak: string

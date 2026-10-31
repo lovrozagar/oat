@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { CLASSIC, POSTGREST, TEMPLATE } from "../dialect/presets.ts"
+import { CLASSIC, DIALECTS, POSTGREST, TEMPLATE } from "../dialect/presets.ts"
 import { ENTITIES } from "../model/entities.ts"
 import type { EntityDef } from "../model/types.ts"
 import { JOB } from "../model/job.ts"
@@ -111,5 +111,23 @@ describe("queryDeclaration per dialect and shape", () => {
 			nested: true,
 			relations: [{ fields: ["name", "status"], name: "table" }],
 		})
+	})
+})
+
+describe("queryDeclaration's parameter names", () => {
+	it("names every role's parameter where the dialect speaks names no alias finds", () => {
+		expect(queryDeclaration(CTX, JOB, TEMPLATE)["params"]).toEqual({
+			filter: "filter_by",
+			limit: "take",
+			page: "leaf",
+			search: "needle",
+			select: "pick",
+			sort: "arrange",
+		})
+	})
+
+	it("leaves the other dialects to the aliases", () => {
+		const declaring = Object.values(DIALECTS).filter((dialect) => "params" in queryDeclaration(CTX, JOB, dialect))
+		expect(declaring.map((dialect) => dialect.name)).toEqual(["template"])
 	})
 })

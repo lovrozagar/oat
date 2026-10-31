@@ -3,6 +3,8 @@ import type { SortGrammarSpec } from "../../spec/render/sort.ts"
 /** The names, envelope and grammars one API speaks; see `presets.ts` for why there are several. */
 export interface Dialect {
 	name: string
+	/** The dialect names its parameters on `x-query.params`, because no alias oat knows would find them. */
+	declaresParams?: boolean
 	/** Query parameter names, by role. */
 	params: {
 		filter: string

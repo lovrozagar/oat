@@ -3,13 +3,22 @@ import { parseFilterGrammar } from "../render/filter-parse.ts"
 import { parseSortGrammar } from "../render/sort-parse.ts"
 import { SORT_PRESETS } from "../render/sort.ts"
 import type { ParameterObject } from "../types.ts"
+import type { QueryParamNames } from "../../config/types/query.ts"
 import { inferGrammar, inferSelectGrammar, inferSortGrammar } from "./infer.ts"
-import { parameterNamed, resolvePagingRoles, roleName } from "./roles.ts"
+import { publicRole, toNamedRoles } from "./query-params.ts"
+import { parameterNamed, type ResolvedRoles, resolveRoles } from "./roles.ts"
 import type { QueryConventions } from "./types.ts"
 
-/** What the document says beside the parameters: its `x-query` grammars and response headers. */
+/**
+ * What the document and config say beside the parameters: the `x-query` grammars, the parameter
+ * each role is sent in, and the response headers.
+ */
 export interface ConventionSources {
 	declared?: { grammar?: unknown; sortGrammar?: unknown } | undefined
+	/** The parameter each role is sent in, where a name outranks the aliases. */
+	params?: QueryParamNames | undefined
+	/** Told when a named parameter is not one the operation declares. */
+	onUnmatched?: (message: string) => void
 	/** Told when the filter grammar could not be recognized and nothing declared it. */
 	onGuess?: (message: string) => void
 	/** Response headers the success response declares, by name. */
@@ -38,20 +47,32 @@ export function deriveQueryConventions(
 	sources: ConventionSources = {},
 ): QueryConventions {
 	const query = parameters.filter((p) => p.in === "query")
+	const resolved = resolveRoles(query, toNamedRoles(sources.params ?? {}))
+	reportUnmatched(resolved.unmatched, sources.onUnmatched)
+	const found = resolved.roles
 	const conventions: QueryConventions = {
 		envelope: envelopeOf(collection),
-		...filterConventions(query, sources),
-		selectGrammar: inferSelectGrammar(parameterNamed(query, roleName(query, "select"))),
-		...declaredSort(sources.declared?.sortGrammar, parameterNamed(query, roleName(query, "order"))),
+		...filterConventions(parameterNamed(query, found.filter), sources),
+		selectGrammar: inferSelectGrammar(parameterNamed(query, found.select)),
+		...declaredSort(sources.declared?.sortGrammar, parameterNamed(query, found.order)),
 	}
 	const link = (sources.responseHeaders ?? []).find((name) => name.toLowerCase() === "link")
 	if (link !== undefined) conventions.linkHeader = link
-	return Object.assign(conventions, roles(query))
+	return Object.assign(conventions, roles(found))
 }
 
-function filterConventions(query: readonly ParameterObject[], sources: ConventionSources): FilterConventions {
+function reportUnmatched(unmatched: ResolvedRoles["unmatched"], tell: ConventionSources["onUnmatched"]): void {
+	for (const { name, role } of unmatched) {
+		const named = publicRole(role)
+		tell?.(
+			`params.${named} names "${name}", which the operation does not declare; ` +
+				`oat finds the ${named} parameter by its aliases`,
+		)
+	}
+}
+
+function filterConventions(filterParam: ParameterObject | undefined, sources: ConventionSources): FilterConventions {
 	const declared = sources.declared?.grammar
-	const filterParam = parameterNamed(query, roleName(query, "filter"))
 	const stated = statedGrammar(declared)
 	if (stated !== undefined) return stated
 	const inferred = inferGrammar(filterParam)
@@ -95,23 +116,20 @@ function declaredSort(declared: unknown, order: ParameterObject | undefined): So
 	return { sortGrammar: inferSortGrammar(order) }
 }
 
-/** The parameter playing each role, for the roles the endpoint has. */
-function roles(query: readonly ParameterObject[]): RoleConventions {
-	const search = roleName(query, "search")
-	const paging = resolvePagingRoles(query)
-	const found: Record<keyof RoleConventions, string | undefined> = {
-		filter: roleName(query, "filter"),
-		order: roleName(query, "order"),
-		select: roleName(query, "select"),
-		search,
-		/* A bare `mode` is too common to steal unless a search role is already present. */
-		searchMode: search === undefined ? undefined : roleName(query, "searchMode"),
-		cursor: roleName(query, "cursor"),
-		limit: paging.limit,
-		page: paging.page,
-		offset: paging.offset,
+/** The parameter playing each role, for the roles the endpoint has, in a fixed order. */
+function roles(found: ResolvedRoles["roles"]): RoleConventions {
+	const ordered: Record<keyof RoleConventions, string | undefined> = {
+		filter: found.filter,
+		order: found.order,
+		select: found.select,
+		search: found.search,
+		searchMode: found.searchMode,
+		cursor: found.cursor,
+		limit: found.limit,
+		page: found.page,
+		offset: found.offset,
 	}
-	return Object.fromEntries(Object.entries(found).filter(([, name]) => name !== undefined)) as RoleConventions
+	return Object.fromEntries(Object.entries(ordered).filter(([, name]) => name !== undefined)) as RoleConventions
 }
 
 /* The envelope is already derived from the 200 schema when the shape was resolved — reuse it

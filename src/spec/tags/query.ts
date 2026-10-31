@@ -1,5 +1,6 @@
 /** `x-query`, as `docs/tags.md` documents it. */
 
+import { isQueryParamRole, QUERY_PARAM_ROLES } from "../conventions/query-params.ts"
 import { parseFilterGrammar } from "../render/filter-parse.ts"
 import type { QueryTag } from "../query/tag.ts"
 import { parseSortGrammar } from "../render/sort-parse.ts"
@@ -35,6 +36,18 @@ function sortGrammar(value: unknown): string | null {
 	if (!isObject(value)) return oneOf(value, ["dotted", "prefixed", "colon", "spaced"])
 	const parsed = parseSortGrammar(value)
 	return parsed.ok ? null : `is a template oat cannot read: ${parsed.error}`
+}
+
+/** A parameter name per role: `{ filter: "filter_by" }`. */
+function params(value: unknown): string | null {
+	if (!isObject(value)) return "must be an object of role names"
+	for (const [role, name] of Object.entries(value)) {
+		if (!isQueryParamRole(role)) {
+			return `names an unknown role "${role}"; the roles are ${QUERY_PARAM_ROLES.join(", ")}`
+		}
+		if (text(name) !== null) return `"${role}" must be a parameter name`
+	}
+	return null
 }
 
 const SORT_BLOCK = {
@@ -78,6 +91,7 @@ const X_QUERY = {
 	maxLimit: integer,
 	maxSortKeys: integer,
 	operators: texts,
+	params,
 	operatorsByType: (value) =>
 		isObject(value) && Object.values(value).every((ops) => texts(ops) === null)
 			? null

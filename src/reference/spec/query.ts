@@ -1,5 +1,7 @@
 /** The `x-query` declaration on a listing: what may be filtered, sorted, searched and selected. */
 
+import { publicRole } from "../../spec/conventions/query-params.ts"
+import type { Role } from "../../spec/conventions/roles.ts"
 import type { Dialect } from "../dialect/types.ts"
 import type { EntityDef, FieldDef } from "../model/types.ts"
 import { fieldsWhere } from "../model/fields.ts"
@@ -66,6 +68,13 @@ function catalogLimits(catalog: FilterCatalog | undefined): Json {
 	}
 }
 
+/* The names a dialect no alias reads must declare, by public role: `order` is `sort` on the tag. */
+function declaredParams(dialect: Dialect): Json {
+	if (dialect.declaresParams !== true) return {}
+	const params = Object.entries(dialect.params).map(([role, name]) => [publicRole(role as Role), name])
+	return { params: Object.fromEntries(params) }
+}
+
 export function queryDeclaration(ctx: SpecContext, entity: EntityDef, dialect: Dialect): Json {
 	const catalog = entity.filterCatalog
 	return {
@@ -88,5 +97,6 @@ export function queryDeclaration(ctx: SpecContext, entity: EntityDef, dialect: D
 		...(dialect.params.searchMode === undefined ? {} : { searchModes: ["contains", "prefix"] }),
 		...nestedSelect(entity),
 		...catalogLimits(catalog),
+		...declaredParams(dialect),
 	}
 }

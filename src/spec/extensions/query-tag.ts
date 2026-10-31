@@ -4,8 +4,9 @@
  * property guessed and a recorded gap saying so.
  */
 
-import type { FilterableField, QueryCapabilities, SortableField } from "../../config/types/query.ts"
+import type { FilterableField, QueryCapabilities, QueryParamNames, SortableField } from "../../config/types/query.ts"
 import { deriveQueryConventions } from "../conventions/derive.ts"
+import { mergeQueryParams } from "../conventions/query-params.ts"
 import { parseQueryCatalog } from "../query/parse-catalog.ts"
 import type { QueryTag } from "../query/tag.ts"
 import type { RawOf } from "../../config/types/raw.ts"
@@ -71,12 +72,25 @@ function declared(tag: RawOf<QueryTag>): QueryCapability {
 	return cap
 }
 
-function guessed(endpoint: Endpoint, itemSchema: JsonSchema | null, gaps?: GapCollector): QueryCapability | null {
+/** Where a capability is read from beside the operation: the gaps it records, and config's names. */
+export interface CapabilityContext {
+	gaps?: GapCollector | undefined
+	/** Config `query.params`, outranking `x-query.params`. */
+	params?: QueryParamNames | undefined
+}
+
+function guessed(
+	endpoint: Endpoint,
+	itemSchema: JsonSchema | null,
+	{ gaps, params: config }: CapabilityContext,
+): QueryCapability | null {
 	const params = (endpoint.op.parameters ?? []).filter((p) => p.in === "query")
-	/* Same aliases the checks already use — `sort`/`fields`/`q`/`per_page`, not only the
-	 * fixture spellings `filter`/`order`/`select`/`limit`. Pagination-only params do not
-	 * count: a `page`/`limit` list is not a query grammar. */
-	const conventions = deriveQueryConventions(params, null)
+	const tag = extObject<QueryTag>(endpoint.op, "x-query")
+	const named = mergeQueryParams({ config, declared: params.map((p) => p.name), tag: tag?.params })
+	/* Same roles the checks already use — named, or by the aliases `sort`/`fields`/`q`/`per_page`,
+	 * not only the fixture spellings `filter`/`order`/`select`/`limit`. Pagination-only params do
+	 * not count: a `page`/`limit` list is not a query grammar. */
+	const conventions = deriveQueryConventions(params, null, { params: named })
 	const roles = [conventions.filter, conventions.order, conventions.select, conventions.search].filter(
 		(name): name is string => name !== undefined,
 	)
@@ -106,11 +120,17 @@ function guessed(endpoint: Endpoint, itemSchema: JsonSchema | null, gaps?: GapCo
 	return cap
 }
 
+/* A tag that only names parameters says how to send a query, not what it can be asked: still a guess. */
+function declaresCapabilities(tag: RawOf<QueryTag> | undefined): tag is RawOf<QueryTag> {
+	const keys = tag === undefined ? [] : Object.keys(tag)
+	return tag !== undefined && !(keys.length === 1 && keys[0] === "params")
+}
+
 export function readQueryCapability(
 	endpoint: Endpoint,
 	itemSchema: JsonSchema | null,
-	gaps?: GapCollector,
+	context: CapabilityContext = {},
 ): QueryCapability | null {
 	const tag = extObject<QueryTag>(endpoint.op, "x-query")
-	return tag === undefined ? guessed(endpoint, itemSchema, gaps) : declared(tag)
+	return declaresCapabilities(tag) ? declared(tag) : guessed(endpoint, itemSchema, context)
 }

@@ -1,13 +1,17 @@
 import { describe, expect, it } from "vitest"
 import { query } from "../__fixtures__/documents.ts"
 import type { JsonSchema, ParameterObject } from "../types.ts"
-import { parameterNamed, resolvePagingRoles, roleName, schemaOf } from "./roles.ts"
+import { isAliasOf, parameterNamed, resolveRoles, type Role, schemaOf } from "./roles.ts"
 
 const int = (name: string, schema: JsonSchema = {}): ParameterObject => query(name, { type: "integer", ...schema })
+/* The parameter aliases alone give a role, as an operation that names none sees it. */
+const roleName = (params: readonly ParameterObject[], role: Role) => resolveRoles(params, {}).roles[role]
+const resolvePagingRoles = (params: readonly ParameterObject[]) => resolveRoles(params, {}).roles
 
-describe("roleName", () => {
+describe("roles by alias", () => {
 	it("matches aliases whatever their case, separators or bracketed suffix", () => {
-		expect(roleName([query("perPage")], "limit")).toBe("perPage")
+		expect(roleName([int("perPage")], "limit")).toBe("perPage")
+		expect(roleName([query("pageToken")], "cursor")).toBe("pageToken")
 		expect(roleName([query("Order-By")], "order")).toBe("Order-By")
 		expect(roleName([query("search term")], "search")).toBe("search term")
 		expect(roleName([query("filter[status]")], "filter")).toBe("filter[status]")
@@ -104,5 +108,72 @@ describe("resolvePagingRoles over nullable numbers", () => {
 
 	it("passes over a parameter that is not one number kind", () => {
 		expect(resolvePagingRoles([{ in: "query", name: "limit", schema: { type: ["integer", "string"] } }])).toEqual({})
+	})
+})
+
+describe("resolveRoles with named parameters", () => {
+	it("gives a named role the parameter of that name", () => {
+		const filterBy = query("filter_by")
+		expect(resolveRoles([query("q"), filterBy], { filter: "filter_by" })).toEqual({
+			roles: { filter: "filter_by", search: "q" },
+			unmatched: [],
+		})
+	})
+
+	it("lists a name the operation does not declare and falls back to the role's alias", () => {
+		expect(resolveRoles([query("where")], { filter: "filter_by" })).toEqual({
+			roles: { filter: "where" },
+			unmatched: [{ name: "filter_by", role: "filter" }],
+		})
+	})
+
+	it("keeps a named parameter from being taken by another role's alias", () => {
+		/* `query` is a filter alias; once named the search parameter, it is not the filter too. */
+		expect(resolveRoles([query("query"), query("where")], { search: "query" }).roles).toEqual({
+			filter: "where",
+			search: "query",
+		})
+		expect(resolveRoles([query("query")], { search: "query" }).roles).toEqual({ search: "query" })
+	})
+
+	it("trusts a named search parameter that takes structured input", () => {
+		const attributes: ParameterObject = { ...query("q"), description: "in the format 'key1:value2'" }
+		expect(resolveRoles([attributes], { search: "q" }).roles).toEqual({ search: "q" })
+	})
+
+	it("lets named paging parameters outrank the schema reading, and still resolves an unnamed alias", () => {
+		const params = [int("take", { default: 1, maximum: 9 }), int("leaf", { minimum: 1 }), int("offset"), int("limit")]
+		expect(resolveRoles(params, { limit: "take", page: "leaf" }).roles).toEqual({
+			limit: "take",
+			offset: "offset",
+			page: "leaf",
+		})
+	})
+
+	it("matches a bracketed name exactly as declared", () => {
+		expect(resolveRoles([query("filter[status]"), query("by")], { filter: "filter[status]" }).roles).toEqual({
+			filter: "filter[status]",
+		})
+		expect(resolveRoles([query("filter[status]")], { filter: "filter" })).toEqual({
+			roles: { filter: "filter[status]" },
+			unmatched: [{ name: "filter", role: "filter" }],
+		})
+	})
+
+	it("reads a bare mode as the search mode beside a named search parameter", () => {
+		expect(resolveRoles([query("needle"), query("mode")], { search: "needle" }).roles).toEqual({
+			search: "needle",
+			searchMode: "mode",
+		})
+		expect(resolveRoles([query("mode")], {}).roles).toEqual({})
+	})
+})
+
+describe("isAliasOf", () => {
+	it("tells a name an alias of the role finds from one it does not", () => {
+		expect(isAliasOf("perPage", "limit")).toBe(true)
+		expect(isAliasOf("filter[status]", "filter")).toBe(true)
+		expect(isAliasOf("take", "limit")).toBe(false)
+		expect(isAliasOf("q", "filter")).toBe(false)
 	})
 })

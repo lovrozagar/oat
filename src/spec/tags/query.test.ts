@@ -79,3 +79,20 @@ describe("xQuery's sort, select and searchCase", () => {
 		expect(xQuery({ searchCase: "loose" })).toBe('"searchCase" must be one of "sensitive", "insensitive"')
 	})
 })
+
+describe("xQuery's params", () => {
+	it("accepts a parameter name per known role", () => {
+		expect(xQuery({ params: { filter: "filter_by" } })).toBeNull()
+		expect(xQuery({ params: { limit: "per_page", search: "q", sort: "sort_by" } })).toBeNull()
+	})
+
+	it("names the role or the value that is wrong", () => {
+		expect(xQuery({ params: "x" })).toBe('"params" must be an object of role names')
+		expect(xQuery({ params: { filtre: "a" } })).toBe(
+			'"params" names an unknown role "filtre"; the roles are filter, sort, select, search, ' +
+				"searchMode, limit, page, offset, cursor",
+		)
+		expect(xQuery({ params: { filter: 3 } })).toBe('"params" "filter" must be a parameter name')
+		expect(xQuery({ params: { filter: "" } })).toBe('"params" "filter" must be a parameter name')
+	})
+})

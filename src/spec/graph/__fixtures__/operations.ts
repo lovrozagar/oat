@@ -15,7 +15,10 @@ export function operationsOf(
 ): { gaps: GapCollector; operations: OperationModel[] } {
 	const document = dereference(doc(paths, extra)).doc
 	const gaps = new GapCollector()
-	return { gaps, operations: listEndpoints(document).map((endpoint) => modelOperation(endpoint, document, gaps)) }
+	return {
+		gaps,
+		operations: listEndpoints(document).map((endpoint) => modelOperation(endpoint, { doc: document, gaps })),
+	}
 }
 
 /** The whole model of a document. */

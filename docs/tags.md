@@ -121,6 +121,7 @@ String arrays still work. Structured rows are optional. Either, not both require
 x-query:
   grammar: postgrest # postgrest | colon | equality, or a template (below)
   sortGrammar: dotted # dotted | prefixed | colon | spaced, or a template (below)
+  params: { filter: filter_by } # the parameter a role is sent in, where no alias finds it (below)
   filterable: [id, name, created_at]
   sortable: [name, created_at]
   searchable: [name, slug]
@@ -168,6 +169,23 @@ x-query:
   searchableFrom: { operationId: table.get, path: $.columns[?(@.searchable==true)].name }
   selectableFrom: { operationId: table.get, path: $.columns[*].name }
 ```
+
+#### Parameter names
+
+oat finds the query parameter that plays each role by its name: `filter`, `where`, `query` or `conditions` for the filter, `sort` or `order_by` for the sort, `q` or `search` for the search, `per_page` or `limit` for the page size, and so on, in any case or separator spelling. A parameter under a name no alias knows is not used. `params` names it:
+
+```yaml
+x-query:
+  params:
+    filter: filter_by # Typesense
+    sort: sort_by # roles: filter, sort, select, search, searchMode, limit, page, offset, cursor
+```
+
+- A named role is sent in that parameter, and its grammar is read off that parameter's description and examples. The other roles still come from the aliases, and no alias takes a parameter that `params` already named.
+- The role is `sort`, as in `sortable` and `sortGrammar`.
+- A name the operation does not declare is an `x-query` gap, and that role falls back to its aliases. oat never sends a parameter the operation does not declare.
+- A tag that holds only `params` still guesses the capabilities, as a missing tag does. It says how to send a query, not what can be asked.
+- Config `query.params` outranks `params` for every operation that declares the name. See [the config reference](configuration/reference.md).
 
 #### Template grammars
 

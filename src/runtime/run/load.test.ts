@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest"
 import type { ProgressSnapshot } from "../progress/types.ts"
 import { UsageError } from "../../errors/usage-error.ts"
 import { connected, fetchOf, notesApi, notesDoc, optionsFor, unreachable } from "./__fixtures__/api.ts"
+import type { OpenApiDocument } from "../../spec/types.ts"
 import { load } from "./load.ts"
 
 /*
@@ -130,5 +131,42 @@ describe("load and the config's folder", () => {
 		const loaded = await load({ ...options, network: {} })
 		expect(loaded.model.byOperationId.has("notes.create")).toBe(true)
 		expect(loaded.origins.get("cdn")?.model.byOperationId.has("notes.create")).toBe(true)
+	})
+})
+
+const searchable = (): OpenApiDocument =>
+	notesDoc({
+		"/search": {
+			get: {
+				operationId: "notes.search",
+				parameters: [{ in: "query", name: "filter_by", schema: { type: "string" } }],
+				responses: { "200": { description: "ok" } },
+			},
+		},
+	})
+const onDisk = (doc: OpenApiDocument) => {
+	const spec = join(mkdtempSync(join(tmpdir(), "oat-load-")), "openapi.json")
+	writeFileSync(spec, JSON.stringify(doc))
+	return spec
+}
+
+describe("load and config query.params", () => {
+	it("sends a role in the parameter config names", async () => {
+		const options = optionsFor(() => undefined, {
+			query: { params: { filter: "filter_by" } },
+			spec: onDisk(searchable()),
+		})
+		const loaded = await load({ ...options, network: {} })
+		expect(loaded.model.byOperationId.get("notes.search")?.conventions.filter).toBe("filter_by")
+	})
+
+	it("refuses a name no operation declares", async () => {
+		const options = optionsFor(() => undefined, {
+			query: { params: { filter: "filtr_by" } },
+			spec: onDisk(searchable()),
+		})
+		const loading = load({ ...options, network: {} })
+		await expect(loading).rejects.toThrow(UsageError)
+		await expect(loading).rejects.toThrow('query.params.filter names "filtr_by", which no operation declares')
 	})
 })

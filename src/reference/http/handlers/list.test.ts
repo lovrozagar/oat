@@ -111,7 +111,7 @@ describe("filters in each grammar", () => {
 			["postgrest", "filter=status.eq.draft"],
 			["classic", "filter=status=eq:draft"],
 			["plain", "status=draft"],
-			["template", "where=and_status_eq_draft"],
+			["template", "filter_by=and_status_eq_draft"],
 		] as const
 		for (const [dialect, query] of cases) {
 			const { call } = await api({ dialect })

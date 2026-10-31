@@ -4,6 +4,7 @@ import { ambiguousRows, type CollectionShape, deriveCollectionShape } from "../c
 import { documentsEventStream, successSchema } from "../collection/responses.ts"
 import { hasRequestBody, requestSchema } from "../collection/request.ts"
 import { deriveQueryConventions } from "../conventions/derive.ts"
+import { mergeQueryParams } from "../conventions/query-params.ts"
 import type { GapCollector } from "../extensions/gaps.ts"
 import { pathParameterNames, readRootParams, readTenantParam, readTenantSource } from "../extensions/tenant.ts"
 import { readAsync, readWait } from "../extensions/async.ts"
@@ -30,6 +31,7 @@ import type { QueryTag } from "../query/tag.ts"
 import { resolveSecurity } from "../security/requirements.ts"
 import { validateTags } from "../tags/validate.ts"
 import type { Endpoint, OpenApiDocument, JsonSchema } from "../types.ts"
+import type { QueryParamNames } from "../../config/types/query.ts"
 import { operationIdentity } from "./identity.ts"
 import {
 	idempotencyHeader,
@@ -47,6 +49,7 @@ import type { OperationModel } from "./types.ts"
 interface Reading {
 	endpoint: Endpoint
 	gaps: GapCollector
+	queryParams: QueryParamNames | undefined
 	collection: CollectionShape | null
 	recordPath: string | null
 	bodySchema: JsonSchema | null
@@ -73,12 +76,20 @@ type ContractFacts =
 	| "documentedStatuses"
 	| "statuses"
 
-export function modelOperation(endpoint: Endpoint, doc: OpenApiDocument, gaps: GapCollector): OperationModel {
-	const reading = readOperation(endpoint, doc, gaps)
+/** What an operation is read against: its document, the gaps it records, and config's parameter names. */
+export interface ModelContext {
+	doc: OpenApiDocument
+	gaps: GapCollector
+	/** Config `query.params`, outranking `x-query.params`. */
+	queryParams?: QueryParamNames | undefined
+}
+
+export function modelOperation(endpoint: Endpoint, context: ModelContext): OperationModel {
+	const reading = readOperation(endpoint, context)
 	return { ...contractFacts(reading), ...behaviorFacts(reading), ...requestFacts(reading) }
 }
 
-function readOperation(endpoint: Endpoint, doc: OpenApiDocument, gaps: GapCollector): Reading {
+function readOperation(endpoint: Endpoint, { doc, gaps, queryParams }: ModelContext): Reading {
 	const { op, path, operationId } = endpoint
 	const responseSchema = successSchema(op)
 	const recordPath = readRecordPath(endpoint)
@@ -97,6 +108,7 @@ function readOperation(endpoint: Endpoint, doc: OpenApiDocument, gaps: GapCollec
 		gaps,
 		identity: operationIdentity(entity?.identity, itemSchema, { path, pathParams }),
 		pathParams,
+		queryParams,
 		recordPath,
 		security: readSecurity(endpoint, doc, gaps),
 		statuses: readStatuses(op.responses),
@@ -204,17 +216,24 @@ function declaresEtag(op: Endpoint["op"]): boolean {
 }
 
 function requestFacts(reading: Reading) {
-	const { endpoint, gaps, collection } = reading
+	const { endpoint, gaps, collection, queryParams } = reading
 	const { op, operationId } = endpoint
 	const parameters = op.parameters ?? []
+	const declared = extObject<QueryTag>(op, "x-query")
+	const queryParamNames = parameters.filter((p) => p.in === "query").map((p) => p.name)
+	const record = (message: string) => gaps.record(operationId, "x-query", message)
 	return {
-		query: collection === null ? null : readQueryCapability(endpoint, collection.itemSchema, gaps),
+		query:
+			collection === null ? null : readQueryCapability(endpoint, collection.itemSchema, { gaps, params: queryParams }),
+		/* A config name the operation does not declare is dropped before this, so an unmatched one is the tag's. */
 		conventions: deriveQueryConventions(parameters, collection, {
-			declared: extObject<QueryTag>(op, "x-query"),
-			onGuess: (message) => gaps.record(operationId, "x-query", message),
+			declared,
+			onGuess: record,
+			onUnmatched: record,
+			params: mergeQueryParams({ config: queryParams, declared: queryParamNames, tag: declared?.params }),
 			responseHeaders: successResponseHeaders(op),
 		}),
-		queryParamNames: parameters.filter((p) => p.in === "query").map((p) => p.name),
+		queryParamNames,
 		requiredQuery: readRequiredQuery(parameters),
 		requiredHeaders: readRequiredHeaders(op),
 		requiredCookies: readRequiredCookies(parameters),
