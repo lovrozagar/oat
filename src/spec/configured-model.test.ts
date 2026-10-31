@@ -4,13 +4,14 @@ import { doc, list, member, ok, query } from "./__fixtures__/documents.ts"
 import { assertQueryNamesDeclared, buildConfiguredModel } from "./configured-model.ts"
 import { dereference } from "./load/dereference.ts"
 
-/* Three lists: one filters by `filter_by`, one by `where`, one answers its next cursor as `next_before`. */
+/* Three lists, one filtering by `filter_by`, one by `where`, one answering its next cursor as `next_before`, and a read. */
 const searched = dereference(
 	doc({
 		"/v1/notes": {
 			get: { operationId: "notes.list", parameters: [query("filter_by")], responses: ok(list(member)) },
 		},
 		"/v1/tags": { get: { operationId: "tags.list", parameters: [query("where")], responses: ok(list(member)) } },
+		"/v1/me": { get: { operationId: "me.read", responses: ok(member) } },
 		"/v1/events": {
 			get: {
 				operationId: "events.list",
