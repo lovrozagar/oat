@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest"
 import { modelOf, type Sent } from "../../__fixtures__/harness.ts"
 import type { OperationCheck } from "../../core/check.ts"
 import type { WriteTarget } from "../../core/operation-context.ts"
-import { actorOf, operationContextFor, type SentResponder } from "./__fixtures__/operation-context.ts"
+import {
+	actorOf,
+	isScopedKey,
+	keyValue,
+	operationContextFor,
+	type SentResponder,
+} from "./__fixtures__/operation-context.ts"
 import { runOperationCheck } from "./__fixtures__/run.ts"
 import { NOTE_TARGET, securedDoc } from "./__fixtures__/secured-api.ts"
 import { crossTenantKeyRefused } from "./auth-cross-tenant-key-refused.ts"
@@ -48,7 +54,7 @@ const alpha = actorOf("alpha", { rank: 2, scope: { project_id: "proj_a" }, tenan
 const viewer = actorOf("alpha_viewer", { readOnly: true, scope: { project_id: "proj_a" }, tenant: "proj_a" })
 const beta = actorOf("beta", { scope: { project_id: "proj_b" }, tenant: "proj_b" })
 const probe = {
-	held: (request: { scheme: string }) => ({ value: `${request.scheme}-value` }),
+	held: (request: { scheme: string; scopes?: readonly string[] }) => ({ value: keyValue(request) }),
 	recipes: { apiKey: { kind: "mint" as const }, jwt: { kind: "login" as const } },
 }
 
@@ -80,10 +86,14 @@ const validatesFirst: SentResponder = ({ method, options }) => {
 	return body === undefined || "id" in body ? { status: 400 } : { status: 200 }
 }
 
+/* Refuses every probe, and lets in the key issued with the scopes that auth.scope-enforced sends as its control. */
+const refusingFor = (check: OperationCheck): SentResponder =>
+	check === scopeEnforced ? (sent) => ({ status: isScopedKey(sent) ? 200 : 401 }) : () => ({ status: 401 })
+
 describe("a refusal check's write probe", () => {
 	it("sends the record cut to the request's writable properties: never a readOnly one", async () => {
 		for (const at of WRITES) {
-			const stage = staged(at, () => ({ status: 401 }))
+			const stage = staged(at, refusingFor(at.check))
 			expect(await runOperationCheck(at.check, stage.ctx)).toEqual({ kind: "asserted" })
 			expect(writes(stage.sent).length).toBeGreaterThan(0)
 			for (const s of writes(stage.sent)) expect(s.options.body).toEqual({ title: "first" })
@@ -96,7 +106,7 @@ describe("a refusal check's write probe", () => {
 	it("carries the record's current value in every field it sends: no refusal probe changes one", async () => {
 		const current = { id: "n9", title: "kept", verified: true }
 		for (const at of WRITES) {
-			const stage = staged({ ...at, target: { ...at.target, current } }, () => ({ status: 401 }))
+			const stage = staged({ ...at, target: { ...at.target, current } }, refusingFor(at.check))
 			await runOperationCheck(at.check, stage.ctx)
 			expect(writes(stage.sent).length).toBeGreaterThan(0)
 			for (const s of writes(stage.sent)) {

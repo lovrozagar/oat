@@ -15,6 +15,10 @@
   checked each name against every document on its own, so a parameter only the primary declares
   stopped each secondary origin's run, and one only an origin declares stopped the primary. A name
   is now checked once, against the primary document and every origin's.
+- `auth.scope-enforced` no longer passes a server that refuses the scheme outright. It sends the
+  actor's key minted without the scope, and when that is refused, the key minted with the scope as
+  a control: refused too, the check is unresolved. A backend whose API keys were broken passed it,
+  hiding a missing scope check behind the broken keys.
 
 ## 0.28.0
 

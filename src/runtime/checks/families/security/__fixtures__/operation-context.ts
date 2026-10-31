@@ -136,3 +136,15 @@ export function sender(sent: Sent): string {
 	const as = sent.options.as
 	return "principal" in as ? as.principal : "forged" in as ? "forged" : "anonymous"
 }
+
+/** A held credential's value that says which scopes it was issued with: `apiKey-value`, `apiKey-value+notes:write`. */
+export function keyValue(request: { scheme: string; scopes?: readonly string[] }): string {
+	const scopes = request.scopes ?? []
+	return scopes.length === 0 ? `${request.scheme}-value` : `${request.scheme}-value+${scopes.join("+")}`
+}
+
+/** Whether `sent` carries an API key issued with scopes, as `keyValue` spells one. */
+export function isScopedKey(sent: Sent): boolean {
+	const forged = (sent.options.as as { forged?: { scheme?: string; value?: string } } | undefined)?.forged
+	return forged?.scheme === "apiKey" && forged.value?.includes("+") === true
+}

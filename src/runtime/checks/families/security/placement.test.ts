@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest"
 import { modelOf } from "../../__fixtures__/harness.ts"
 import { placementOf } from "../../core/operation.ts"
-import { actorOf, operationContextFor, type SentResponder } from "./__fixtures__/operation-context.ts"
+import {
+	actorOf,
+	isScopedKey,
+	keyValue,
+	operationContextFor,
+	type SentResponder,
+} from "./__fixtures__/operation-context.ts"
 import { runOperationCheck } from "./__fixtures__/run.ts"
 import { NOTE_TARGET, securedDoc } from "./__fixtures__/secured-api.ts"
 import { alternativeAccepted } from "./auth-alternative-accepted.ts"
@@ -37,10 +43,13 @@ const ITEM_READS = [
 const REFUSALS = [missingCredentialRefused, invalidCredentialRefused, wrongSchemeRefused, scopeEnforced]
 const principals = [actorOf("alpha", { scope: { project_id: "proj_a" } })] as [ReturnType<typeof actorOf>]
 const probe = {
-	held: (request: { scheme: string; scopes?: readonly string[] }) => ({ value: `${request.scheme}-value` }),
+	held: (request: { scheme: string; scopes?: readonly string[] }) => ({ value: keyValue(request) }),
 	recipes: { apiKey: { kind: "mint" as const }, jwt: { kind: "login" as const } },
 }
 const refusing: SentResponder = () => ({ status: 401 })
+/* Refuses every probe, and lets in the key issued with the scopes that auth.scope-enforced sends as its control. */
+const refusingFor = (check: unknown): SentResponder =>
+	check === scopeEnforced ? (sent) => ({ status: isScopedKey(sent) ? 200 : 401 }) : refusing
 
 describe("the refusal checks' placement", () => {
 	it("plans a collection read before the lanes, and a read of one record and a write after them", () => {
@@ -54,7 +63,8 @@ describe("the refusal checks' placement", () => {
 
 	it("sends a read of one record to the run-created record, with no body", async () => {
 		for (const { check, operationId, target } of ITEM_READS) {
-			const { ctx, sent } = operationContextFor(model, operationId, { principals, probe, respond: refusing, target })
+			const respond = refusingFor(check)
+			const { ctx, sent } = operationContextFor(model, operationId, { principals, probe, respond, target })
 			expect(ctx.placement).toBe("item-read")
 			expect(await runOperationCheck(check, ctx)).toEqual({ kind: "asserted" })
 			expect(sent.length).toBeGreaterThan(0)
