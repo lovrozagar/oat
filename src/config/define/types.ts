@@ -46,6 +46,8 @@ export type {
 	FilterOp,
 	Nulls,
 	QueryCapabilities,
+	QueryEnvelopeNames,
+	QueryEnvelopeRole,
 	QueryParamNames,
 	QueryParamRole,
 	SearchMode,

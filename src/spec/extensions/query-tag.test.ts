@@ -199,6 +199,18 @@ describe("an x-query that names its parameters", () => {
 		expect(readQueryCapability(listing({ parameters: filterBy }), item)).toBeNull()
 	})
 
+	it("guesses the capabilities when the tag only names parameters and envelope fields", () => {
+		const envelopeOnly = listing({ parameters: filterBy, "x-query": { envelope: { total: "tally" } } })
+		expect(readQueryCapability(envelopeOnly, item, { params: { filter: "filter_by" } })?.source).toBe("heuristic")
+		const both = listing({
+			parameters: filterBy,
+			"x-query": { envelope: { total: "tally" }, params: { filter: "filter_by" } },
+		})
+		expect(readQueryCapability(both, item)?.source).toBe("heuristic")
+		const declared = listing({ parameters: filterBy, "x-query": { envelope: {}, filterable: ["name"] } })
+		expect(readQueryCapability(declared, item)?.source).toBe("tag")
+	})
+
 	it("counts a role config names, outranking the tag where the operation declares the name", () => {
 		const configured = readQueryCapability(listing({ parameters: filterBy }), item, { params: { filter: "filter_by" } })
 		expect(configured?.source).toBe("heuristic")

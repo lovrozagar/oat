@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import { deriveCollectionShape } from "../../spec/collection/shape.ts"
 import { isAliasOf } from "../../spec/conventions/roles.ts"
 import { CLASSIC, DIALECTS, JSONAPI, LINKED, PLAIN, POSTGREST, TEMPLATE } from "./presets.ts"
 
@@ -46,10 +47,26 @@ describe("the other presets", () => {
 
 describe("the template preset's parameter names", () => {
 	it("are names no alias of their role finds, so only x-query.params can", () => {
-		expect(TEMPLATE.declaresParams).toBe(true)
+		expect(TEMPLATE.declaresNames).toBe(true)
 		for (const [role, name] of Object.entries(TEMPLATE.params)) {
 			expect(isAliasOf(name, role as keyof typeof TEMPLATE.params), `${role}: ${name}`).toBe(false)
 		}
-		expect(Object.values(DIALECTS).filter((dialect) => dialect.declaresParams === true)).toEqual([TEMPLATE])
+		expect(Object.values(DIALECTS).filter((dialect) => dialect.declaresNames === true)).toEqual([TEMPLATE])
+	})
+})
+
+describe("the template preset's envelope names", () => {
+	it("are fields no alias finds for the total or the more-pages flag, so only x-query.envelope can", () => {
+		const { total, hasMore } = TEMPLATE.envelope ?? {}
+		expect({ hasMore, total }).toEqual({ hasMore: "more_ahead", total: "tally" })
+		const shape = deriveCollectionShape({
+			properties: {
+				[hasMore as string]: { type: "boolean" },
+				results: { items: { type: "object" }, type: "array" },
+				[total as string]: { type: "integer" },
+			},
+			type: "object",
+		})
+		expect(shape?.pagination).toEqual({})
 	})
 })

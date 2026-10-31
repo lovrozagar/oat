@@ -163,3 +163,52 @@ describe("deriveQueryConventions with named parameters", () => {
 		])
 	})
 })
+
+const shaped = (envelopeKeys: string[], pagination: CollectionShape["pagination"]): CollectionShape => ({
+	envelopeKeys,
+	itemSchema: null,
+	key: "events",
+	pagination,
+	within: [],
+})
+
+describe("deriveQueryConventions with named envelope fields", () => {
+	it("reads a named fact from the field the response's envelope holds", () => {
+		const conventions = deriveQueryConventions([int("before")], shaped(["next_before"], {}), {
+			envelope: { nextCursor: "next_before" },
+			params: { cursor: "before" },
+		})
+		expect(conventions.envelope).toEqual({ nextCursor: "next_before" })
+		expect(conventions.cursor).toBe("before")
+	})
+
+	it("drops an alias-found fact whose field a name claimed, keeping the fixed order", () => {
+		const collection = shaped(["count", "next"], { countKey: "count", cursorKey: "next" })
+		const conventions = deriveQueryConventions([], collection, { envelope: { hasMore: "next" } })
+		expect(conventions.envelope).toEqual({ hasMore: "next", total: "count" })
+		expect(Object.keys(conventions.envelope)).toEqual(["total", "hasMore"])
+	})
+
+	it("reports a name the envelope does not hold, and reads that fact by its aliases", () => {
+		const told: string[] = []
+		const conventions = deriveQueryConventions([], shaped(["next"], { cursorKey: "next" }), {
+			envelope: { nextCursor: "next_before" },
+			onUnmatched: (message) => told.push(message),
+		})
+		expect(conventions.envelope).toEqual({ nextCursor: "next" })
+		expect(told).toEqual([
+			'envelope.nextCursor names "next_before", which the response envelope does not declare; ' +
+				"oat finds the nextCursor field by its aliases",
+		])
+	})
+
+	it("reports every name where the operation answers no list", () => {
+		const told: string[] = []
+		const conventions = deriveQueryConventions([], null, {
+			envelope: { total: "tally" },
+			onUnmatched: (message) => told.push(message),
+		})
+		expect(conventions.envelope).toEqual({})
+		expect(told).toHaveLength(1)
+	})
+})

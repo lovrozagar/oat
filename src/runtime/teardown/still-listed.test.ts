@@ -212,6 +212,15 @@ describe("listing: whether the read reached the list's end", () => {
 		expect(await walkOf("cursor", failing)).toEqual({ complete: false, listed: new Set() })
 	})
 
+	it("follows a next cursor the server gives as a number", async () => {
+		const numbered = store({}, { pageSize: 2 })
+		numbered.answers["GET /notes"] = (options) =>
+			options.query?.["cursor"] === undefined
+				? { body: { items: [{ id: "n1" }, { id: "n2" }], next_cursor: 1793400000 }, status: 200 }
+				: { body: { items: [{ id: "n9" }], next_cursor: null }, status: 200 }
+		expect(await walkOf("cursor", numbered)).toEqual({ complete: true, listed: new Set(["n9"]) })
+	})
+
 	it("is complete once the rows served reach the envelope's total, and not before", async () => {
 		expect((await walkOf("none", totaled(1), { total: "total" }))?.complete).toBe(true)
 		expect((await walkOf("none", totaled(5), { total: "total" }))?.complete).toBe(false)

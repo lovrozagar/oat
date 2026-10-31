@@ -1,3 +1,4 @@
+import { nextCursorOf } from "../../../spec/collection/cursor.ts"
 import type { QueryConventions } from "../../../spec/conventions/types.ts"
 import type { SortValue } from "../../../spec/render/sort.ts"
 import { fillPath } from "../../fill-path.ts"
@@ -209,8 +210,8 @@ function judgePage(walk: Walk, index: number, result: ListResult): SetRead | und
 
 /** The next cursor, or the end of the walk when the page names none. */
 function followCursor(walk: Walk, result: ListResult): SetRead | undefined {
-	const next = envelopeValue(walk.ctx, result, "nextCursor")
-	if (typeof next !== "string" || next === "") return finish(walk)
+	const next = nextCursorOf(envelopeValue(walk.ctx, result, "nextCursor"))
+	if (next === undefined) return finish(walk)
 	walk.cursor = next
 	return undefined
 }

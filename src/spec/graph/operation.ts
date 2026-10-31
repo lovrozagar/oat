@@ -4,6 +4,7 @@ import { ambiguousRows, type CollectionShape, deriveCollectionShape } from "../c
 import { documentsEventStream, successSchema } from "../collection/responses.ts"
 import { hasRequestBody, requestSchema } from "../collection/request.ts"
 import { deriveQueryConventions } from "../conventions/derive.ts"
+import { mergeEnvelopeNames } from "../conventions/envelope-names.ts"
 import { mergeQueryParams } from "../conventions/query-params.ts"
 import type { GapCollector } from "../extensions/gaps.ts"
 import { pathParameterNames, readRootParams, readTenantParam, readTenantSource } from "../extensions/tenant.ts"
@@ -31,7 +32,7 @@ import type { QueryTag } from "../query/tag.ts"
 import { resolveSecurity } from "../security/requirements.ts"
 import { validateTags } from "../tags/validate.ts"
 import type { Endpoint, OpenApiDocument, JsonSchema } from "../types.ts"
-import type { QueryParamNames } from "../../config/types/query.ts"
+import type { QueryEnvelopeNames, QueryParamNames } from "../../config/types/query.ts"
 import { operationIdentity } from "./identity.ts"
 import {
 	idempotencyHeader,
@@ -50,6 +51,7 @@ interface Reading {
 	endpoint: Endpoint
 	gaps: GapCollector
 	queryParams: QueryParamNames | undefined
+	queryEnvelope: QueryEnvelopeNames | undefined
 	collection: CollectionShape | null
 	recordPath: string | null
 	bodySchema: JsonSchema | null
@@ -76,12 +78,14 @@ type ContractFacts =
 	| "documentedStatuses"
 	| "statuses"
 
-/** What an operation is read against: its document, the gaps it records, and config's parameter names. */
+/** What an operation is read against: its document, the gaps it records, and config's parameter and envelope names. */
 export interface ModelContext {
 	doc: OpenApiDocument
 	gaps: GapCollector
 	/** Config `query.params`, outranking `x-query.params`. */
 	queryParams?: QueryParamNames | undefined
+	/** Config `query.envelope`, outranking `x-query.envelope`. */
+	queryEnvelope?: QueryEnvelopeNames | undefined
 }
 
 export function modelOperation(endpoint: Endpoint, context: ModelContext): OperationModel {
@@ -89,7 +93,7 @@ export function modelOperation(endpoint: Endpoint, context: ModelContext): Opera
 	return { ...contractFacts(reading), ...behaviorFacts(reading), ...requestFacts(reading) }
 }
 
-function readOperation(endpoint: Endpoint, { doc, gaps, queryParams }: ModelContext): Reading {
+function readOperation(endpoint: Endpoint, { doc, gaps, queryParams, queryEnvelope }: ModelContext): Reading {
 	const { op, path, operationId } = endpoint
 	const responseSchema = successSchema(op)
 	const recordPath = readRecordPath(endpoint)
@@ -108,6 +112,7 @@ function readOperation(endpoint: Endpoint, { doc, gaps, queryParams }: ModelCont
 		gaps,
 		identity: operationIdentity(entity?.identity, itemSchema, { path, pathParams }),
 		pathParams,
+		queryEnvelope,
 		queryParams,
 		recordPath,
 		security: readSecurity(endpoint, doc, gaps),
@@ -216,7 +221,7 @@ function declaresEtag(op: Endpoint["op"]): boolean {
 }
 
 function requestFacts(reading: Reading) {
-	const { endpoint, gaps, collection, queryParams } = reading
+	const { endpoint, gaps, collection, queryParams, queryEnvelope } = reading
 	const { op, operationId } = endpoint
 	const parameters = op.parameters ?? []
 	const declared = extObject<QueryTag>(op, "x-query")
@@ -228,6 +233,11 @@ function requestFacts(reading: Reading) {
 		/* A config name the operation does not declare is dropped before this, so an unmatched one is the tag's. */
 		conventions: deriveQueryConventions(parameters, collection, {
 			declared,
+			envelope: mergeEnvelopeNames({
+				config: queryEnvelope,
+				declared: collection?.envelopeKeys ?? [],
+				tag: declared?.envelope,
+			}),
 			onGuess: record,
 			onUnmatched: record,
 			params: mergeQueryParams({ config: queryParams, declared: queryParamNames, tag: declared?.params }),

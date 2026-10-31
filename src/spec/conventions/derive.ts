@@ -3,7 +3,7 @@ import { parseFilterGrammar } from "../render/filter-parse.ts"
 import { parseSortGrammar } from "../render/sort-parse.ts"
 import { SORT_PRESETS } from "../render/sort.ts"
 import type { ParameterObject } from "../types.ts"
-import type { QueryParamNames } from "../../config/types/query.ts"
+import type { QueryEnvelopeNames, QueryParamNames } from "../../config/types/query.ts"
 import { inferGrammar, inferSelectGrammar, inferSortGrammar } from "./infer.ts"
 import { publicRole, toNamedRoles } from "./query-params.ts"
 import { parameterNamed, type ResolvedRoles, resolveRoles } from "./roles.ts"
@@ -11,13 +11,15 @@ import type { QueryConventions } from "./types.ts"
 
 /**
  * What the document and config say beside the parameters: the `x-query` grammars, the parameter
- * each role is sent in, and the response headers.
+ * each role is sent in, the field each paging fact is read from, and the response headers.
  */
 export interface ConventionSources {
 	declared?: { grammar?: unknown; sortGrammar?: unknown } | undefined
 	/** The parameter each role is sent in, where a name outranks the aliases. */
 	params?: QueryParamNames | undefined
-	/** Told when a named parameter is not one the operation declares. */
+	/** The response field each paging fact is read from, where a name outranks the aliases. */
+	envelope?: QueryEnvelopeNames | undefined
+	/** Told when a named parameter or envelope field is not one the operation declares. */
 	onUnmatched?: (message: string) => void
 	/** Told when the filter grammar could not be recognized and nothing declared it. */
 	onGuess?: (message: string) => void
@@ -51,7 +53,7 @@ export function deriveQueryConventions(
 	reportUnmatched(resolved.unmatched, sources.onUnmatched)
 	const found = resolved.roles
 	const conventions: QueryConventions = {
-		envelope: envelopeOf(collection),
+		envelope: envelopeOf(collection, sources),
 		...filterConventions(parameterNamed(query, found.filter), sources),
 		selectGrammar: inferSelectGrammar(parameterNamed(query, found.select)),
 		...declaredSort(sources.declared?.sortGrammar, parameterNamed(query, found.order)),
@@ -132,13 +134,35 @@ function roles(found: ResolvedRoles["roles"]): RoleConventions {
 	return Object.fromEntries(Object.entries(ordered).filter(([, name]) => name !== undefined)) as RoleConventions
 }
 
-/* The envelope is already derived from the 200 schema when the shape was resolved — reuse it
- * rather than matching on literal key names a second time. */
-function envelopeOf(collection: CollectionShape | null): QueryConventions["envelope"] {
+/*
+ * The envelope is already derived from the 200 schema when the shape was resolved — reuse it
+ * rather than matching on literal key names a second time. A named field the envelope holds wins,
+ * and no alias keeps a field a name claimed for another fact.
+ */
+function envelopeOf(collection: CollectionShape | null, sources: ConventionSources): QueryConventions["envelope"] {
+	const named = namedEnvelope(collection, sources)
+	const claimed = new Set(Object.values(named))
 	const envelope: QueryConventions["envelope"] = {}
 	for (const [role, key] of ENVELOPE) {
-		const name = collection?.pagination[key]
+		const alias = collection?.pagination[key]
+		const name =
+			named[role as keyof QueryEnvelopeNames] ?? (alias !== undefined && !claimed.has(alias) ? alias : undefined)
 		if (name !== undefined) envelope[role] = name
 	}
 	return envelope
+}
+
+/* The names the envelope holds; each other name is told and its fact read by its aliases. */
+function namedEnvelope(collection: CollectionShape | null, sources: ConventionSources): QueryEnvelopeNames {
+	const held: QueryEnvelopeNames = {}
+	for (const [role, name] of Object.entries(sources.envelope ?? {}) as [keyof QueryEnvelopeNames, string][]) {
+		if (collection?.envelopeKeys.includes(name) === true) held[role] = name
+		else {
+			sources.onUnmatched?.(
+				`envelope.${role} names "${name}", which the response envelope does not declare; ` +
+					`oat finds the ${role} field by its aliases`,
+			)
+		}
+	}
+	return held
 }

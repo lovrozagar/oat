@@ -1,7 +1,13 @@
 /* The config file's top level: the target, the principals, and every knob a run reads. */
 
 import type { Hooks, OutOfBandConfig, Uploads } from "./hooks.ts"
-import type { DeclaredFilterGrammar, DeclaredSortGrammar, QueryCapabilities, QueryParamNames } from "./query.ts"
+import type {
+	DeclaredFilterGrammar,
+	DeclaredSortGrammar,
+	QueryCapabilities,
+	QueryEnvelopeNames,
+	QueryParamNames,
+} from "./query.ts"
 import type { PrincipalsConfig, SecurityConfig } from "./security.ts"
 import type { Scenario } from "./steps.ts"
 
@@ -21,6 +27,11 @@ export type QueryConfig = QueryCapabilities & {
 	 * overlay. A name no operation declares stops the run.
 	 */
 	params?: QueryParamNames
+	/**
+	 * The response field each paging fact is read from, run-wide; outranks `x-query.envelope`. A name no
+	 * list response declares stops the run.
+	 */
+	envelope?: QueryEnvelopeNames
 }
 
 /** A second host with its own OpenAPI. Its schemes send the primary's credentials only where `security` maps them. */

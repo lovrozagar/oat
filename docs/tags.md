@@ -187,6 +187,22 @@ x-query:
 - A tag that holds only `params` still guesses the capabilities, as a missing tag does. It says how to send a query, not what can be asked.
 - Config `query.params` outranks `params` for every operation that declares the name. See [the config reference](configuration/reference.md).
 
+A list response's paging facts are found the same way: the next cursor in `nextCursor`, `next_cursor`, `cursor`, `next` or `endCursor`, the total in `total`, `count` or `totalCount`, the more-pages flag in `hasMore`, `has_more` or `more`. `envelope` names a field no alias knows:
+
+```yaml
+x-query:
+  params:
+    cursor: before
+  envelope:
+    nextCursor: next_before # roles: total, hasMore, nextCursor
+```
+
+- A name is a field beside the list's array, as the response schema declares it. A nested field cannot be named.
+- A field the response does not declare is an `x-query` gap, and that fact falls back to its aliases. No alias keeps a field that `envelope` named for another fact.
+- The next cursor may be text or a number. oat sends a number back as its decimal text, and takes an empty string or `null` as the last page.
+- A tag that holds only `params` and `envelope` still guesses the capabilities.
+- Config `query.envelope` outranks `envelope` for every list whose response declares the name.
+
 #### Template grammars
 
 A grammar oat has no name for is declared as a template. Every filter and sort term oat writes goes through one renderer; the named grammars are its presets.

@@ -247,3 +247,54 @@ describe("buildModel query parameter names", () => {
 		expect(paramGaps(elsewhere)).toEqual([])
 	})
 })
+
+/* A list answering its next page's cursor as `next_before`, which no alias finds. */
+const keyset = (xQuery?: Record<string, unknown>) =>
+	dereference(
+		doc({
+			"/v1/events": {
+				get: {
+					operationId: "events.list",
+					parameters: [
+						{ in: "query", name: "before", schema: { type: "integer" } },
+						{ in: "query", name: "limit", schema: { type: "integer" } },
+					],
+					responses: ok({
+						properties: { events: list(member), next_before: { type: ["integer", "null"] } },
+						type: "object",
+					}),
+					...(xQuery === undefined ? {} : { "x-query": xQuery }),
+				},
+			},
+		}),
+	).doc
+const eventsOf = (model: ReturnType<typeof buildModel>) => model.byOperationId.get("events.list")?.conventions
+
+describe("buildModel envelope field names", () => {
+	it("reads the next cursor from the field x-query.envelope names", () => {
+		const model = buildModel(keyset({ envelope: { nextCursor: "next_before" }, params: { cursor: "before" } }))
+		expect(eventsOf(model)).toMatchObject({ cursor: "before", envelope: { nextCursor: "next_before" } })
+		expect(eventsOf(buildModel(keyset()))?.envelope).toEqual({})
+	})
+
+	it("records a gap for a name the response's envelope does not hold", () => {
+		const model = buildModel(keyset({ envelope: { nextCursor: "next_after" } }))
+		expect(model.gaps.gaps).toContainEqual({
+			detail:
+				'envelope.nextCursor names "next_after", which the response envelope does not declare; ' +
+				"oat finds the nextCursor field by its aliases",
+			operationId: "events.list",
+			tag: "x-query",
+		})
+	})
+
+	it("lets config's names outrank x-query's, and skips one the envelope does not hold without a gap", () => {
+		const configured = buildModel(keyset({ envelope: { nextCursor: "next_after" } }), {
+			queryEnvelope: { nextCursor: "next_before" },
+		})
+		expect(eventsOf(configured)?.envelope).toEqual({ nextCursor: "next_before" })
+		const elsewhere = buildModel(keyset(), { queryEnvelope: { total: "tally" } })
+		expect(eventsOf(elsewhere)?.envelope).toEqual({})
+		expect(elsewhere.gaps.gaps.filter((gap) => gap.detail.startsWith("envelope."))).toEqual([])
+	})
+})

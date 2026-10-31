@@ -4,6 +4,7 @@
  */
 
 import { UnsatisfiedSecurity } from "../../client/credential-source.ts"
+import { nextCursorOf } from "../../spec/collection/cursor.ts"
 import { largestPageQuery } from "../../spec/graph/paging.ts"
 import type { OperationModel, SpecModel } from "../../spec/graph/types.ts"
 import type { Client } from "../../client/client.ts"
@@ -133,7 +134,7 @@ function takePage(walk: Walk, group: ListGroup, exchange: Exchange): boolean {
 	walk.fullPage = Math.max(walk.fullPage, rows.length)
 	const next =
 		paging.envelope.nextCursor === undefined ? undefined : readPath(exchange.responseBody, paging.envelope.nextCursor)
-	walk.cursor = typeof next === "string" && next !== "" ? next : undefined
+	walk.cursor = nextCursorOf(next)
 	return true
 }
 

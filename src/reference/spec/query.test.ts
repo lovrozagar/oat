@@ -131,3 +131,14 @@ describe("queryDeclaration's parameter names", () => {
 		expect(declaring.map((dialect) => dialect.name)).toEqual(["template"])
 	})
 })
+
+describe("queryDeclaration's envelope names", () => {
+	it("names the total and the more-pages field where the dialect speaks names no alias finds", () => {
+		expect(queryDeclaration(CTX, JOB, TEMPLATE)["envelope"]).toEqual({ hasMore: "more_ahead", total: "tally" })
+	})
+
+	it("leaves the other dialects to the aliases", () => {
+		const declaring = Object.values(DIALECTS).filter((dialect) => "envelope" in queryDeclaration(CTX, JOB, dialect))
+		expect(declaring.map((dialect) => dialect.name)).toEqual(["template"])
+	})
+})

@@ -1,5 +1,6 @@
 /** `x-query`, as `docs/tags.md` documents it. */
 
+import { isQueryEnvelopeRole, QUERY_ENVELOPE_ROLES } from "../conventions/envelope-names.ts"
 import { isQueryParamRole, QUERY_PARAM_ROLES } from "../conventions/query-params.ts"
 import { parseFilterGrammar } from "../render/filter-parse.ts"
 import type { QueryTag } from "../query/tag.ts"
@@ -50,6 +51,18 @@ function params(value: unknown): string | null {
 	return null
 }
 
+/** A response field name per paging fact: `{ nextCursor: "next_before" }`. */
+function envelope(value: unknown): string | null {
+	if (!isObject(value)) return "must be an object of role names"
+	for (const [role, name] of Object.entries(value)) {
+		if (!isQueryEnvelopeRole(role)) {
+			return `names an unknown role "${role}"; the roles are ${QUERY_ENVELOPE_ROLES.join(", ")}`
+		}
+		if (text(name) !== null) return `"${role}" must be a field name`
+	}
+	return null
+}
+
 const SORT_BLOCK = {
 	collation: (value) => oneOf(value, ["binary", "case-insensitive", "locale"]),
 	defaultNulls: (value) => oneOf(value, ["first", "last"]),
@@ -92,6 +105,7 @@ const X_QUERY = {
 	maxSortKeys: integer,
 	operators: texts,
 	params,
+	envelope,
 	operatorsByType: (value) =>
 		isObject(value) && Object.values(value).every((ops) => texts(ops) === null)
 			? null

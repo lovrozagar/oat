@@ -96,3 +96,19 @@ describe("xQuery's params", () => {
 		expect(xQuery({ params: { filter: "" } })).toBe('"params" "filter" must be a parameter name')
 	})
 })
+
+describe("xQuery's envelope", () => {
+	it("accepts a response field name per known role", () => {
+		expect(xQuery({ envelope: { nextCursor: "next_before" } })).toBeNull()
+		expect(xQuery({ envelope: { hasMore: "more_ahead", total: "tally" } })).toBeNull()
+	})
+
+	it("names the role or the value that is wrong", () => {
+		expect(xQuery({ envelope: "x" })).toBe('"envelope" must be an object of role names')
+		expect(xQuery({ envelope: { page: "p" } })).toBe(
+			'"envelope" names an unknown role "page"; the roles are total, hasMore, nextCursor',
+		)
+		expect(xQuery({ envelope: { total: 3 } })).toBe('"envelope" "total" must be a field name')
+		expect(xQuery({ envelope: { nextCursor: "" } })).toBe('"envelope" "nextCursor" must be a field name')
+	})
+})

@@ -4,13 +4,20 @@ import { doc, list, member, ok, query } from "./__fixtures__/documents.ts"
 import { buildConfiguredModel } from "./configured-model.ts"
 import { dereference } from "./load/dereference.ts"
 
-/* Two lists: one filters by `filter_by`, one by `where`. */
+/* Three lists: one filters by `filter_by`, one by `where`, one answers its next cursor as `next_before`. */
 const searched = dereference(
 	doc({
 		"/v1/notes": {
 			get: { operationId: "notes.list", parameters: [query("filter_by")], responses: ok(list(member)) },
 		},
 		"/v1/tags": { get: { operationId: "tags.list", parameters: [query("where")], responses: ok(list(member)) } },
+		"/v1/events": {
+			get: {
+				operationId: "events.list",
+				parameters: [query("before", { type: "integer" })],
+				responses: ok({ properties: { events: list(member), next_before: { type: "integer" } }, type: "object" }),
+			},
+		},
 	}),
 ).doc
 
@@ -47,5 +54,36 @@ describe("buildConfiguredModel", () => {
 		)
 		expect(built({ filter: 3 })).toThrow("query.params.filter must be a parameter name")
 		expect(built({ filter: "" })).toThrow("query.params.filter must be a parameter name")
+	})
+})
+
+const enveloped = (envelope: unknown) => () =>
+	buildConfiguredModel(searched, { query: { envelope: envelope as never } })
+
+describe("buildConfiguredModel envelope names", () => {
+	it("reads a fact from the field config names, where a list response holds it", () => {
+		const model = buildConfiguredModel(searched, {
+			query: { envelope: { nextCursor: "next_before" }, params: { cursor: "before" } },
+		})
+		expect(model.byOperationId.get("events.list")?.conventions).toMatchObject({
+			cursor: "before",
+			envelope: { nextCursor: "next_before" },
+		})
+		expect(model.byOperationId.get("tags.list")?.conventions.envelope).toEqual({})
+	})
+
+	it("stops on a name no list response declares", () => {
+		expect(enveloped({ nextCursor: "next_befor" })).toThrow(
+			'query.envelope.nextCursor names "next_befor", which no list response declares',
+		)
+	})
+
+	it("stops on an envelope it cannot read", () => {
+		expect(enveloped("next_before")).toThrow("query.envelope must be an object of role names")
+		expect(enveloped({ page: "p" })).toThrow(
+			'query.envelope names an unknown role "page"; the roles are total, hasMore, nextCursor',
+		)
+		expect(enveloped({ total: 3 })).toThrow("query.envelope.total must be a field name")
+		expect(enveloped({ total: "" })).toThrow("query.envelope.total must be a field name")
 	})
 })

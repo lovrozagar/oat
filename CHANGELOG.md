@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `x-query.envelope` and config `query.envelope` name the response field a list's next cursor,
+  total and more-pages flag are read from (`nextCursor`, `total`, `hasMore`) when no alias oat
+  knows finds it. A cursor walk, and teardown's, now follows a next cursor given as a number: an
+  API answering `next_before: 1793400000` is paged by cursor instead of read as one page.
+
 ## 0.28.0
 
 ### Added

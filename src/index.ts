@@ -25,6 +25,8 @@ export type {
 	ProfileSpec,
 	QueryCapabilities,
 	QueryCapabilitiesRequest,
+	QueryEnvelopeNames,
+	QueryEnvelopeRole,
 	QueryParamNames,
 	QueryParamRole,
 	RateLimitSpec,

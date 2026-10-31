@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { Sent } from "../__fixtures__/harness.ts"
+import type { Responder, Sent } from "../__fixtures__/harness.ts"
 import { BARE, notesContext, withConventions } from "../query/__fixtures__/notes.ts"
 import { memoTable, readSet } from "./read.ts"
 import { cursored, rows, served } from "./__fixtures__/serve.ts"
@@ -122,11 +122,26 @@ describe("readSet by offset", () => {
 	})
 })
 
+/* Five notes, two to a page, each page's next cursor given as a number and the last's as null. */
+const numbered: Responder = (_method, _path, options) => {
+	const start = Number(options.query?.["cursor"] ?? 0)
+	const next = start + 2 < 5 ? start + 2 : null
+	return { body: { items: rows(5).slice(start, start + 2), next }, status: 200 }
+}
+
 describe("readSet by cursor", () => {
 	const CURSOR = { cursor: "cursor", envelope: { nextCursor: "next" }, page: undefined }
 
 	it("follows the next cursor until there is none", async () => {
 		const { ctx, sent } = notesContext(cursored(rows(5)), { collectionKey: "items" })
+		const read = await readSet(withConventions(ctx, CURSOR))
+		expect(read).toMatchObject({ complete: true })
+		expect(read.items).toHaveLength(5)
+		expect(asked(sent, "cursor")).toEqual([undefined, "2", "4"])
+	})
+
+	it("follows a next cursor the server gives as a number, and ends at null", async () => {
+		const { ctx, sent } = notesContext(numbered, { collectionKey: "items" })
 		const read = await readSet(withConventions(ctx, CURSOR))
 		expect(read).toMatchObject({ complete: true })
 		expect(read.items).toHaveLength(5)

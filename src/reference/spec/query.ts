@@ -1,5 +1,6 @@
 /** The `x-query` declaration on a listing: what may be filtered, sorted, searched and selected. */
 
+import { QUERY_ENVELOPE_ROLES } from "../../spec/conventions/envelope-names.ts"
 import { publicRole } from "../../spec/conventions/query-params.ts"
 import type { Role } from "../../spec/conventions/roles.ts"
 import type { Dialect } from "../dialect/types.ts"
@@ -68,11 +69,18 @@ function catalogLimits(catalog: FilterCatalog | undefined): Json {
 	}
 }
 
-/* The names a dialect no alias reads must declare, by public role: `order` is `sort` on the tag. */
-function declaredParams(dialect: Dialect): Json {
-	if (dialect.declaresParams !== true) return {}
+/*
+ * The names a dialect no alias reads must declare: its parameters by public role (`order` is `sort`
+ * on the tag), and the envelope fields a walk reads.
+ */
+function declaredNames(dialect: Dialect): Json {
+	if (dialect.declaresNames !== true) return {}
 	const params = Object.entries(dialect.params).map(([role, name]) => [publicRole(role as Role), name])
-	return { params: Object.fromEntries(params) }
+	const fields = QUERY_ENVELOPE_ROLES.flatMap((role) => {
+		const name = dialect.envelope?.[role]
+		return name === undefined ? [] : [[role, name]]
+	})
+	return { envelope: Object.fromEntries(fields), params: Object.fromEntries(params) }
 }
 
 export function queryDeclaration(ctx: SpecContext, entity: EntityDef, dialect: Dialect): Json {
@@ -97,6 +105,6 @@ export function queryDeclaration(ctx: SpecContext, entity: EntityDef, dialect: D
 		...(dialect.params.searchMode === undefined ? {} : { searchModes: ["contains", "prefix"] }),
 		...nestedSelect(entity),
 		...catalogLimits(catalog),
-		...declaredParams(dialect),
+		...declaredNames(dialect),
 	}
 }

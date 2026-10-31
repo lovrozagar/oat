@@ -120,10 +120,13 @@ function guessed(
 	return cap
 }
 
-/* A tag that only names parameters says how to send a query, not what it can be asked: still a guess. */
+/* Keys that say how to send a query and read its answer, not what it can be asked. */
+const NAMING_KEYS: ReadonlySet<string> = /* @__PURE__ */ new Set(["params", "envelope"])
+
+/* A tag that only names parameters and envelope fields is still a guess. `{}` declares nothing at all. */
 function declaresCapabilities(tag: RawOf<QueryTag> | undefined): tag is RawOf<QueryTag> {
 	const keys = tag === undefined ? [] : Object.keys(tag)
-	return tag !== undefined && !(keys.length === 1 && keys[0] === "params")
+	return tag !== undefined && (keys.length === 0 || keys.some((key) => !NAMING_KEYS.has(key)))
 }
 
 export function readQueryCapability(
