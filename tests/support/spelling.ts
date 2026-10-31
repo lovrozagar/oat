@@ -49,7 +49,7 @@ export const QUOTED_FILES: readonly RegExp[] = [
  */
 const QUOTED_TOKENS: readonly RegExp[] = [
 	/\bcancelled\(\)/g,
-	/'cancelled'/g,
+	/["']cancelled["']/g,
 	/\b(select\.projection|select\.nested|spec\.declared-rate-limit-is)-honoured\b/g,
 ]
 

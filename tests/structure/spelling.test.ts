@@ -22,9 +22,9 @@ describe("en-US spelling", () => {
 			"catalogued",
 		])
 		expect(enGbWords("reference sequence difference promise exercise controlled filled")).toEqual([])
-		expect(enGbWords("if: ${{ !cancelled() }} and result == 'cancelled', but a run was cancelled")).toEqual([
-			"cancelled",
-		])
+		expect(
+			enGbWords(`if: \${{ !cancelled() }}, result == 'cancelled' or "cancelled", but a run was cancelled`),
+		).toEqual(["cancelled"])
 	})
 
 	it("holds every tracked text file to en-US, quoted third-party text aside", () => {

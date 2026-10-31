@@ -2,9 +2,10 @@ import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 import { hasHeading } from "../../scripts/changelog-has.ts"
+import { gatesVerdict } from "../../scripts/release-gates.ts"
 
 /*
- * CI and the release run the same gates, and a release is refused before it publishes anything
+ * A release publishes only a commit ci.yml passed, and is refused before it publishes anything
  * when the changelog does not name its version. Every job that runs on a machine has a timeout of
  * its own, so a hung step ends the run instead of holding a runner for six hours.
  */
@@ -35,6 +36,34 @@ describe("hasHeading", () => {
 	})
 })
 
+const run = (id: number, status: string, conclusion = "") => ({ conclusion, databaseId: id, status })
+
+describe("gatesVerdict", () => {
+	it("passes on any successful ci.yml run of the commit, whatever else ran on it", () => {
+		expect(gatesVerdict([run(1, "completed", "failure"), run(2, "completed", "success")])).toEqual({ kind: "passed" })
+	})
+
+	it("waits for the newest run still going before it judges", () => {
+		expect(gatesVerdict([run(3, "in_progress"), run(2, "queued"), run(1, "completed", "cancelled")])).toEqual({
+			id: 3,
+			kind: "wait",
+		})
+	})
+
+	it("fails on a run that finished red, so a release never outruns a failing gate", () => {
+		for (const conclusion of ["failure", "timed_out", "startup_failure"]) {
+			expect(gatesVerdict([run(1, "completed", conclusion)])).toEqual({ id: 1, kind: "failed" })
+		}
+	})
+
+	it("runs the gates on the tag when no run on the commit finished, as when a later push canceled it", () => {
+		expect(gatesVerdict([])).toEqual({ kind: "dispatch" })
+		expect(gatesVerdict([run(1, "completed", "cancelled"), run(2, "completed", "skipped")])).toEqual({
+			kind: "dispatch",
+		})
+	})
+})
+
 describe("the changelog", () => {
 	it("has a heading for the version package.json names, so that version's tag can be released", () => {
 		const { version } = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as { version: string }
@@ -52,10 +81,11 @@ describe("the workflows", () => {
 		}
 	})
 
-	it("run CI's own gates on a release, through ci.yml called as a reusable workflow", () => {
-		expect(workflow("ci.yml")).toMatch(/^on:\n(?: {2}.*\n)*? {2}workflow_call:/m)
+	it("hold a release to ci.yml's verdict on the tagged commit, never a second run of the gates", () => {
+		expect(workflow("ci.yml")).not.toContain("workflow_call:")
 		const release = jobs(workflow("release.yml"))
-		expect(release.get("gates")).toContain("uses: ./.github/workflows/ci.yml")
+		expect(release.get("gates")).toContain("bun scripts/release-gates.ts")
+		expect(release.get("gates")).toContain("actions: write")
 		for (const publish of ["npmjs", "gh-pkg"]) {
 			expect(release.get(publish)).toMatch(/needs: \[gates, changelog\]/)
 		}

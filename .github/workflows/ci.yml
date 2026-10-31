@@ -4,9 +4,9 @@ on:
   push:
     branches: [main]
   pull_request:
+  # release.yml publishes a tag only once this workflow passed on its commit, and dispatches it on
+  # the tag when no run there finished.
   workflow_dispatch:
-  # release.yml runs these same gates on a tag before anything is published.
-  workflow_call:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
