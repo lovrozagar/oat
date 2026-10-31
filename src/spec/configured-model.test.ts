@@ -62,6 +62,7 @@ describe("buildConfiguredModel", () => {
 		expect(model.byOperationId.has("notes.list")).toBe(true)
 		expect(() => assertQueryNamesDeclared(config, [model, buildConfiguredModel(other, config)])).not.toThrow()
 		expect(() => assertQueryNamesDeclared({}, [model])).not.toThrow()
+		expect(checked({ envelope: { nextCursor: "next_before" }, params: { cursor: "before" } })).not.toThrow()
 	})
 
 	it("stops on params it cannot read", () => {
