@@ -297,8 +297,8 @@
     "teardown": {
       "records": {},
       "removed": {
-        "now": 146,
-        "was": 141
+        "now": 150,
+        "was": 145
       }
     },
     "findings": {

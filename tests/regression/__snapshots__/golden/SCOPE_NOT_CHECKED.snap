@@ -1095,13 +1095,6 @@
         ]
       }
     },
-    "teardown": {
-      "records": {},
-      "removed": {
-        "now": 145,
-        "was": 141
-      }
-    },
     "findings": {
       "added": [
         {

@@ -7,7 +7,7 @@
         "was": 0
       },
       "reason": {
-        "now": "records may remain: 89 teardown could not show gone",
+        "now": "records may remain: 92 teardown could not show gone",
         "was": "no defects found in what was graded"
       },
       "result": {
@@ -362,6 +362,12 @@
           {
             "entity": "job",
             "id": "job_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
             "principal": "alpha_member",
             "reason": "delete answered 2xx but the record is still listed"
           },
@@ -542,8 +548,20 @@
           {
             "entity": "row",
             "id": "row_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
             "principal": "alpha_member",
             "reason": "delete answered 2xx but the record is still listed"
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
+            "reason": "delete answered 2xx but the record still reads back"
           },
           {
             "entity": "webhook",
@@ -900,6 +918,12 @@
           {
             "entity": "job",
             "id": "job_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
             "principal": "alpha_member",
             "removed": false
           },
@@ -1080,7 +1104,19 @@
           {
             "entity": "row",
             "id": "row_ID",
+            "principal": "alpha",
+            "removed": false
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
             "principal": "alpha_member",
+            "removed": false
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
             "removed": false
           },
           {
@@ -1436,6 +1472,12 @@
           {
             "entity": "job",
             "id": "job_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "job",
+            "id": "job_ID",
             "principal": "alpha_member",
             "removed": true
           },
@@ -1616,7 +1658,19 @@
           {
             "entity": "row",
             "id": "row_ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "row",
+            "id": "row_ID",
             "principal": "alpha_member",
+            "removed": true
+          },
+          {
+            "entity": "webhook",
+            "id": "webhook_ID",
+            "principal": "alpha",
             "removed": true
           },
           {
@@ -1790,8 +1844,8 @@
         ]
       },
       "removed": {
-        "now": 52,
-        "was": 141
+        "now": 53,
+        "was": 145
       }
     },
     "findings": {

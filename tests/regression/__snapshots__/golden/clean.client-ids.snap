@@ -6261,6 +6261,12 @@
         {
           "entity": "job",
           "id": "ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "job",
+          "id": "ID",
           "principal": "alpha_member",
           "removed": true
         },
@@ -6441,7 +6447,19 @@
         {
           "entity": "row",
           "id": "ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "row",
+          "id": "ID",
           "principal": "alpha_member",
+          "removed": true
+        },
+        {
+          "entity": "table",
+          "id": "ID",
+          "principal": "alpha",
           "removed": true
         },
         {
@@ -6813,11 +6831,17 @@
         {
           "entity": "webhook",
           "id": "ID",
+          "principal": "alpha",
+          "removed": true
+        },
+        {
+          "entity": "webhook",
+          "id": "ID",
           "principal": "alpha_member",
           "removed": true
         }
       ],
-      "removed": 141,
+      "removed": 145,
       "unidentified": [],
       "unsupported": []
     },

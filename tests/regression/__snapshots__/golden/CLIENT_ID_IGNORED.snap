@@ -1714,7 +1714,19 @@
           {
             "entity": "row",
             "id": "ID",
+            "principal": "alpha",
+            "removed": true
+          },
+          {
+            "entity": "row",
+            "id": "ID",
             "principal": "alpha_member",
+            "removed": true
+          },
+          {
+            "entity": "table",
+            "id": "ID",
+            "principal": "alpha",
             "removed": true
           },
           {
@@ -1924,8 +1936,8 @@
         ]
       },
       "removed": {
-        "now": 77,
-        "was": 141
+        "now": 79,
+        "was": 145
       },
       "unidentified": {
         "added": [
