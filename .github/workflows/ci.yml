@@ -54,11 +54,12 @@ jobs:
       - run: bun run check
 
   # Jobs side by side; they share only the checkout and the install. Timeouts are about 1.5 times
-  # what each took on d58aae1: build + unit 2m23s, precision 47s. Conformance is sharded below.
+  # what each took on d58aae1: precision 47s. Build + unit reached 4m55s by 41200500040, so it has 8.
+  # Conformance is sharded below.
   unit:
     name: unit
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
