@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+// Managed by ~/Development/standards (files/scripts/verify.ts). Edit it there, then run `bun sync.ts`.
 // `bun run verify`: every local gate in order, stopping at the first that fails with its exit code. The base four
 // run in every repo; the repo's own gates follow, from `standards.gates` in package.json (set by sync from
 // standards.json). On a clean tree where all pass, it stamps HEAD in `standards-verified/<sha>` of the repository's
