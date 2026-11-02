@@ -8,6 +8,12 @@ import { isRaw } from "../config/types/raw.ts"
 import type { NetworkKind } from "../errors/network.ts"
 import type { RedirectHop } from "./cookies/redirect.ts"
 
+/** The wait a server asked for and the longest oat accepts, both in ms. */
+export interface RetryAfterExceeded {
+	waitMs: number
+	limitMs: number
+}
+
 export interface Exchange {
 	seq: number
 	method: string
@@ -83,6 +89,8 @@ export interface Exchange {
 	 * Only the final answer is the backend's verdict on the request.
 	 */
 	superseded?: true
+	/** Set on a 429 or 503 whose `Retry-After` was longer than oat waits: it stood, never asked again. */
+	retryAfterExceeded?: RetryAfterExceeded
 	/**
 	 * How the response body held to the schema its operation documents for the status, taken when
 	 * it was captured: set when the transcript keeps the body only by reference, as no later reader

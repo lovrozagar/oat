@@ -8,6 +8,8 @@ import { recordResponseHeaders } from "../runtime/cookies/set-cookie.ts"
 import { classifyNetworkError, describeNetworkKind, NetworkError, type NetworkKind } from "../errors/network.ts"
 import { hasUsableInterface, refineNetworkKind } from "../runtime/network/interfaces.ts"
 import { sha256Hex } from "../runtime/exchanges/bytes.ts"
+import { headerValue } from "../runtime/headers.ts"
+import { DEFAULT_MAX_RETRY_AFTER_MS, retryAfterVerdict } from "../runtime/rate-limit/retry-after.ts"
 import type { Pacing, Sent, Timed, Wire } from "./attempt.ts"
 import { requestIdOf, requestMessageBytes, responseMessageBytes } from "./message.ts"
 import { readPath } from "./read-path.ts"
@@ -82,6 +84,7 @@ export async function answered(
 		...paced(sent.pacing, landed.room),
 		...stamped(sent),
 		...traveled(landed, url),
+		...overLimit(response.status, responseHeaders, wire.network),
 	}
 	registerSecrets(wire, exchange, request.options.context?.secrets ?? [])
 	await wire.deliver(exchange, request.resolved?.entity ?? undefined)
@@ -107,6 +110,17 @@ function registerSecrets(wire: Wire, exchange: Exchange, addresses: readonly str
 function requestDigestOf(body: EncodedBody): Pick<Exchange, "requestDigest"> {
 	if (body.text === undefined || body.bytes <= INLINE_BODY_LIMIT) return {}
 	return { requestDigest: { bytes: body.bytes, sha256: sha256Hex(Buffer.from(body.text)) } }
+}
+
+/* A 429 or 503 asking for a longer wait than oat accepts is marked before anything records it. */
+function overLimit(
+	status: number,
+	headers: Record<string, string>,
+	network: NetworkClientOptions | undefined,
+): Partial<Exchange> {
+	const limitMs = network?.maxRetryAfterMs ?? DEFAULT_MAX_RETRY_AFTER_MS
+	const exceeded = retryAfterVerdict({ header: headerValue(headers, "retry-after"), limitMs, status })
+	return exceeded === undefined ? {} : { retryAfterExceeded: exceeded }
 }
 
 function paced(pacing: Pacing | undefined, room: boolean | undefined): Partial<Exchange> {

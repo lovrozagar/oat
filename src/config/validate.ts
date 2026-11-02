@@ -103,7 +103,12 @@ export function configRules(): Record<string, Rule> {
 		keepFixtures: boolean,
 		maxInFlight: integer(1),
 		maxRps: positive,
-		network: shape({ requestTimeoutMs: integer(0), retries: integer(0), waitMs: integer(0) }),
+		network: shape({
+			maxRetryAfterMs: integer(0),
+			requestTimeoutMs: integer(0),
+			retries: integer(0),
+			waitMs: integer(0),
+		}),
 		only: arrayOf(string),
 		ops: arrayOf(string),
 		origins: arrayOf(

@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `network.maxRetryAfterMs` (default 60000) is the longest `Retry-After` oat waits out on a 429 or
+  a 503. A longer one is neither waited for nor retried: the answer stands at once, its wait never
+  reaches the rate limiter, the saved exchange carries `retryAfterExceeded`, and the finding names
+  the wait and the limit ("asked oat to wait 24h, longer than network.maxRetryAfterMs (1m)").
+
+### Changed
+
+- A `Retry-After` is read as long as the server gave it. 0.29.0 cut every value to 30s and retried,
+  so a 429 asking for a day was sent 6 times per request over 2.5 minutes, and a 503 asking for a
+  day read as "unavailable even after waiting out its Retry-After". A wait within the limit is now
+  waited out in full, and the 60s total for a 503's waits is replaced by the per-wait limit.
+
 ## 0.29.0
 
 ### Added

@@ -113,9 +113,9 @@ Parent path parameters are created first (depth-first through the owning entity'
 
 A create that returns `>= 300` on the first variant fails the entity (downstream checks `BLOCKED`). Later variants that fail just shorten the cohort — a partial cohort is still used.
 
-HTTP 429 is retried first — `Retry-After` or exponential backoff, up to five times — on seed, checks, and teardown, whether or not the operation declared `x-rate-limit`. The first 429 is never a seed failure. A leftover 429 after those retries is a gap, not a backend defect.
+HTTP 429 is retried first — `Retry-After` or exponential backoff, up to five times — on seed, checks, and teardown, whether or not the operation declared `x-rate-limit`. The first 429 is never a seed failure. A leftover 429 after those retries is a gap, not a backend defect. A `Retry-After` longer than `network.maxRetryAfterMs` (default 60s) is not waited for: that 429 stands at once, unretried, and the gap names the wait it asked for.
 
-A 503 with `Retry-After` is waited out and asked again, up to three times and 60s of waiting, as a well-behaved client would. A 503 that outlasts that, or names no wait, stands. A read (`GET`, `HEAD`) that meets a 502, 503 or 504 — what a gateway answers on its own, without the request reaching the API — is asked once more after a second; a write never is. Every server error left standing fails its operation (`response.no-server-error`); a lasting 503 is reported as the operation being unavailable, any other 5xx as a crash.
+A 503 with `Retry-After` is waited out and asked again, up to three times, as a well-behaved client would. A 503 that names no wait, or a wait longer than `network.maxRetryAfterMs`, stands, and a read meeting it is not asked again. A read (`GET`, `HEAD`) that meets a 502, 503 or 504 — what a gateway answers on its own, without the request reaching the API — is asked once more after a second; a write never is. Every server error left standing fails its operation (`response.no-server-error`); a lasting 503 is reported as the operation being unavailable, any other 5xx as a crash.
 
 A request that times out is a network outcome only when the host has stopped answering. When the origin still answers a probe, the timeout fails that one operation and the run goes on.
 

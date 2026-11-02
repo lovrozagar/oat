@@ -234,3 +234,34 @@ describe("an exchange sent as a probe", () => {
 		expect(sent).not.toHaveProperty("forged")
 	})
 })
+
+const limited = (status: number, after: string) => () => json({ error: "slow down" }, status, { "retry-after": after })
+
+describe("the Retry-After limit", () => {
+	it("marks the recorded answer whose wait is past the configured limit, and no other", async () => {
+		for (const [status, after, mark] of [
+			[429, "86400", { limitMs: 60_000, waitMs: 86_400_000 }],
+			[503, "120", { limitMs: 60_000, waitMs: 120_000 }],
+			[429, "45", undefined],
+			[200, "86400", undefined],
+		] as const) {
+			const wire = transport(limited(status, after))
+			const ctx = wireOf(wire, { network: { fetchImpl: wire.fetch, maxRetryAfterMs: 60_000 } })
+			const exchange = await sendAttempt(prepare(ctx, "GET", "/rows", { as: ANON }), 0, ctx)
+			expect([status, exchange.retryAfterExceeded]).toEqual([status, mark])
+			expect([status, ctx.delivered[0]?.exchange.retryAfterExceeded]).toEqual([status, mark])
+		}
+	})
+
+	it("holds to a minute when no limit is configured", async () => {
+		for (const [after, marked] of [
+			["60", false],
+			["61", true],
+		] as const) {
+			const wire = transport(limited(429, after))
+			const ctx = wireOf(wire)
+			const exchange = await sendAttempt(prepare(ctx, "GET", "/rows", { as: ANON }), 0, ctx)
+			expect([after, exchange.retryAfterExceeded !== undefined]).toEqual([after, marked])
+		}
+	})
+})

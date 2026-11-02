@@ -2,6 +2,7 @@ import type { OperationModel } from "../../spec/graph/types.ts"
 import { encodeForOperation } from "../body/encode.ts"
 import { type CohortMember, buildCohort, overflowFrom } from "../fixture.ts"
 import { fillPath } from "../fill-path.ts"
+import { describeStatus } from "../rate-limit/retry-after.ts"
 import { SeedError } from "../seed-error.ts"
 import { isUniqueConflictResponse, uniquifyProbeBody } from "../unique.ts"
 import type { Exchange } from "../exchange.ts"
@@ -120,7 +121,7 @@ async function adoptOrFail(
 	}
 	throw new SeedError(
 		createOp.operationId,
-		`${createOp.operationId} returned ${exchange.status}: ${JSON.stringify(exchange.responseBody).slice(0, 300)}`,
+		`${createOp.operationId} returned ${describeStatus(exchange)}: ${JSON.stringify(exchange.responseBody).slice(0, 300)}`,
 		{ exchange, operationId: createOp.operationId, status: exchange.status },
 	)
 }

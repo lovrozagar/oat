@@ -1,6 +1,7 @@
 import type { OperationModel } from "../../../spec/graph/types.ts"
 import type { Exchange } from "../../exchange.ts"
 import { describeFeatureGate, isDocumentedFeatureGateDenial } from "../../feature-gate.ts"
+import { describeExceeded } from "../../rate-limit/retry-after.ts"
 import type { CheckContext } from "../core/context.ts"
 import { cannot, type Plan } from "../core/plan.ts"
 
@@ -51,10 +52,12 @@ export function standDownForFeatureGate(
  */
 export function standDownForRateLimit(ctx: CheckContext, exchange: Exchange, check: string): boolean {
 	if (exchange.status !== 429) return false
+	const why =
+		exchange.retryAfterExceeded === undefined ? "after retries" : `and ${describeExceeded(exchange.retryAfterExceeded)}`
 	ctx.findings.unresolved(
 		check,
 		ctx.entityName,
-		"the request was rate-limited (429) after retries, so this check could not complete",
+		`the request was rate-limited (429) ${why}, so this check could not complete`,
 	)
 	return true
 }

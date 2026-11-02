@@ -109,6 +109,8 @@ export interface NetworkClientOptions {
 	requestTimeoutMs?: number
 	/** Total time one request may take across every attempt and wait. */
 	deadlineMs?: number
+	/** The longest `Retry-After` a 429 or 503 is waited out for; a longer one stands. Default 60s. */
+	maxRetryAfterMs?: number
 	awaitRecovery?: (error: NetworkError) => Promise<boolean>
 	/** The transport. The global `fetch` unless a caller supplies its own. */
 	fetchImpl?: typeof fetch

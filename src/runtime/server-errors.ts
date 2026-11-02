@@ -12,7 +12,6 @@ import type { Check } from "./checks/core/check.ts"
 import type { Exchange } from "./exchange.ts"
 import { ASSERTED, type FindingCollector, type Outcome } from "./finding.ts"
 import { describeServerError } from "./rate-limit/retry-after.ts"
-import { headerValue } from "./headers.ts"
 import type { GradeLedger } from "./grades.ts"
 import type { SpecModel } from "../spec/graph/types.ts"
 import { TARGET_VERSION_READ } from "./target-version.ts"
@@ -90,7 +89,7 @@ function reportOperation(input: ServerErrorInput, key: string, exchanges: Exchan
 		.attributed(operations)
 		.ownedBy(SERVER_ERROR_CHECK_ID)
 		.backend(SERVER_ERROR_CHECK_ID, op?.entity ?? "run", {
-			summary: `${key} ${describeServerError(last.status, headerValue(last.responseHeaders, "retry-after"))}`,
+			summary: `${key} ${describeServerError(last)}`,
 			detail:
 				`${exchanges.length} request(s) to ${key} returned ${statuses}. A server error is a failure ` +
 				"even where the document lists it, and even when the check that sent the request could " +

@@ -130,6 +130,8 @@ export interface RunOptions {
 	 */
 	transcript?: SpoolOptions
 	network?: {
+		/** The longest `Retry-After` a 429 or 503 is waited out for. Default 60_000. */
+		maxRetryAfterMs?: number
 		retries?: number
 		waitMs?: number
 		/** Per-attempt abort. Default 180_000. `0` waits for the socket. */

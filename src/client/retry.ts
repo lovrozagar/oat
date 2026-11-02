@@ -10,7 +10,6 @@ import {
 	MAX_UNAVAILABLE_RETRIES,
 	parseRetryAfter,
 	retryWaitMs,
-	UNAVAILABLE_WAIT_BUDGET_MS,
 } from "../runtime/rate-limit/retry-after.ts"
 import { headerValue } from "../runtime/headers.ts"
 import { BODILESS_READS, IDEMPOTENT } from "../spec/methods.ts"
@@ -92,10 +91,12 @@ export async function untilAnswered(first: Exchange, retry: StatusRetry): Promis
 }
 
 /* 429 is reactive: the first one is never a seed/check failure. Tags pace proactively; this path
- * honors the server even when the op has no x-rate-limit at all. */
+ * honors the server even when the op has no x-rate-limit at all. A wait past the limit stands, and
+ * never reaches the limiter, where it would hold back every request that shares the route's bucket. */
 async function afterTooMany(first: Exchange, retry: StatusRetry): Promise<Exchange> {
 	let exchange = first
 	for (let attempt = 0; exchange.status === 429 && attempt < MAX_429_RETRIES; attempt++) {
+		if (exchange.retryAfterExceeded !== undefined) break
 		const waitMs = retryWaitMs(headerValue(exchange.responseHeaders, "retry-after"), attempt)
 		retry.backedOff(waitMs)
 		if (waitMs > 0) await sleep(waitMs)
@@ -105,15 +106,13 @@ async function afterTooMany(first: Exchange, retry: StatusRetry): Promise<Exchan
 }
 
 /* A 503 that names when to come back is a cue a well-behaved client follows: wait, ask again. One
- * that names no wait, or outlasts the budget, stands as the verdict. */
+ * that names no wait, or a wait past the limit, stands as the verdict. */
 async function afterUnavailable(first: Exchange, retry: StatusRetry): Promise<Exchange> {
 	let exchange = first
-	let waited = 0
 	for (let attempt = 0; exchange.status === 503 && attempt < MAX_UNAVAILABLE_RETRIES; attempt++) {
 		const waitMs = parseRetryAfter(headerValue(exchange.responseHeaders, "retry-after"))
-		if (waitMs === null || waited + waitMs > UNAVAILABLE_WAIT_BUDGET_MS) break
+		if (waitMs === null || exchange.retryAfterExceeded !== undefined) break
 		await sleep(waitMs)
-		waited += waitMs
 		exchange = await retry.again(exchange)
 	}
 	return exchange
@@ -121,9 +120,10 @@ async function afterUnavailable(first: Exchange, retry: StatusRetry): Promise<Ex
 
 /* A gateway in front of the API answers 502, 503 or 504 now and then without the request reaching
  * it. A read with no body is safe to ask again: once, after a pause. A status that persists stands,
- * and a write is never repeated. */
+ * and a write is never repeated, and so does a 503 whose named wait is past the limit. */
 async function afterGateway(exchange: Exchange, retry: StatusRetry): Promise<Exchange> {
 	if (!GATEWAY_STATUSES.has(exchange.status) || !BODILESS_READS.has(retry.method)) return exchange
+	if (exchange.retryAfterExceeded !== undefined) return exchange
 	await sleep(GATEWAY_RETRY_MS)
 	return retry.again(exchange)
 }

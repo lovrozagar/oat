@@ -61,7 +61,7 @@ describe("the README", () => {
 	it("keeps what it no longer says: the full limits in docs/limits.md, the run walkthrough in docs/model.md", () => {
 		expect(section("Limits")).toContain("(docs/limits.md)")
 		expect(read("docs", "limits.md")).toContain("Default request timeout is 180s")
-		expect(read("docs", "limits.md")).toContain("No retry on 5xx")
+		expect(read("docs", "limits.md")).toContain("A long `Retry-After` is not waited for")
 		expect(read("docs", "model.md")).toContain("## How a run works")
 		expect(read("docs", "model.md")).toContain("**Teardown** everything the run created")
 	})

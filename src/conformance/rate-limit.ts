@@ -1,6 +1,7 @@
 /**
  * Reactive 429 backoff and plan-limit adopt. Tags stay the proactive path; these cases prove
- * the first 429 is not a seed failure and that a 402 does not invent a table.
+ * the first 429 is not a seed failure, that a wait past the limit is not waited for, and that a
+ * 402 does not invent a table.
  */
 
 import { Client } from "../client/client.ts"
@@ -14,7 +15,7 @@ import { isPlanLimitResponse } from "../runtime/world/plan-limit.ts"
 import { Redactor } from "../security/redact.ts"
 import { type Hosted, listening, reach, type Via } from "./harness/launch.ts"
 import type { ParserResult } from "./harness/result.ts"
-import { planLimitedTables, untaggedThings } from "./rate-limit/backend.ts"
+import { dayLimitedThings, planLimitedTables, untaggedThings } from "./rate-limit/backend.ts"
 
 type Push = (result: ParserResult) => void
 
@@ -64,6 +65,7 @@ function pureCases(): ParserResult[] {
 }
 
 const RETRIES = "Client.request retries a 429 with Retry-After and returns 201"
+const OVER_LIMIT = "Client.request answers a 429 that asks for longer than maxRetryAfterMs at once, without retrying"
 const ADOPTS = "row seeds after table.create 402 when a same-tenant table already exists"
 
 const HOSTED: readonly HostedCases[] = [
@@ -112,6 +114,29 @@ const HOSTED: readonly HostedCases[] = [
 			})
 		},
 		why: "do not invent tables; do not treat documented plan limit as a defect",
+	},
+	{
+		backend: dayLimitedThings,
+		name: OVER_LIMIT,
+		probe: async (hosted, push) => {
+			/* The run's own transport when it has one (in-process), else the global fetch. */
+			const transport = Object.assign({ fetchImpl: fetch }, transportOpt(runOptions(hosted, ["thing"]))).fetchImpl
+			let requests = 0
+			const counted: typeof fetch = (input, init) => ((requests += 1), transport(input, init))
+			const network = { fetchImpl: counted, maxRetryAfterMs: 60_000, retries: 0 }
+			const client = new Client({ baseUrl: hosted.url, network, redactor: new Redactor() })
+			const started = performance.now()
+			const answered = await client.request("POST", "/v1/things", { as: { anonymous: true }, body: { name: "n" } })
+			const tookMs = performance.now() - started
+			const marked = answered.retryAfterExceeded?.waitMs === 86_400_000
+			push({
+				detail: `requests=${requests} marked=${marked}`,
+				name: OVER_LIMIT,
+				ok: requests === 1 && marked && tookMs < 1_000,
+				why: "a wait past the limit is not waited for",
+			})
+		},
+		why: "a wait past the limit is not waited for",
 	},
 ]
 

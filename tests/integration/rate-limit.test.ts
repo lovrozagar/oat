@@ -132,8 +132,8 @@ describe("Retry-After parsing", () => {
 		expect(parseRetryAfter("Mon, 17 Aug 2026 12:00:04 GMT", now)).toBe(4000)
 	})
 
-	it("caps and rejects junk", () => {
-		expect(parseRetryAfter("3600")).toBe(RETRY_BACKOFF_CAP_MS)
+	it("reads a long wait in full, and rejects junk", () => {
+		expect(parseRetryAfter("3600")).toBe(3_600_000)
 		expect(parseRetryAfter("nope")).toBeNull()
 		expect(parseRetryAfter(undefined)).toBeNull()
 	})

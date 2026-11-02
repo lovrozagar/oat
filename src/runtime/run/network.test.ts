@@ -78,3 +78,12 @@ describe("createRunNetwork", () => {
 		expect(messages.at(-1)).toMatch(/^waiting for network \(dns, \d+s left\)$/)
 	})
 })
+
+describe("createRunNetwork and the Retry-After limit", () => {
+	it("gives every client the configured limit, and leaves it unset otherwise", async () => {
+		const limited = createRunNetwork(await loaded(optionsFor(notesApi(), { network: { maxRetryAfterMs: 0 } })))
+		expect(limited.client.maxRetryAfterMs).toBe(0)
+		const plain = createRunNetwork(await loaded(optionsFor(notesApi(), { network: {} })))
+		expect(plain.client.maxRetryAfterMs).toBeUndefined()
+	})
+})

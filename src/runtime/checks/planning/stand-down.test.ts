@@ -56,6 +56,24 @@ describe("standDownForRateLimit", () => {
 			},
 		])
 	})
+
+	it("names the wait a 429 asked for past the limit, which oat did not wait out", () => {
+		const { ctx, findings } = notesContext()
+		const limited = {
+			...exchange("GET", "/notes", { status: 429 }),
+			retryAfterExceeded: { limitMs: 60_000, waitMs: 86_400_000 },
+		}
+		expect(standDownForRateLimit(ctx, limited, "c")).toBe(true)
+		expect(findings.inconclusive).toEqual([
+			{
+				check: "c",
+				entity: "note",
+				reason:
+					"the request was rate-limited (429) and asked oat to wait 24h, longer than " +
+					"network.maxRetryAfterMs (1m), so this check could not complete",
+			},
+		])
+	})
 })
 
 describe("storedFieldsUnknown", () => {

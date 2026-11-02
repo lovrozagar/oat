@@ -243,10 +243,12 @@ export interface OatConfig {
 	 */
 	saveExchanges?: boolean
 	/**
-	 * What to do when `fetch` throws (offline, DNS, reset, timeout) instead of returning HTTP.
-	 * Not a 5xx policy. Default: 4 retries (~8s), then wait up to 60s for the link, then stop.
+	 * How a request is asked again. When `fetch` throws (offline, DNS, reset, timeout): 4 retries
+	 * (~8s), then wait up to 60s for the link, then stop. A 429 or 503 is waited out per `maxRetryAfterMs`.
 	 */
 	network?: {
+		/** The longest `Retry-After` oat waits out, in ms (default 60_000); a longer one stands, unretried. */
+		maxRetryAfterMs?: number
 		retries?: number
 		/** Pause-and-probe budget after per-request retries, in ms. `0` skips the wait. */
 		waitMs?: number

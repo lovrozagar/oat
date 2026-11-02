@@ -148,17 +148,16 @@ describe("untilAnswered", () => {
 		expect(retry.log.filter((line) => line.startsWith("again"))).toHaveLength(MAX_429_RETRIES)
 	})
 
-	it("waits out a 503 that names its wait, and lets one stand that names none or outlasts the budget", async () => {
+	it("waits out a 503 that names its wait, and lets one stand that names none", async () => {
 		const retry = retrying([answer(503, { "retry-after": "1" }), answer(200)])
 		expect((await settled(untilAnswered(answer(503, { "retry-after": "1" }), retry))).status).toBe(200)
 		const silent = retrying([], "POST")
 		expect((await settled(untilAnswered(answer(503), silent))).status).toBe(503)
 		expect(silent.log).toEqual([])
-		/* Each wait is capped at 30 s; the third would take the total past the 60 s budget. */
-		const halfMinute = (): Exchange => answer(503, { "retry-after": "45" })
-		const long = retrying([halfMinute(), halfMinute()], "POST")
-		expect((await settled(untilAnswered(halfMinute(), long))).status).toBe(503)
-		expect(long.log).toEqual(["again after 503", "again after 503"])
+		/* A header-less 503 on a read is still asked once more, as a gateway's. */
+		const read = retrying([answer(503)])
+		expect((await settled(untilAnswered(answer(503), read))).status).toBe(503)
+		expect(read.log).toEqual(["again after 503"])
 	})
 
 	it("stops waiting on 503 after its retries", async () => {
@@ -180,5 +179,31 @@ describe("untilAnswered", () => {
 		const query = retrying([])
 		expect((await settled(untilAnswered(answer(502), { ...query, method: "QUERY" }))).status).toBe(502)
 		expect([...write.log, ...fine.log, ...query.log]).toEqual([])
+	})
+})
+
+describe("untilAnswered against the Retry-After limit", () => {
+	it("waits out every 503 within the limit, however long the waits add up to", async () => {
+		const longish = (): Exchange => answer(503, { "retry-after": "45" })
+		const retry = retrying([longish(), longish(), answer(200)], "POST")
+		const final = await settled(untilAnswered(longish(), retry))
+		expect(final.status).toBe(200)
+		expect(retry.log).toEqual(["again after 503", "again after 503", "again after 503"])
+	})
+
+	it("lets a 429 or a 503 stand at once when its wait is past the limit", async () => {
+		const exceeded = { limitMs: 60_000, waitMs: 86_400_000 }
+		for (const status of [429, 503]) {
+			const marked = { ...answer(status, { "retry-after": "86400" }), retryAfterExceeded: exceeded } as Exchange
+			const retry = retrying([answer(200)])
+			const final = await settled(untilAnswered(marked, retry))
+			expect([status, final.status, final.retryAfterExceeded, retry.log]).toEqual([status, status, exceeded, []])
+		}
+	})
+
+	it("waits out a 429 within the limit in full", async () => {
+		const retry = retrying([answer(200)])
+		expect((await settled(untilAnswered(answer(429, { "retry-after": "45" }), retry))).status).toBe(200)
+		expect(retry.log).toEqual(["backoff 45000", "again after 429", "reauthorized 200"])
 	})
 })

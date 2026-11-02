@@ -6,6 +6,7 @@ import type { Exchange } from "../exchange.ts"
 import { describeFeatureGate, isDocumentedFeatureGateDenial } from "../feature-gate.ts"
 import type { CohortMember } from "../fixture.ts"
 import { returnedId } from "../proven-id.ts"
+import { describeStatus } from "../rate-limit/retry-after.ts"
 import { SeedError } from "../seed-error.ts"
 import { isUniqueConflictResponse } from "../unique.ts"
 import type { UploadContext } from "../upload.ts"
@@ -123,7 +124,8 @@ function seedRefused(run: CohortRun, member: CohortMember, exchange: Exchange): 
 	const { createOp } = run
 	return new SeedError(
 		createOp.operationId,
-		`seeding "${member.variant}" returned ${exchange.status}: ` + JSON.stringify(exchange.responseBody).slice(0, 300),
+		`seeding "${member.variant}" returned ${describeStatus(exchange)}: ` +
+			JSON.stringify(exchange.responseBody).slice(0, 300),
 		{ exchange, operationId: createOp.operationId, status: exchange.status },
 	)
 }

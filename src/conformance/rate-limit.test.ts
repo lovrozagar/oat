@@ -13,6 +13,7 @@ describe("runRateLimitSuite", () => {
 			"status=201 seq=429,201",
 			"blocked=0 entities=thing",
 			"blocked=false invented=false backend402=false tested=row,table",
+			"requests=1 marked=true",
 		])
 	}, 120_000)
 
@@ -22,6 +23,11 @@ describe("runRateLimitSuite", () => {
 		expect(results.slice(2).map((r) => [r.name, r.ok, r.detail])).toEqual([
 			["Client.request retries a 429 with Retry-After and returns 201", false, "no host"],
 			["row seeds after table.create 402 when a same-tenant table already exists", false, "no host"],
+			[
+				"Client.request answers a 429 that asks for longer than maxRetryAfterMs at once, without retrying",
+				false,
+				"no host",
+			],
 		])
 	})
 
@@ -35,6 +41,7 @@ describe("runRateLimitSuite", () => {
 			[false, "status=500 seq=500"],
 			[false, "blocked=1 entities="],
 			[false, "blocked=true invented=false backend402=false tested=table"],
+			[false, "requests=1 marked=false"],
 		])
 	}, 120_000)
 })

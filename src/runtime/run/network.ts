@@ -58,6 +58,7 @@ export function createRunNetwork(input: NetworkInput): RunNetwork {
 		client: {
 			awaitRecovery: (error) => gate.awaitRecovery(error),
 			retries: options.network?.retries ?? DEFAULT_NETWORK_RETRIES,
+			...(options.network?.maxRetryAfterMs === undefined ? {} : { maxRetryAfterMs: options.network.maxRetryAfterMs }),
 			...requestTimeoutOpt(options.network?.requestTimeoutMs),
 			...transportOpt(options),
 		},

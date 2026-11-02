@@ -1,4 +1,4 @@
-/** The rate-limit suite's two backends, each a fresh `Handle` with its own rows. */
+/** The rate-limit suite's backends, each a fresh `Handle` with its own rows. */
 
 import type { Handle } from "../../reference/http/node.ts"
 import { type Route, routed } from "../harness/routes.ts"
@@ -88,6 +88,19 @@ export function planLimitedTables(): Handle {
 			{ method: "GET", path: item, reply: (id) => readRow(tables, decodeURIComponent(id)) },
 			{ method: "DELETE", path: item, reply: () => answer(204) },
 			...rowRoutes(tables),
+		]),
+	)
+}
+
+/** Things whose every create is a 429 asking to come back in a day: a daily limit already spent. */
+export function dayLimitedThings(): Handle {
+	return guarded(
+		routed([
+			{
+				method: "POST",
+				path: /^\/v1\/things$/,
+				reply: () => answer(429, { error: "too_many_requests" }, { "retry-after": "86400" }),
+			},
 		]),
 	)
 }

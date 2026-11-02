@@ -120,6 +120,16 @@ describe("createExchangeJournal, a full exchange", () => {
 	})
 })
 
+describe("createExchangeJournal, a wait past the limit", () => {
+	it("keeps the wait a 429 asked for past the limit, which oat did not wait out", async () => {
+		const journal = createExchangeJournal(dir, new Redactor())
+		const exceeded = { limitMs: 60_000, waitMs: 86_400_000 }
+		await journal.record(exchangeOf({ retryAfterExceeded: exceeded, status: 429 }))
+		await journal.flush()
+		expect(fileOf("exchanges/req-1.json").retryAfterExceeded).toEqual(exceeded)
+	})
+})
+
 describe("createExchangeJournal, many exchanges", () => {
 	it("names each file apart, around files an earlier journal left", async () => {
 		mkdirSync(join(dir, "exchanges"), { recursive: true })

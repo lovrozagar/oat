@@ -14,7 +14,7 @@ import { appendFile, mkdir, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import type { Redactor } from "../../security/redact.ts"
 import type { RedirectHop } from "../cookies/redirect.ts"
-import type { Exchange } from "../exchange.ts"
+import type { Exchange, RetryAfterExceeded } from "../exchange.ts"
 import { createBlobStore } from "./blobs.ts"
 import { exchangeFileStem } from "./files.ts"
 import { persistRequestBody, persistResponseBody } from "./persist.ts"
@@ -56,6 +56,7 @@ export interface JournalExchangeFile {
 	responseBody: unknown
 	responseHeaders: Record<string, string>
 	redirects?: RedirectHop[]
+	retryAfterExceeded?: RetryAfterExceeded
 	seq: number
 	status: number
 	url: string
@@ -83,6 +84,7 @@ function exchangeFile(exchange: Exchange, bodies: PersistedBodies, redactor: Red
 						url: redactor.url(hop.url),
 					})),
 				}),
+		...(exchange.retryAfterExceeded === undefined ? {} : { retryAfterExceeded: exchange.retryAfterExceeded }),
 		seq: exchange.seq,
 		status: exchange.status,
 		url: redactor.url(exchange.url),

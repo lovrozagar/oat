@@ -7,7 +7,6 @@
 import type { Exchange } from "../exchange.ts"
 import { documentsStatus } from "../../spec/graph/statuses.ts"
 import { describeServerError } from "../rate-limit/retry-after.ts"
-import { headerValue } from "../headers.ts"
 import { CONTRACT_CHECK_ID } from "./check.ts"
 import { snippet } from "./params.ts"
 import type { ContractCall, ContractInput } from "./types.ts"
@@ -23,7 +22,7 @@ export function judge(
 	if (exchange.status >= 500) {
 		grades.graded([op.operationId], CONTRACT_CHECK_ID)
 		blame.backend(CONTRACT_CHECK_ID, entity, {
-			summary: `a schema-built request ${describeServerError(exchange.status, headerValue(exchange.responseHeaders, "retry-after"))}`,
+			summary: `a schema-built request ${describeServerError(exchange)}`,
 			detail: `${op.operationId} returned ${exchange.status}: ${snippet(exchange.responseBody)}`,
 			evidence: [exchange],
 		})
