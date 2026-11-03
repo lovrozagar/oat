@@ -266,14 +266,14 @@ export interface OatConfig {
 
 /** Where a run reads the target's version from, to stamp the report with it. */
 export interface TargetVersionSpec {
-	/** The operation to read it from. Its path parameters come from the first principal's scope. */
+	/** The operation to read it from. Its path parameters come from the writer's scope. */
 	operationId?: string
 	/**
 	 * A path below the base URL, when no operation in the document serves it. It is read anonymously,
-	 * unless `scheme` names the credential the first principal sends.
+	 * unless `scheme` names the credential the writer sends.
 	 */
 	path?: string
-	/** The declared scheme a `path` read sends as the first principal. Without it the read is anonymous. */
+	/** The declared scheme a `path` read sends as the writer. Without it the read is anonymous. */
 	scheme?: string
 	/** `$.json.path` into the body, or `header:<name>`. */
 	from: string

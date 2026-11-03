@@ -138,3 +138,22 @@ describe("scenarioPlaceholderProblems: a config it cannot read", () => {
 		expect(scenarioPlaceholderProblems(config)).toEqual(refused("project_id", 0))
 	})
 })
+
+/* `{name}` read by a scenario that names no principal, under alpha and beta with beta the writer. */
+const readAsWriter = (name: string): string[] =>
+	scenarioPlaceholderProblems({
+		principals: { alpha: { scope: { project_id: "p1" } }, beta: { scope: { team_id: "t1" } } },
+		scenarios: [{ covers: [], id: "flow", steps: [{ operationId: "a.get", query: { q: `{${name}}` } }] }],
+		writer: "beta",
+	})
+
+describe("scenarioPlaceholderProblems: a scenario that names no principal", () => {
+	it("starts from the configured writer's scope, not the first principal's", () => {
+		expect(readAsWriter("team_id")).toEqual([])
+		expect(readAsWriter("project_id")).toEqual(refused("project_id", 0))
+	})
+
+	it("starts from the first principal's scope when no writer is configured", () => {
+		expect(problems([{ operationId: "a.get", query: { q: "{project_id}" } }])).toEqual([])
+	})
+})

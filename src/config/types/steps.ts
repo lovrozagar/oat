@@ -161,7 +161,7 @@ export interface Scenario {
 	id: string
 	/** Operations this scenario grades. Each must be called by one of its steps. */
 	covers: string[]
-	/** Config principal whose credential the steps send. Default: the first principal. */
+	/** Config principal whose credential the steps send. Default: the writer (`writer`, else the first principal). */
 	principal?: string
 	/**
 	 * A configured origin this scenario belongs to: its steps and `covers` are that origin's

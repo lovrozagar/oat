@@ -59,3 +59,17 @@ describe("scenarios", () => {
 		])
 	})
 })
+
+describe("scenarios, as whom", () => {
+	it("sends a scenario that names no principal as the configured writer, not the first principal", async () => {
+		const options = optionsFor(notesApi(), {
+			principals: { alpha: { email: "a@x.test" }, beta: { email: "b@x.test" } },
+			scenarios: [{ covers: ["notes.list"], id: "list-notes", steps: [{ operationId: "notes.list" }] }] as never,
+			security: { bearer: { static: "tok-{principal.email}" } },
+			writer: "beta",
+		})
+		const ctx = await contextOf(options)
+		await scenarios(ctx)
+		expect(options.seen.at(-1)?.headers["authorization"]).toBe("Bearer tok-b@x.test")
+	})
+})

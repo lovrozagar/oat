@@ -35,13 +35,19 @@ function claimedScope(security: unknown): string[] {
 	)
 }
 
+/* The principal a scenario that names none runs as: the writer the config declares, else the first, as a run orders them. */
+function writerOf(config: Config, principals: Raw): string | undefined {
+	const writer = config.writer
+	return typeof writer === "string" && writer in principals ? writer : Object.keys(principals)[0]
+}
+
 /*
- * The scope a scenario starts from: its principal's, else the first configured one's. A principal
- * the config does not declare is the principals check's to name, so this check stands down.
+ * The scope a scenario starts from: its principal's, else the writer's. A principal the config
+ * does not declare is the principals check's to name, so this check stands down.
  */
 function startingScope(config: Config, scenario: Raw): Set<string> | undefined {
 	const principals = recordOf(config.principals)
-	const id = typeof scenario["principal"] === "string" ? scenario["principal"] : Object.keys(principals)[0]
+	const id = typeof scenario["principal"] === "string" ? scenario["principal"] : writerOf(config, principals)
 	if (id !== undefined && !(id in principals)) return undefined
 	const entry = recordOf(principals[id ?? ""])
 	return new Set([

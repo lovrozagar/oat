@@ -28,12 +28,12 @@ export type TargetVersion = { value: string } | { error: string }
  */
 export const TARGET_VERSION_READ = "run.target-version"
 
-/** What reading the version needs: where it is, and how to ask as the first principal. */
+/** What reading the version needs: where it is, and how to ask as the writer. */
 export interface TargetVersionRead {
 	spec: TargetVersionSpec
 	model: SpecModel
 	client: Pick<Client, "get">
-	/** The first principal: an operation's security chooses its scheme; a path sends the configured `scheme`. */
+	/** The writer: an operation's security chooses its scheme; a path sends the configured `scheme`. */
 	principal: string
 	/** Path ids for a version operation's parameters. */
 	roots: Record<string, string>
@@ -57,7 +57,7 @@ export async function readTargetVersion(read: TargetVersionRead): Promise<Target
 }
 
 /*
- * Who reads the version. A documented operation's security picks the first principal's scheme. An
+ * Who reads the version. A documented operation's security picks the writer's scheme. An
  * undocumented path has no security to resolve, so it names its scheme or is read anonymously.
  */
 function versionRequest(spec: TargetVersionSpec, principal: string): RequestOptions {

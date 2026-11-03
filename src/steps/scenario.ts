@@ -6,7 +6,7 @@ export interface ScenarioInit<Covered extends string = string> {
 	id: string
 	/** The operations this scenario grades, an explicit list: each must be called by a step. */
 	covers: Covered[]
-	/** Config principal whose credential the steps send. Default: the first principal. */
+	/** Config principal whose credential the steps send. Default: the writer (`writer`, else the first principal). */
 	principal?: string
 	/** The configured origin the whole scenario belongs to. */
 	origin?: string
