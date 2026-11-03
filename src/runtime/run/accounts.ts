@@ -20,6 +20,7 @@ import { messageOf } from "../../errors/message.ts"
 import { effectiveRecipe } from "../../credentials/effective.ts"
 import { recipeKind } from "../../credentials/recipes/acquire.ts"
 import { signsUp, signupOf } from "../../credentials/signup.ts"
+import type { Credential, HeldCredential } from "../../credentials/store-types.ts"
 import type { RunContext } from "./context.ts"
 import { bindSignUp } from "./fresh.ts"
 import { createdByRun, logIn } from "./principals.ts"
@@ -250,6 +251,20 @@ async function sendAs(
 	}
 }
 
+/*
+ * The held credential as a request would send it now: teardown comes long after sign-up, when a
+ * short-lived token has lapsed, so it is renewed first. One that cannot be renewed is handed as held,
+ * with why, so a hook that then fails says the credential it was handed was stale.
+ */
+async function liveCredential(
+	ctx: RunContext,
+	held: HeldCredential,
+): Promise<{ credential: Credential; renewal?: string }> {
+	const { principal, scheme, scopes } = held
+	const renewed = await ctx.store.acquire({ principal, scheme, scopes })
+	return "blocked" in renewed ? { credential: held.credential, renewal: renewed.blocked } : { credential: renewed }
+}
+
 async function hookRemoves(
 	ctx: RunContext,
 	entry: AccountEntry,
@@ -260,13 +275,13 @@ async function hookRemoves(
 	if (teardown === undefined) return undefined
 	const address = accountLabel(entry.identity)
 	const held = (await ctx.store.snapshot()).find((one) => principal !== undefined && one.principal === principal)
-	const credential = held?.credential
-	if (address === undefined || principal === undefined || held === undefined || credential === undefined) {
+	if (address === undefined || principal === undefined || held === undefined) {
 		tried.push(
 			`hooks.teardownPrincipal needs ${address === undefined ? "an address to name it by" : "a credential the run holds for it"}`,
 		)
 		return undefined
 	}
+	const { credential, renewal } = await liveCredential(ctx, held)
 	/* A hook handed another principal's credential as this account's would remove that account. */
 	const why = await borrowed(ctx, principal, [{ scheme: held.scheme, value: credential.value }])
 	if (why !== undefined) {
@@ -277,7 +292,9 @@ async function hookRemoves(
 		await teardown(address, { credential: credential.value, sends: credential.sends })
 		return { note: "removed by hooks.teardownPrincipal", principal, status: "removed" }
 	} catch (error) {
-		tried.push(`hooks.teardownPrincipal threw: ${messageOf(error)}`)
+		const stale =
+			renewal === undefined ? "" : `, handed the credential it holds because renewing it was blocked: ${renewal}`
+		tried.push(`hooks.teardownPrincipal threw: ${messageOf(error)}${stale}`)
 		return undefined
 	}
 }
