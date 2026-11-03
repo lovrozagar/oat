@@ -44,6 +44,10 @@ const ALLOWED: Array<[string, string]> = [
 	["src/reference/stores/postgres.ts", "postgres"],
 	["src/conformance/matrix/engines.ts", "postgres"],
 	["src/cli.ts", "@lovrozagar/oat"],
+	/* The step builders sit just above the step types they emit. */
+	["src/steps/request.ts", "../config/types/steps.ts"],
+	["src/steps/view.ts", "./request.ts"],
+	["src/steps/view.ts", "../errors/usage-error.ts"],
 ]
 
 /* Against the arrows. */
@@ -74,6 +78,10 @@ const REFUSED: Array<[string, string]> = [
 	["src/client/request.ts", "../runtime/checks.ts"],
 	["src/client/client.ts", "../runtime/checks/registry.ts"],
 	["src/client/client.ts", "../runtime/world.ts"],
+	/* The step builders reach only the step types and the errors: nothing that runs a step. */
+	["src/steps/request.ts", "../runtime/world.ts"],
+	["src/steps/request.ts", "../spec/graph.ts"],
+	["src/steps/request.ts", "../security/redact.ts"],
 ]
 
 describe("oat/boundaries", () => {

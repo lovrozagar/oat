@@ -34,9 +34,9 @@ function tagsRead(): string[] {
 	return [...new Set(tags)].filter((tag) => tag !== "x-www-form-urlencoded" && !reserved(tag)).toSorted()
 }
 
-/* The names `src/index.ts` exports, values and types alike. */
-function publicExports(): string[] {
-	const text = readFileSync(join(ROOT, "src", "index.ts"), "utf8")
+/* The names an entry module exports, values and types alike: `src/index.ts` by default. */
+function publicExports(entry: readonly string[] = ["src", "index.ts"]): string[] {
+	const text = readFileSync(join(ROOT, ...entry), "utf8")
 	const names = [...text.matchAll(/export (?:type )?\{([^}]*)\}/g)].flatMap((m) =>
 		(m[1] ?? "")
 			.split(",")
@@ -101,8 +101,14 @@ const SURFACES: Readonly<Record<string, Surface>> = {
 	},
 	"public exports": {
 		doc: "api.md",
-		names: publicExports,
+		names: () => publicExports(),
 		/* An export may be named in prose or in an example's code. */
+		written: (name) => name,
+		undocumented: [],
+	},
+	"steps exports": {
+		doc: "steps.md",
+		names: () => publicExports(["src", "steps", "index.ts"]),
 		written: (name) => name,
 		undocumented: [],
 	},

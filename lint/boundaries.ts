@@ -5,10 +5,11 @@ import { isTestCode, repoPath } from "./paths.ts"
 
 /*
  * oat's dependency arrows, low to high:
- *   errors, config/types → security → spec → client, credentials, reference → runtime (checks
+ *   errors, config/types → security, steps → spec → client, credentials, reference → runtime (checks
  *   included) → runtime/run → config, report, conformance → cli, index
  * A module imports its own layer group or any lower layer. security is a leaf above the errors:
- * it imports nothing else. client and credentials sit below the runtime, so the runtime calls them
+ * it imports nothing else. steps, the scenario step builders a config imports from
+ * `@lovrozagar/oat/steps`, sits beside it and imports only the step types and the errors. client and credentials sit below the runtime, so the runtime calls them
  * and never the reverse. Only cli and index import report or conformance (conformance renders
  * through report). The reference backend is a separate program: it never imports the client or
  * the runtime, and only conformance, cli and index import it.
@@ -19,6 +20,7 @@ type Bucket =
 	| "errors"
 	| "config-types"
 	| "security"
+	| "steps"
 	| "spec"
 	| "client"
 	| "credentials"
@@ -35,6 +37,7 @@ const LAYER: Readonly<Record<Bucket, number>> = {
 	errors: 0,
 	"config-types": 0,
 	security: 1,
+	steps: 1,
 	spec: 2,
 	client: 3,
 	credentials: 3,
@@ -65,6 +68,7 @@ const DIRECTORIES: ReadonlySet<string> = new Set([
 	"errors",
 	"spec",
 	"security",
+	"steps",
 	"runtime",
 	"client",
 	"credentials",

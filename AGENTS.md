@@ -45,9 +45,10 @@ The linter and `tests/structure/` enforce each of these; a broken one fails a ga
 - **Layout.** Every module has a sibling `*.test.ts`, except an index, a types-only file and an
   entry point. Colocated tests open no socket; tests that need one live under `tests/`. There is
   no `test/` directory, and the package ships no test or fixture.
-- **Arrows.** Imports point down, never up or across: errors, config/types → security → spec →
+- **Arrows.** Imports point down, never up or across: errors, config/types → security, steps → spec →
   client, credentials, reference → runtime (checks included) → runtime/run → config, report,
-  conformance → cli, index. The reference backend is its own program: it never imports the client
+  conformance → cli, index. steps (the `@lovrozagar/oat/steps` builders) imports only the step
+  types and the errors. The reference backend is its own program: it never imports the client
   or the runtime. No import cycles, type-only imports included.
 - **Naming.** A module is named for what it does. No `utils`, `helpers` or `misc` file or
   directory, and no barrel: `export *` appears nowhere, and `src/index.ts` names each export.

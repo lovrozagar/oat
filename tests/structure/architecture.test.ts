@@ -61,7 +61,7 @@ describe("the architecture rules", () => {
 		expect(section).toContain(`complexity ${limit("complexity")}`)
 		expect(section).toContain(`nesting depth ${limit("max-depth")}`)
 		expect(section).toContain(`${maxParams} parameters`)
-		expect(section).toMatch(/errors, config\/types → security → spec/)
+		expect(section).toMatch(/errors, config\/types → security, steps → spec/)
 		expect(section).toContain("tests/targets/anyrow.md")
 	})
 })

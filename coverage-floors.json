@@ -1627,5 +1627,13 @@
 	"src/spec/tags/checks.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/spec/tags/query.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/spec/tags/validate.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
-	"src/spec/types.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 }
+	"src/spec/types.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/steps/external.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/steps/out-of-band.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/steps/request.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/steps/scenario.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/steps/sender.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/steps/steps.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/steps/types.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/steps/view.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 }
 }

@@ -123,7 +123,7 @@ The full list, with what you see and what to do instead, is in [docs/limits.md](
 - [OpenAPI tags](docs/tags.md): every `x-*` tag and what it unlocks
 - [Checks and verdicts](docs/checks.md): what each check needs and asserts
 - [Reports](docs/reports.md): `oat-report.json`, `matrix.json`, repro scripts, progress logs
-- [Programmatic API](docs/api.md)
+- [Programmatic API](docs/api.md); [step builders](docs/steps.md): typed scenario steps from `@lovrozagar/oat/steps`
 - [Assumptions](docs/assumptions.md): what oat assumes, and how to declare an exception
 - [Limits](docs/limits.md): what oat cannot do, and what to do instead
 - [Reference defects](docs/reference-defects.md): the named lies `oat serve --defects` can tell
