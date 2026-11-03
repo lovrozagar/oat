@@ -79,6 +79,7 @@ const INHERITED = [
 	"cohortSize",
 	"profiles",
 	"profile",
+	"externals",
 	"rateLimits",
 	"keepFixtures",
 	"maxInFlight",

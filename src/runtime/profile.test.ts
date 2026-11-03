@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { op } from "./checks/__fixtures__/harness.ts"
-import { BUILTIN_PROFILES, excludedByProfile, resolveProfile } from "./profile.ts"
+import { BUILTIN_PROFILES, excludedByProfile, externalExcluded, resolveProfile } from "./profile.ts"
 import { referenceModel } from "./scope/__fixtures__/models.ts"
 
 describe("resolveProfile", () => {
@@ -42,5 +42,30 @@ describe("excludedByProfile", () => {
 		expect(excludedByProfile(costly, {})).toBeNull()
 		expect(excludedByProfile(costly, { maxCost: "high" })).toBeNull()
 		expect(excludedByProfile({ ...costly, destructive: false }, { excludeDestructive: true })).toBeNull()
+	})
+})
+
+/* A scenario that calls one operation, then each named external in order. */
+const scenario = (...externals: string[]) => ({
+	covers: [],
+	id: "flow",
+	steps: [{ operationId: "a.get" }, ...externals.map((external) => ({ as: "x", external }))],
+})
+
+describe("externalExcluded", () => {
+	const kinds = { consent: "device", pay: "headless" }
+	const profile = { name: "default", spec: { excludeExternalKinds: ["device"] } }
+
+	it("names the first external whose kind the profile excludes", () => {
+		expect(externalExcluded(scenario("pay", "consent"), kinds, profile)).toBe(
+			'external "consent" is kind "device", which profile "default" excludes',
+		)
+	})
+
+	it("excludes nothing without kinds, an excluded kind, or an external of one", () => {
+		expect(externalExcluded(scenario("consent"), undefined, profile)).toBeNull()
+		expect(externalExcluded(scenario("consent"), kinds, { name: "full", spec: {} })).toBeNull()
+		expect(externalExcluded(scenario("pay", "unknown"), kinds, profile)).toBeNull()
+		expect(externalExcluded(scenario(), kinds, profile)).toBeNull()
 	})
 })

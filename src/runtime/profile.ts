@@ -9,6 +9,7 @@
  */
 
 import type { ProfileSpec } from "../config/types/config.ts"
+import type { Scenario } from "../config/types/steps.ts"
 import { UsageError } from "../errors/usage-error.ts"
 import type { OperationModel } from "../spec/graph/types.ts"
 
@@ -55,6 +56,26 @@ export function excludedByProfile(op: OperationModel, spec: ProfileSpec): string
 	if (spec.excludeDestructive === true && op.destructive) return "x-destructive"
 	if (spec.maxCost !== undefined && COST_RANK[op.cost] > COST_RANK[spec.maxCost]) {
 		return `x-cost: ${op.cost}`
+	}
+	return null
+}
+
+/**
+ * Why a profile leaves `scenario` out, or `null` when it runs: the first step whose external has a
+ * kind the profile excludes. An external `kinds` does not name is never excluded.
+ */
+export function externalExcluded(
+	scenario: Scenario,
+	kinds: Readonly<Record<string, string>> | undefined,
+	profile: ResolvedProfile,
+): string | null {
+	const excluded = profile.spec.excludeExternalKinds ?? []
+	for (const step of scenario.steps) {
+		if (!("external" in step)) continue
+		const kind = kinds?.[step.external]
+		if (kind !== undefined && excluded.includes(kind)) {
+			return `external "${step.external}" is kind "${kind}", which profile "${profile.name}" excludes`
+		}
 	}
 	return null
 }

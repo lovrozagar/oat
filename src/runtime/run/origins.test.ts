@@ -131,6 +131,22 @@ describe("runSecondaryOrigins", () => {
 	})
 })
 
+describe("runSecondaryOrigins externals", () => {
+	it("runs each origin with the primary's external kinds, so its profile leaves out the same scenarios", async () => {
+		const externals = { kinds: { consent: "device" } }
+		const ctx = await contextOf(optionsFor(notesApi(), { externals, origins: [OTHER] }))
+		const asked: RunOptions[] = []
+		await runSecondaryOrigins(ctx, {
+			coverage: scopeReport(ctx),
+			runOrigin: async (options) => {
+				asked.push(options)
+				return originResult(ctx)
+			},
+		})
+		expect(asked[0]?.externals).toBe(externals)
+	})
+})
+
 describe("loadOriginClients with nothing to map", () => {
 	it("gives an origin with no mapping an adapter that sends nothing, in a run that names no recipe", async () => {
 		const { security: _none, ...bare } = optionsFor(notesApi(), { origins: [OPEN] })

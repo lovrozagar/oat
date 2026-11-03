@@ -135,6 +135,10 @@ const EXTERNALS = defineExternals<{ stripe: Stripe }, { kind: "computed" | "api"
 })
 ```
 
+`externalKinds(entries)` reads each entry's string `kind` into the map `config.externals.kinds`
+takes, so a profile's `excludeExternalKinds` can leave out the scenarios that need one:
+`externals: { kinds: externalKinds(EXTERNALS) }`.
+
 `ExternalDraft`, `MailDraft` and `MailStep` are the types of the drafts and steps those builders return.
 
 ## Testing scenarios

@@ -30,6 +30,15 @@ export function defineExternals<Ctx, Meta extends object = object>(): <
 	return (entries) => entries
 }
 
+/** Each entry's `kind`, by name, for `config.externals.kinds`; an entry with no string `kind` is left out. */
+export function externalKinds(
+	entries: Readonly<Record<string, { kind?: unknown; resolve: unknown }>>,
+): Record<string, string> {
+	return Object.fromEntries(
+		Object.entries(entries).flatMap(([name, entry]) => (typeof entry.kind === "string" ? [[name, entry.kind]] : [])),
+	)
+}
+
 /** External name → the input its resolver takes (`undefined` for none), for `StepTypes.externals`. */
 export type ExternalInputs<E extends Record<string, { resolve: (...args: never[]) => unknown }>> = {
 	[N in keyof E]: Parameters<E[N]["resolve"]> extends [infer I, ...unknown[]] ? I : undefined

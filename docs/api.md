@@ -67,7 +67,7 @@ const model = buildModel(resolved)
 
 Types exported, by what they describe:
 
-- **Config.** `OatConfig`; `EntityConfig` (an `entities` entry, today only its `query`); `PayloadPolicy` (`payloads`: `"full"` or `"per-write-path"`); `ProfileSpec` (a `profiles` entry); `RateLimitSpec` (a `rateLimits` entry); `OriginSpec`; `OutOfBandConfig`; `Uploads` and `UploadFile`.
+- **Config.** `OatConfig`; `EntityConfig` (an `entities` entry, today only its `query`); `PayloadPolicy` (`payloads`: `"full"` or `"per-write-path"`); `ProfileSpec` (a `profiles` entry); `ExternalsConfig` (`externals`: each scenario external's kind); `RateLimitSpec` (a `rateLimits` entry); `OriginSpec`; `OutOfBandConfig`; `Uploads` and `UploadFile`.
 - **Security.** `SecurityConfig` (one `Recipe` per scheme) and `PrincipalsConfig` (a `PrincipalEntry` per id).
 - **Steps and scenarios.** `AuthStep` is an `OperationStep`, a `RequestStep` or an `OutOfBandStep`. A `Scenario` runs `ScenarioStep`s: a `ScenarioRequestStep` (an operation or request step with its `ScenarioAssert`s), an `OutOfBandStep` or an `ExternalStep`.
 - **Query catalog.** `QueryCapabilities` is what `x-query` or a config's `query` declares for a list: `FilterableField`s, each a field with its `FieldType` and `FilterOp`s, and `FilterableFrom`, the read that `filterableFrom` and its siblings harvest names from. `QueryParamNames` maps a `QueryParamRole` (`filter`, `sort`, `select`, `search`, `searchMode`, `limit`, `page`, `offset`, `cursor`) to the query parameter it is sent in, as `x-query.params` and config `query.params` name it. `QueryEnvelopeNames` maps a `QueryEnvelopeRole` (`total`, `hasMore`, `nextCursor`) to the response field it is read from, as `x-query.envelope` and config `query.envelope` name it.

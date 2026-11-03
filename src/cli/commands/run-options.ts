@@ -25,6 +25,7 @@ const AS_WRITTEN = [
 	"teardown",
 	"targetVersion",
 	"scenarios",
+	"externals",
 	"outOfBand",
 	"payloads",
 	"checks",

@@ -29,6 +29,8 @@ export interface ScenarioInput {
 	/** Configured principals whose sign-in was refused, with why: a scenario that needs one cannot run. */
 	blocked: ReadonlyMap<string, string>
 	defaultPrincipal: string
+	/** Why the active profile leaves a scenario out, or `null` when it runs. */
+	skipped?: (scenario: Scenario) => string | null
 	outOfBand?: Partial<BackoffConfig>
 	originClients?: ReadonlyMap<string, OriginClient>
 	sleep?: (ms: number) => Promise<void>

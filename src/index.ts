@@ -5,6 +5,7 @@ export { loadConfig } from "./config/load.ts"
 export type {
 	AuthStep,
 	EntityConfig,
+	ExternalsConfig,
 	ExternalStep,
 	FieldType,
 	FilterOp,

@@ -143,6 +143,15 @@ export interface ExternalStep {
 
 export type ScenarioStep = ScenarioRequestStep | OutOfBandStep | ExternalStep
 
+/** What the scenario `external` steps need from the machine that runs them, so a profile can leave them out. */
+export interface ExternalsConfig {
+	/**
+	 * Each external's kind by name, in your own words (`"device"`, `"headless"`). A profile's
+	 * `excludeExternalKinds` skips a scenario whose step names an external of an excluded kind.
+	 */
+	kinds?: Record<string, string>
+}
+
 /**
  * A declared flow for operations the matrix cannot reach on its own: steps run in order as one
  * principal, values flow forward through `{name}`, and each operation in `covers` is graded by

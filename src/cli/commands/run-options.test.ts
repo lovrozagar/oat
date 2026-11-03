@@ -58,6 +58,13 @@ describe("runOptionsOf", () => {
 	})
 })
 
+describe("runOptionsOf externals", () => {
+	it("passes each external's kind as written", () => {
+		const externals = { kinds: { consent: "device" } }
+		expect(runOptionsOf({ ...config, externals }, {}, setting()).externals).toBe(externals)
+	})
+})
+
 describe("runOptionsOf credentials", () => {
 	it("passes the principals map, the recipes and the extra secret header names as written", () => {
 		const security = { bearer: { static: "t" } }

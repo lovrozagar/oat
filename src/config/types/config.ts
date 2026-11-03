@@ -9,7 +9,7 @@ import type {
 	QueryParamNames,
 } from "./query.ts"
 import type { PrincipalsConfig, SecurityConfig } from "./security.ts"
-import type { Scenario } from "./steps.ts"
+import type { ExternalsConfig, Scenario } from "./steps.ts"
 
 /** Per-entity overlays. Only `query` is in scope this release. Unknown names are ignored. */
 export interface EntityConfig {
@@ -65,6 +65,8 @@ export interface ProfileSpec {
 	excludeDestructive?: boolean
 	/** Exact `operationId`s to exclude regardless of cost or destructiveness — the escape hatch. */
 	exclude?: string[]
+	/** Skips each scenario with a step whose external has one of these `externals.kinds`. */
+	excludeExternalKinds?: string[]
 }
 
 /* ----------------------------------------------------------------- rate limits */
@@ -109,6 +111,8 @@ export interface CheckSwitches {
 export interface OatConfig {
 	/** Declared flows for operations the matrix cannot reach. See `Scenario`. */
 	scenarios?: Scenario[]
+	/** Each scenario external's kind, which a profile's `excludeExternalKinds` can leave out. */
+	externals?: ExternalsConfig
 	/** OpenAPI document — an http(s) URL, a filesystem path relative to this config, or a route below `baseUrl`. JSON or YAML. */
 	spec: string
 	/** Backend under test. */

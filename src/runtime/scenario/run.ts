@@ -4,6 +4,7 @@
  */
 
 import type { Scenario } from "../../config/types/steps.ts"
+import type { RunFindingId } from "../check-ids.ts"
 import { failureOf, ScenarioStopped } from "./failure.ts"
 import { gradeScenario, proveCalled, type Stop } from "./grade.ts"
 import { wait } from "./poll.ts"
@@ -21,7 +22,7 @@ export async function runScenarios(input: ScenarioInput): Promise<void> {
 		if (graded.length === 0 && !reaches) continue
 		const check = scenarioCheckId(scenario)
 		input.checksRun.add(check)
-		if (blockedBy(input, scenario, { check, graded })) continue
+		if (skippedBy(input, scenario, graded) || blockedBy(input, scenario, { check, graded })) continue
 		const run = startScenario(input, scenario, sleep)
 		const ended = await runSteps(run)
 		/* Stopped from outside: what completed is graded; nothing unreached is a verdict. */
@@ -31,6 +32,17 @@ export async function runScenarios(input: ScenarioInput): Promise<void> {
 		}
 		gradeScenario(run, graded, ended)
 	}
+}
+
+/* A scenario the profile leaves out is not run: a gap with the reason, and what it covers stays ungraded. */
+function skippedBy(input: ScenarioInput, scenario: Scenario, graded: readonly string[]): boolean {
+	const reason = input.skipped?.(scenario) ?? null
+	if (reason === null) return false
+	input.findings.attributed([...graded]).gap("profile.skip" satisfies RunFindingId, scenario.id, {
+		detail: `${reason}. What it covers stays ungraded under this profile.`,
+		summary: `scenario "${scenario.id}" skipped by the profile`,
+	})
+	return true
 }
 
 /*

@@ -1,5 +1,5 @@
 import { describe, expect, expectTypeOf, it } from "vitest"
-import { defineExternals, external, type ExternalInputs } from "./external.ts"
+import { defineExternals, external, externalKinds, type ExternalInputs } from "./external.ts"
 
 describe("external", () => {
 	it("names the external, its input and the scope name its answer binds to", () => {
@@ -35,5 +35,16 @@ describe("defineExternals", () => {
 
 	it("reads each entry's input type for the scenario side", () => {
 		expectTypeOf<ExternalInputs<typeof registry>>().toEqualTypeOf<{ totp: { secret: string }; consent: undefined }>()
+	})
+})
+
+describe("externalKinds", () => {
+	it("maps each registry entry that declares a string kind to it, for config.externals.kinds", () => {
+		const entries = defineExternals<object, { kind?: string }>()({
+			consent: { kind: "device", resolve: () => "code" },
+			pay: { kind: "headless", resolve: () => "paid" },
+			totp: { resolve: () => "123456" },
+		})
+		expect(externalKinds(entries)).toStrictEqual({ consent: "device", pay: "headless" })
 	})
 })

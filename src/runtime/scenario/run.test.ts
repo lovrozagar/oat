@@ -135,3 +135,34 @@ describe("runScenarios: a principal BLOCKED at sign-in", () => {
 		])
 	})
 })
+
+/* A profile that leaves out the scenario named "consent" and runs every other. */
+const skipsConsent = (of: { id: string }) => (of.id === "consent" ? 'external "consent" is kind "device"' : null)
+
+describe("runScenarios: a scenario the profile leaves out", () => {
+	it("sends nothing for it and reports the reason as a profile.skip gap on what it covers", async () => {
+		const consent = scenario([{ operationId: "notes.list" }, { as: "code", external: "consent" }], {
+			covers: ["notes.list"],
+			id: "consent",
+		})
+		const { input, sent } = stage(notesApi(notes()), { scenarios: [consent, rename], skipped: skipsConsent })
+		await runScenarios(input)
+		expect(sent.map((request) => `${request.method} ${request.path}`)).toEqual([
+			"POST /notes",
+			"GET /notes",
+			"PATCH /notes/n1",
+			"GET /notes",
+		])
+		expect(input.findings.findings).toEqual([
+			expect.objectContaining({
+				check: "profile.skip",
+				detail: 'external "consent" is kind "device". What it covers stays ungraded under this profile.',
+				entity: "consent",
+				operations: ["notes.list"],
+				summary: 'scenario "consent" skipped by the profile',
+				verdict: "COVERAGE_GAP",
+			}),
+		])
+		expect(input.grades.evidence.has("notes.list")).toBe(false)
+	})
+})

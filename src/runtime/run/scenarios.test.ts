@@ -32,4 +32,30 @@ describe("scenarios", () => {
 			["scenario.peer", "BLOCKED"],
 		])
 	})
+
+	it("leaves out a scenario whose external has a kind the active profile excludes", async () => {
+		const options = optionsFor(notesApi(), {
+			externals: { kinds: { consent: "device" } },
+			profile: "default",
+			profiles: { default: { excludeExternalKinds: ["device"] } },
+			scenarios: [
+				{
+					covers: ["notes.list"],
+					id: "consent",
+					steps: [{ operationId: "notes.list" }, { as: "code", external: "consent" }],
+				},
+			] as never,
+		})
+		const ctx = await contextOf(options)
+		const sent = options.seen.length
+		await scenarios(ctx)
+		expect(options.seen).toHaveLength(sent)
+		expect(ctx.findings.findings.map((finding) => [finding.check, finding.verdict, finding.detail])).toEqual([
+			[
+				"profile.skip",
+				"COVERAGE_GAP",
+				'external "consent" is kind "device", which profile "default" excludes. What it covers stays ungraded under this profile.',
+			],
+		])
+	})
 })

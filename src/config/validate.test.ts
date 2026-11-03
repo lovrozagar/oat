@@ -238,3 +238,25 @@ describe("the cache bypass switch", () => {
 		])
 	})
 })
+
+describe("external kinds and the profiles that leave them out", () => {
+	it("takes each external's kind as a string, and a profile's excluded kinds as strings", () => {
+		const profiles = { default: { excludeExternalKinds: ["device"], maxCost: "high" } }
+		expect(configProblems({ ...valid, externals: { kinds: { consent: "device" } }, profiles })).toEqual([])
+	})
+
+	it("names a kind that is not a string, an unknown externals key, and excluded kinds that are not strings", () => {
+		const profiles = { default: { excludeExternalKinds: "device" }, other: { excludeExternalKinds: [1] } }
+		expect(configProblems({ ...valid, externals: { kinds: { consent: 1 }, kind: {} }, profiles })).toEqual([
+			"config.externals.kinds.consent must be a string",
+			"config.externals.kind is not a config key",
+			"config.profiles.default.excludeExternalKinds must be an array",
+			"config.profiles.other.excludeExternalKinds[0] must be a string",
+		])
+	})
+
+	it("checks nothing new on a profile without excluded kinds, and names one that is not an object", () => {
+		expect(configProblems({ ...valid, profiles: { safe: { excludeDestructive: true } } })).toEqual([])
+		expect(configProblems({ ...valid, profiles: { safe: "x" } })).toEqual(["config.profiles.safe must be an object"])
+	})
+})

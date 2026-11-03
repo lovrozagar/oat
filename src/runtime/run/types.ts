@@ -12,7 +12,7 @@ import type {
 import type { Hooks, OutOfBandConfig, Uploads } from "../../config/types/hooks.ts"
 import type { PrincipalsConfig, SecurityConfig } from "../../config/types/security.ts"
 import type { CredentialStore } from "../../credentials/store.ts"
-import type { Scenario } from "../../config/types/steps.ts"
+import type { ExternalsConfig, Scenario } from "../../config/types/steps.ts"
 import type { FencedRequest } from "../fence.ts"
 import type { Finding, Inconclusive } from "../finding.ts"
 import type { NetworkKind } from "../../errors/network.ts"
@@ -90,6 +90,8 @@ export interface RunOptions {
 	targetVersion?: TargetVersionSpec
 	/** Declared flows for operations the matrix cannot reach. */
 	scenarios?: Scenario[]
+	/** Each scenario external's kind; see `OatConfig.externals`. */
+	externals?: ExternalsConfig
 	/** Backoff for `resolveOutOfBand` / `resolvePrincipalAuth`. */
 	outOfBand?: OutOfBandConfig
 	/** How much of the payload catalog to send; see `OatConfig.payloads`. */

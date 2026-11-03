@@ -504,6 +504,8 @@ An excluded operation never silently narrows what gets reported. Excluding an en
 
 Exclusion applies to every invocation, not only create/read/update/delete. `effects.declared-effect-occurs` and `async.reaches-terminal-state` drop ops the profile forbids and record `profile.skip` — they do not POST `extract.once` under `--profile cheap`. A check whose only targets were excluded did not apply / names the profile; it never looks like the backend returned 500.
 
+A profile can also leave out scenarios by what their externals need from the machine. `externals: { kinds: { consent: "device" } }` names each external's kind, and `excludeExternalKinds: ["device"]` on a profile skips every scenario with a step whose external has that kind. Nothing is sent for it, and it is a `profile.skip` gap: `external "consent" is kind "device", which profile "default" excludes`. What it covers stays ungraded, never passed.
+
 The run summary states what a profile skipped: `skipped 12 operation(s) under --profile cheap (12 high-cost)` — the same principle as `did not apply` for a coverage gap: a report that only shows what ran invites the reader to assume the rest was verified.
 
 `--profile cheap` also defaults the exchange journal **off**. `--save-exchanges` turns it back on; `--quiet` does not change it.

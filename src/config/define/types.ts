@@ -57,6 +57,7 @@ export type {
 export type {
 	AuthStep,
 	ExternalStep,
+	ExternalsConfig,
 	OperationStep,
 	OutOfBandStep,
 	RequestStep,

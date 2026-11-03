@@ -1,3 +1,4 @@
+import { externalExcluded } from "../profile.ts"
 import { runScenarios } from "../scenario/run.ts"
 import type { RunContext } from "./context.ts"
 import { stopped } from "./interrupt.ts"
@@ -21,6 +22,7 @@ export async function scenarios(ctx: RunContext): Promise<void> {
 		principals: new Map(principals.all.map((principal) => [principal.id, { scope: principal.scope }])),
 		blocked: new Map(principals.blocked.map((principal) => [principal.id, principal.reason])),
 		scenarios: ownScenarios,
+		skipped: (scenario) => externalExcluded(scenario, ctx.options.externals?.kinds, ctx.profile),
 		stopped: () => stopped(ctx),
 	})
 }

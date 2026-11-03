@@ -70,6 +70,13 @@ const shape =
 		}
 		return problems
 	}
+/* A profile: the kinds it excludes, when set, are strings. Its other fields are read where the run uses them. */
+const profile: Rule = (value, path) => {
+	const notObject = object(value, path)
+	if (notObject.length > 0) return notObject
+	const kinds = (value as Record<string, unknown>)["excludeExternalKinds"]
+	return kinds === undefined ? [] : arrayOf(string)(kinds, `${path}.excludeExternalKinds`)
+}
 /* A key checked as a whole by its own validator in `credentialProblems`, which reads other keys too. */
 const checkedWhole: Rule = () => []
 
@@ -99,6 +106,7 @@ export function configRules(): Record<string, Rule> {
 		checks: shape({ "auth.login-throttled": boolean }),
 		cohortSize: integer(1),
 		entities: recordOf(object),
+		externals: shape({ kinds: recordOf(string) }),
 		globalHeaders: recordOf(string),
 		hooks: functionsAt("verifyRemoved", "resolveCredential"),
 		keepFixtures: boolean,
@@ -130,7 +138,7 @@ export function configRules(): Record<string, Rule> {
 		payloads: oneOf("full", "per-write-path"),
 		principals: checkedWhole,
 		profile: string,
-		profiles: recordOf(object),
+		profiles: recordOf(profile),
 		query: object,
 		rateLimits: arrayOf(object),
 		redact: shape({ headers: arrayOf(string) }),

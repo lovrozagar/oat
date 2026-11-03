@@ -1,4 +1,10 @@
-export { defineExternals, type ExternalDraft, type ExternalEntry, type ExternalInputs } from "./external.ts"
+export {
+	defineExternals,
+	externalKinds,
+	type ExternalDraft,
+	type ExternalEntry,
+	type ExternalInputs,
+} from "./external.ts"
 export type { MailDraft, MailStep } from "./out-of-band.ts"
 export type { RequestBuilder } from "./request.ts"
 export { scenario, type ScenarioInit, unchecked } from "./scenario.ts"
