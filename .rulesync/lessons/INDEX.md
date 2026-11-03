@@ -4,4 +4,4 @@
 
 | lesson | paths | hits | last-hit | summary |
 | --- | --- | --- | --- | --- |
-| .rulesync/lessons/harness-mocks-need-bun-test.md | **/*.test.ts | 1 | 2026-11-03 | A parity harness ran an ops script that shells out (`wrangler`, `d1`). It mocked `node:child_process` |
+| .rulesync/lessons/harness-mocks-need-bun-test.md | **/*.test.ts | 1 | 2026-11-03 | A parity harness mocked `node:child_process` with bun's `mock.module` and ran under plain bun, so the mock did not apply and the ops script started two real prod workflows. |

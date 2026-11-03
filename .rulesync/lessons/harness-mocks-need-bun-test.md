@@ -8,7 +8,7 @@ evidence: ["plan 33"]
 
 # A harness's module mocks only hold under bun test
 
-A parity harness ran an ops script that shells out (`wrangler`, `d1`). It mocked `node:child_process`
+A parity harness mocked `node:child_process` with bun's `mock.module` and ran under plain bun, so the mock did not apply and the ops script started two real prod workflows.
 
 ## Mistake
 Trusting a module mock to fence live I/O: when the mock silently does not apply, the code under test
