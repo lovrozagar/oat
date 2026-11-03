@@ -20,7 +20,7 @@ prod's inbound mail worker writes, and the standing admin exists only on prod.
 
 | Step      | Command                               | Passes when                                                                                                              |
 | --------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Model     | `bun run doctor`                      | exit 0 or 1, both schemes listed (`jwt` and the minted `apiKey`), 47 operations with an apiKey alternative, 53 anonymous |
+| Model     | `bun run doctor`                      | exit 0 or 1, both schemes listed (`jwt` and the minted `apiKey`), 47 operations with an apiKey alternative, 50 anonymous |
 | Plan      | `bun run plan`                        | the entity table and requirements match the previous release's, apart from what this release adds                        |
 | Cheap run | `bun run test:oat:cheap` against prod | exit 0, 1 or 4, no `failed` outcome, no finding a reviewer has not seen before                                           |
 
