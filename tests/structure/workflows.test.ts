@@ -91,6 +91,23 @@ describe("the workflows", () => {
 		}
 	})
 
+	it("check out the tag a release names, so a dispatch for an existing tag publishes that tag", () => {
+		const release = jobs(workflow("release.yml"))
+		const untagged = [...release].filter(
+			([, job]) => job.includes("actions/checkout@") && !job.includes("ref: ${{ inputs.tag || github.ref }}"),
+		)
+		expect(untagged.map(([id]) => id)).toEqual([])
+	})
+
+	/* Run 41596487324: bun 1.4.4 reads the scoped .npmrc setup-node writes, and the job's token cannot read grunt there. */
+	it("install the GitHub Packages job's dependencies before it points the scope at GitHub Packages", () => {
+		const job = jobs(workflow("release.yml")).get("gh-pkg") ?? ""
+		expect(job.indexOf("bun install --frozen-lockfile")).toBeGreaterThan(-1)
+		expect(job.indexOf("bun install --frozen-lockfile")).toBeLessThan(
+			job.indexOf("registry-url: https://npm.pkg.github.com"),
+		)
+	})
+
 	it("refuse a release whose CHANGELOG.md has no heading for its version, before publishing", () => {
 		const changelog = jobs(workflow("release.yml")).get("changelog") ?? ""
 		expect(changelog).toContain("bun scripts/changelog-has.ts")
