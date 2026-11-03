@@ -8,6 +8,7 @@
 
 import { CREDENTIAL_HEADERS } from "../security/credential-names.ts"
 import { principalMapProblems, REMOVED_KEYS, removedProblems } from "../credentials/validate/principals.ts"
+import { scenarioPlaceholderProblems } from "../credentials/validate/scenario-placeholders.ts"
 import { securityMapProblems } from "../credentials/validate/security.ts"
 import { isRaw, isRecord, type RawOf } from "./types/raw.ts"
 import type { OatConfig } from "./types/config.ts"
@@ -178,6 +179,7 @@ function credentialProblems(config: RawOf<OatConfig>): string[] {
 		...securityMapProblems(config),
 		...removedProblems(config),
 		...carrierProblems(config),
+		...scenarioPlaceholderProblems(config),
 	]
 }
 

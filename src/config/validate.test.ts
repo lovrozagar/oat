@@ -221,6 +221,15 @@ describe("the writer", () => {
 	})
 })
 
+describe("scenario placeholders", () => {
+	it("refuses a scenario step that reads a name nothing before it provides", () => {
+		const scenarios = [{ covers: [], id: "reauth", steps: [{ operationId: "auth.delete", query: { o: "{orgld}" } }] }]
+		expect(configProblems({ ...valid, scenarios })).toEqual([
+			"config.scenarios.reauth.steps[0] reads {orgld}, which no earlier step, the principal's scope or a login claim provides",
+		])
+	})
+})
+
 describe("the cache bypass switch", () => {
 	it("takes cache.bypass as a boolean and names anything else", () => {
 		expect(configProblems({ ...valid, cache: { bypass: false } })).toEqual([])

@@ -180,6 +180,12 @@
 	"src/credentials/validate/origins.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/credentials/validate/principals.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/credentials/validate/recipe-shape.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/credentials/validate/scenario-placeholders.ts": {
+		"statements": 100,
+		"branches": 100,
+		"functions": 100,
+		"lines": 100
+	},
 	"src/credentials/validate/security.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/credentials/writer.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/errors/message.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
