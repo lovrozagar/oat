@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.31.0
+
+### Added
+
+- `@lovrozagar/oat/steps`, typed step builders for scenarios ([docs/steps.md](docs/steps.md)).
+  `steps<T>()` is typed over your API's operations, origins, externals and mail kinds, and gives
+  `self`, `anon`, `session`, `principal` and `origin` senders with `call`, `refused` and `request`,
+  then a chain of `save`, `claims`, `status`, `equals`, `contains`, `excludes`, `omits`, `atLeast`,
+  `observes`, `poll` and `scheme`. It also gives `mail`, `external`, `scenario` and `unchecked`.
+  A scenario that names an operation, body field, path parameter, error key, external input or
+  mail kind your API lacks fails at `tsc`. Each builder emits the plain step object a hand-written
+  config holds, so oat runs it the same way. `defineExternals` declares the externals a hook
+  answers, `externalKinds` reads their kinds for `externals.kinds`, and `stepsOf` reads one
+  scenario's steps for its unit tests.
+- `externals: { kinds }` names each scenario external's kind in your own words, and a profile's
+  `excludeExternalKinds` leaves out every scenario with a step whose external has one of those
+  kinds. Nothing is sent for it: it is a `profile.skip` gap naming the external, its kind and the
+  profile (`external "consent" is kind "device", which profile "default" excludes`), and what it
+  covers stays ungraded.
+
+### Changed
+
+- A config whose scenario step reads a `{name}` that nothing provides is refused when it loads,
+  naming the scenario, the step and the name (`scenarios.reauth.steps[10] reads {orgld}`). A name
+  is provided by the scenario principal's `scope`, a login claim bound as `scope.<name>` (by a
+  configured scheme or the principal's own override), or an earlier binding. Such a step used to
+  send the placeholder as written and fail at run time.
+
 ## 0.30.0
 
 ### Added
