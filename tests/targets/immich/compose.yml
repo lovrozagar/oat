@@ -45,8 +45,10 @@ services:
       POSTGRES_DB: immich
       POSTGRES_INITDB_ARGS: --data-checksums
     shm_size: 128mb
+    # Over TCP: initdb's temporary server answers on the socket only, so a socket check passes
+    # before the restart that the server then connects into.
     healthcheck:
-      test: pg_isready -U postgres -d immich
+      test: pg_isready -h 127.0.0.1 -U postgres -d immich
       interval: 2s
       timeout: 3s
       retries: 60

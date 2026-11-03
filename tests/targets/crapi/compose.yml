@@ -155,8 +155,9 @@ services:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: crapisecretpassword
       POSTGRES_DB: crapi
+    # Over TCP: initdb's temporary server answers on the socket only, before the real one starts.
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U admin -d crapi"]
       interval: 10s
       timeout: 10s
       retries: 30
