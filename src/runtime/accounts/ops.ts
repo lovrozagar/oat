@@ -4,12 +4,15 @@
  */
 
 import type { OperationModel, SpecModel } from "../../spec/graph/types.ts"
-import { makesAccount, SELF_IDENTITY } from "../../spec/sign-up.ts"
+import { type AccountMaking, accountMaking, SELF_IDENTITY } from "../../spec/sign-up.ts"
+import type { Exchange } from "../exchange.ts"
 
 /** How a run makes and removes accounts, read once from the document. */
 export interface AccountOps {
-	/** Whether sending `operationId` would make an account. */
-	creates: (operationId: string | undefined) => boolean
+	/** How sending `operationId` makes an account, if it can. */
+	creates: (operationId: string | undefined) => AccountMaking
+	/** Whether `exchange`, a send of `operationId`, made an account. */
+	made: (operationId: string, exchange: Pick<Exchange, "schemes">) => boolean
 	/** The caller deleting its own account: removes an account as the account itself. */
 	deleteSelf: OperationModel | undefined
 	/**
@@ -19,8 +22,15 @@ export interface AccountOps {
 	adminDelete: (operationId: string) => { op: OperationModel; identity: string } | undefined
 }
 
+/** Whether `exchange`, a send of `op`, made an account: a self create only when it carried no credential. */
+export function madeAccount(op: OperationModel, model: SpecModel, exchange: Pick<Exchange, "schemes">): boolean {
+	const making = accountMaking(op, model)
+	return making === "always" || (making === "anonymously" && (exchange.schemes ?? []).length === 0)
+}
+
 export function accountOps(model: SpecModel): AccountOps {
-	const creating = new Set(model.operations.filter((op) => makesAccount(op, model)).map((op) => op.operationId))
+	const opOf = (operationId: string | undefined): OperationModel | undefined =>
+		operationId === undefined ? undefined : model.byOperationId.get(operationId)
 	const deleteSelf = model.operations.find(
 		(op) => op.identity === SELF_IDENTITY && op.action === "delete" && op.pathParams.length === 0,
 	)
@@ -33,7 +43,14 @@ export function accountOps(model: SpecModel): AccountOps {
 	}
 	return {
 		adminDelete,
-		creates: (operationId) => operationId !== undefined && creating.has(operationId),
+		creates: (operationId) => {
+			const op = opOf(operationId)
+			return op === undefined ? null : accountMaking(op, model)
+		},
 		deleteSelf,
+		made: (operationId, exchange) => {
+			const op = opOf(operationId)
+			return op !== undefined && madeAccount(op, model, exchange)
+		},
 	}
 }

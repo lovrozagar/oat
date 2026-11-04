@@ -317,7 +317,6 @@ describe("createTracker, on what it does not ledger", () => {
 		expect(ledger.entries()).toEqual([])
 		expect(ledger.unidentifiedCreates).toEqual([])
 	})
-
 	it("reports a create whose answer names an empty id: nothing can be removed by it", async () => {
 		const { ledger, tracker } = setup()
 		const blank = exchange({ responseBody: { id: "", name: "t" } })
@@ -332,6 +331,15 @@ describe("createTracker, on what it does not ledger", () => {
 		await tracker.observe(unread)
 		expect(ledger.entries()).toEqual([])
 		expect(ledger.unidentifiedCreates).toMatchObject([{ entity: "table", seq: unread.seq }])
+	})
+})
+
+describe("createTracker, on the caller's own record", () => {
+	it("leaves the caller's own record sent with a credential to its account: no id removes it", async () => {
+		const { ledger, tracker } = setup()
+		const me = { method: "PUT", operationId: "me.create", pathParams: {}, status: 200, template: "/me" }
+		await tracker.observe(exchange({ ...me, schemes: ["bearer"], url: "http://x/me" }))
+		expect([ledger.entries(), ledger.unidentifiedCreates]).toEqual([[], []])
 	})
 })
 

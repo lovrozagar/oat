@@ -24,7 +24,14 @@ export interface AccountsDoc {
 	selfByApiKey?: boolean
 	/** The delete-self takes no credential at all. */
 	selfOpen?: boolean
+	/**
+	 * A create of the caller's own record (`POST /me`): `open` takes no credential, `either` takes a
+	 * bearer token or none, `auth` takes the bearer token. Absent: there is none.
+	 */
+	selfCreate?: "open" | "either" | "auth"
 }
+
+const SELF_CREATE_SECURITY = { auth: {}, either: { security: [{ bearer: [] }, {}] }, open: { security: [] } }
 
 export function accountsDoc(parts: AccountsDoc = {}): OpenApiDocument {
 	const me: Record<string, unknown> = {
@@ -42,6 +49,14 @@ export function accountsDoc(parts: AccountsDoc = {}): OpenApiDocument {
 			"x-entity": { action: "delete", identity: "self", name: "me" },
 			...(parts.selfByApiKey === true ? { security: [{ apiKey: [] }] } : {}),
 			...(parts.selfOpen === true ? { security: [] } : {}),
+		}
+	}
+	if (parts.selfCreate !== undefined) {
+		me["post"] = {
+			operationId: "me.create",
+			responses: { "201": { description: "made" } },
+			"x-entity": { action: "create", identity: "self", name: "me" },
+			...SELF_CREATE_SECURITY[parts.selfCreate],
 		}
 	}
 	const doc = notesDoc({
@@ -101,6 +116,18 @@ function signUp(state: AccountsState, email: string, quiet: boolean) {
 	return quiet ? { status: 201 } : { body: { access_token: `t-${email}`, member_id: `m-${email}` }, status: 201 }
 }
 
+/* The caller's own record: a create answers its handle, a delete removes the caller's account. */
+function ownRecord(
+	state: AccountsState,
+	{ body, email, method }: { body: Record<string, unknown>; email: string | undefined; method: string },
+) {
+	if (method === "POST") return { body: { handle: String(body["handle"]) }, status: 201 }
+	if (email === undefined) return { status: 401 }
+	if (method !== "DELETE") return { body: { email }, status: 200 }
+	state.removed.push(email)
+	return { status: state.selfStatus ?? 204 }
+}
+
 /** The API behind `doc`: a signup answers `t-<email>` and `m-<n>`; a login by email answers `login-<email>`. */
 export function accountsApi(state: AccountsState, doc = accountsDoc()): Responder {
 	const notes = notesApi(doc)
@@ -111,12 +138,7 @@ export function accountsApi(state: AccountsState, doc = accountsDoc()): Responde
 		if (path === "/signup") return signUp(state, String(body["email"]), headers["x-quiet"] !== undefined)
 		if (path === "/login") return login(String(body["email"]))
 		const email = state.byToken.get(token)
-		if (path === "/me" && method === "DELETE") {
-			if (email === undefined) return { status: 401 }
-			state.removed.push(email)
-			return { status: state.selfStatus ?? 204 }
-		}
-		if (path === "/me") return email === undefined ? { status: 401 } : { body: { email }, status: 200 }
+		if (path === "/me") return ownRecord(state, { body, email, method })
 		if (path.startsWith("/members/") && method === "DELETE") {
 			state.removed.push(decodeURIComponent(path.slice("/members/m-".length)))
 			return { status: state.adminStatus ?? 204 }

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 import { modelOf } from "./graph/__fixtures__/operations.ts"
 import type { SpecModel } from "./graph/types.ts"
 import { body, OPEN } from "./__fixtures__/open.ts"
-import { accountMakersOf, unmarkedSignUp } from "./sign-up.ts"
+import { accountMakersOf, makesAccount, unmarkedSignUp } from "./sign-up.ts"
 
 /* An account-making operation the document does not tag: an open POST named as a sign-up, or one taking a password. */
 
@@ -82,6 +82,28 @@ describe("unmarkedSignUp by body", () => {
 		for (const id of ["token.create", "users.reset", "notes.create", "blobs.create"]) {
 			expect([id, signsUp(model, id)]).toEqual([id, false])
 		}
+	})
+})
+
+const selfCreate = (security: unknown[]) => ({
+	operationId: "me.create",
+	responses: { "201": { description: "made" } },
+	security,
+	"x-entity": { action: "create", identity: "self", name: "me" },
+})
+
+const makes = (security: unknown[]): boolean => {
+	const model = modelOf({ "/me": { post: selfCreate(security) } })
+	return makesAccount(model.byOperationId.get("me.create") as never, model)
+}
+
+describe("makesAccount on a create of the caller's own record", () => {
+	it("can make one when the operation takes no credential, alone or beside one it takes", () => {
+		expect([makes([]), makes([{}, { bearer: [] }])]).toEqual([true, true])
+	})
+
+	it("cannot where every way to call it carries a credential: the caller's account was already there", () => {
+		expect(makes([{ bearer: [] }])).toBe(false)
 	})
 })
 

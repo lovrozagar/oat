@@ -24,9 +24,18 @@ export function watchAccounts(watch: AccountWatch): void {
 	client.setBeforeSend((sending) => {
 		const { operationId } = sending
 		if (operationId === undefined || SAFE.has(sending.method)) return undefined
-		if (ops.creates(operationId)) {
+		const making = ops.creates(operationId)
+		const answered = (entry: AccountEntry, exchange: Exchange): void =>
+			ledger.answered(entry, exchange, idOf(watch, { body: sending.body, exchange, operationId }))
+		if (making === "always") {
 			const entry = ledger.sending(operationId, sending.body)
-			return (exchange) => ledger.answered(entry, exchange, idOf(watch, { body: sending.body, exchange, operationId }))
+			return (exchange) => answered(entry, exchange)
+		}
+		/* Only the exchange says whether the request carried a credential, and so made an account. */
+		if (making === "anonymously") {
+			return (exchange) => {
+				if (ops.made(operationId, exchange)) answered(ledger.sending(operationId, sending.body), exchange)
+			}
 		}
 		const principal = "principal" in sending.as ? sending.as.principal : undefined
 		if (operationId !== ops.deleteSelf?.operationId || principal === undefined) return undefined

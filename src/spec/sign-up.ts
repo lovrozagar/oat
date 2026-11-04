@@ -74,9 +74,22 @@ export function unmarkedSignUp(op: OperationModel, model: SpecModel): boolean {
 	return takesPassword(requestSchema(model.rawOperations.get(op.operationId) as OperationObject))
 }
 
+/**
+ * How sending an operation makes an account: `always`, a sign-up; `anonymously`, a create of the
+ * caller's own record anyone may send, which makes one only when it carries no credential, since a
+ * caller who carries one already has its account; or `null`, never.
+ */
+export type AccountMaking = "always" | "anonymously" | null
+
+export function accountMaking(op: OperationModel, model: SpecModel): AccountMaking {
+	if (op.freshPrincipal || unmarkedSignUp(op, model)) return "always"
+	const self = op.action === "create" && op.identity === SELF_IDENTITY
+	return self && op.security.alternatives.some((alternative) => alternative.length === 0) ? "anonymously" : null
+}
+
 /** Whether sending `op` can make an account. */
 export function makesAccount(op: OperationModel, model: SpecModel): boolean {
-	return op.freshPrincipal || (op.action === "create" && op.identity === SELF_IDENTITY) || unmarkedSignUp(op, model)
+	return accountMaking(op, model) !== null
 }
 
 /** Every operation of the document that can make an account, in document order. */

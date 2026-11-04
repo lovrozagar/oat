@@ -64,3 +64,31 @@ describe("watchAccounts", () => {
 		expect(ctx.accounts.entries()[1]?.status).toBe("created")
 	})
 })
+
+async function selfCreate(security: "open" | "either" | "auth") {
+	const { ctx } = await run(accountsDoc({ selfCreate: security }))
+	const send = (as: { anonymous: true } | { principal: string }) =>
+		ctx.client.request("POST", "/me", { as, body: { handle: "h" }, operationId: "me.create" })
+	return { ctx, send }
+}
+
+describe("watchAccounts on a create of the caller's own record", () => {
+	it("is no account when it carried a credential, though the operation also takes none", async () => {
+		const { ctx, send } = await selfCreate("either")
+		await send({ principal: "alpha" })
+		expect(ctx.accounts.entries()).toEqual([])
+	})
+
+	it("is an account when it went out with no credential", async () => {
+		const { ctx, send } = await selfCreate("either")
+		await send({ anonymous: true })
+		expect(ctx.accounts.entries().map((entry) => [entry.operationId, entry.status])).toEqual([["me.create", "created"]])
+	})
+
+	it("is never an account where the operation takes a credential, however it is sent", async () => {
+		const { ctx, send } = await selfCreate("auth")
+		await send({ principal: "alpha" })
+		await send({ anonymous: true })
+		expect(ctx.accounts.entries()).toEqual([])
+	})
+})

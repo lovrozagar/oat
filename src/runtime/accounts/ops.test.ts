@@ -13,9 +13,9 @@ describe("accountOps", () => {
 		const model = buildModel(accountsDoc({ adminDelete: true }))
 		const ops = accountOps(model)
 		expect([ops.creates("auth.signup"), ops.creates("notes.create"), ops.creates(undefined)]).toEqual([
-			true,
-			false,
-			false,
+			"always",
+			null,
+			null,
 		])
 		expect(ops.deleteSelf?.operationId).toBe("me.delete")
 		expect(ops.adminDelete("auth.signup")).toMatchObject({
@@ -42,13 +42,14 @@ describe("accountOps", () => {
 
 	it("counts an unmarked sign-up as making an account", () => {
 		const model = modelOf({ "/v1/register": { post: { operationId: "auth.register", ...OPEN } } })
-		expect(accountOps(model).creates("auth.register")).toBe(true)
+		expect(accountOps(model).creates("auth.register")).toBe("always")
 	})
 
-	it("counts a create of the caller's own record as making an account", () => {
-		const model = buildModel(accountsDoc())
+	it("counts a create of the caller's own record anyone may send as making an account", () => {
+		const model = buildModel(accountsDoc({ selfCreate: "open" }))
+		const create = model.byOperationId.get("me.create")
 		const read = model.byOperationId.get("me.read")
-		expect(read === undefined ? undefined : makesAccount({ ...read, action: "create" }, model)).toBe(true)
+		expect(create === undefined ? undefined : makesAccount(create, model)).toBe(true)
 		expect(read === undefined ? undefined : makesAccount(read, model)).toBe(false)
 	})
 })
