@@ -73,12 +73,59 @@ describe("RateLimiter after a 429", () => {
 	})
 
 	it("makes a caller wait out the cooldown, and lets it through once it is over", async () => {
-		const limiter = new RateLimiter(RULES)
+		const limiter = new RateLimiter(RULES, { random: () => 0 })
 		expect(await limiter.waitImplicit("POST")).toBe(true)
 		limiter.noteBackoff({ method: "POST", pathname: "/untagged" }, 1_500)
 		const waited = limiter.waitImplicit("PUT")
 		await vi.advanceTimersByTimeAsync(1_500)
 		expect(await waited).toBe(false)
 		expect(await limiter.waitImplicit("PUT")).toBe(true)
+	})
+})
+
+/* When each waiter leaves, from fake time 0. */
+async function leaving(limiter: RateLimiter, waiters: number, drive: () => Promise<unknown>): Promise<number[]> {
+	const left: number[] = []
+	const waits = Array.from({ length: waiters }, () =>
+		limiter.waitImplicit("DELETE").then(() => left.push(performance.now())),
+	)
+	await drive()
+	await Promise.all(waits)
+	return left.toSorted((a, b) => a - b)
+}
+
+const sequence = (values: number[]) => {
+	let next = 0
+	return () => values[next++ % values.length] as number
+}
+
+describe("RateLimiter releasing writes a 429 held", () => {
+	it("spreads them across a window after the cooldown, never all at once, and at most 10 s past it", async () => {
+		const limiter = new RateLimiter(RULES, { random: sequence([0.1, 0.3, 0.5, 0.7, 0.9]) })
+		limiter.noteBackoff({ method: "DELETE", pathname: "/tables/1" }, 60_000)
+		const left = await leaving(limiter, 5, () => vi.advanceTimersByTimeAsync(70_000))
+		expect(left).toEqual([61_000, 63_000, 65_000, 67_000, 69_000])
+	})
+
+	it("spreads a short cooldown over no more than its own length", async () => {
+		const limiter = new RateLimiter(RULES, { random: () => 1 })
+		limiter.noteBackoff({ method: "DELETE", pathname: "/tables/1" }, 2_000)
+		expect(await leaving(limiter, 1, () => vi.advanceTimersByTimeAsync(10_000))).toEqual([4_000])
+	})
+
+	it("keeps the time a cooldown opened when a later 429 extends it", async () => {
+		const limiter = new RateLimiter(RULES, { random: () => 1 })
+		limiter.noteBackoff({ method: "DELETE", pathname: "/tables/1" }, 2_000)
+		await vi.advanceTimersByTimeAsync(1_000)
+		limiter.noteBackoff({ method: "DELETE", pathname: "/tables/2" }, 2_000)
+		expect(await leaving(limiter, 1, () => vi.advanceTimersByTimeAsync(10_000))).toEqual([6_000])
+	})
+
+	it("opens anew from a 429 that comes after the cooldown lapsed", async () => {
+		const limiter = new RateLimiter(RULES, { random: () => 1 })
+		limiter.noteBackoff({ method: "DELETE", pathname: "/tables/1" }, 2_000)
+		await vi.advanceTimersByTimeAsync(5_000)
+		limiter.noteBackoff({ method: "DELETE", pathname: "/tables/2" }, 2_000)
+		expect(await leaving(limiter, 1, () => vi.advanceTimersByTimeAsync(10_000))).toEqual([9_000])
 	})
 })

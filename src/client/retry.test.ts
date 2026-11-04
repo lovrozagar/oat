@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { Exchange } from "../runtime/exchange.ts"
 import { DEFAULT_NETWORK_RETRIES } from "../runtime/network/policy.ts"
 import { NetworkError, type NetworkKind } from "../errors/network.ts"
+import { RateLimiter } from "../runtime/rate-limit/limiter.ts"
 import { MAX_429_RETRIES, MAX_UNAVAILABLE_RETRIES } from "../runtime/rate-limit/retry-after.ts"
 import { type Resending, resilient, type StatusRetry, untilAnswered } from "./retry.ts"
 
@@ -210,6 +211,24 @@ describe("untilAnswered when a 503 and a 429 follow each other", () => {
 		expect(after(503)).toBe(MAX_UNAVAILABLE_RETRIES)
 		expect(after(429)).toBe(MAX_UNAVAILABLE_RETRIES)
 		expect(final).toBe(answers[after(503) + after(429) - 1])
+	})
+})
+
+describe("untilAnswered while a 429 holds the route", () => {
+	it("resends a 503 at the later of its own wait and the cooldown, never their sum", async () => {
+		vi.useFakeTimers({ toFake: ["setTimeout", "performance"] })
+		const limiter = new RateLimiter([], { random: () => 0 })
+		const retry = retrying([], "DELETE")
+		let resentAt: number | undefined
+		retry.again = async () => {
+			await limiter.waitImplicit("DELETE")
+			resentAt = performance.now()
+			return answer(200)
+		}
+		/* Another write's 429 holds every untagged write for 60 s, 5 s into the 503's 14 s wait. */
+		setTimeout(() => limiter.noteBackoff({ method: "DELETE", pathname: "/webhooks/1" }, 60_000), 5_000)
+		await settled(untilAnswered(answer(503, { "retry-after": "14" }), retry))
+		expect(resentAt).toBe(65_000)
 	})
 })
 

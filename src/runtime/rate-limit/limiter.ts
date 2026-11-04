@@ -8,6 +8,13 @@ import type { CompiledRateLimitRule } from "./rules.ts"
 export const UNTAGGED_WRITE_CATEGORY = "untagged-write"
 export const UNTAGGED_CATEGORY = "untagged"
 
+/**
+ * The longest a 429's cooldown spreads the writes it held past its end. Released at one instant, they
+ * would land together and trip the limit again, in lockstep; each leaves at a random point instead,
+ * over the cooldown's own length or this, whichever is shorter.
+ */
+export const IMPLICIT_RELEASE_SPREAD_MS = 10_000
+
 function implicitCategory(method: string): string {
 	return MUTATING.has(method.toUpperCase()) ? UNTAGGED_WRITE_CATEGORY : UNTAGGED_CATEGORY
 }
@@ -29,18 +36,27 @@ export interface RateRoute {
 	operationId?: string | undefined
 }
 
+/** An untagged cooldown: when its first 429 opened it, and when it ends. */
+interface Cooldown {
+	openedAt: number
+	until: number
+}
+
 export class RateLimiter {
 	private readonly buckets = new Map<string, RateBucket>()
 	/** Cooldown-only: after an untagged 429, later untagged writes wait this out, then run free. */
-	private readonly implicitUntil = new Map<string, number>()
+	private readonly implicitUntil = new Map<string, Cooldown>()
 	/** Every request to the origin, whatever its route: the limit an edge in front of it holds. */
 	private readonly ceiling: RateBucket | undefined
+	/** Where in its spread each held write leaves, from 0 to 1. */
+	private readonly random: () => number
 
 	constructor(
 		private readonly rules: readonly CompiledRateLimitRule[],
-		options: { maxRps?: number } = {},
+		options: { maxRps?: number; random?: () => number } = {},
 	) {
 		this.ceiling = options.maxRps === undefined ? undefined : new RateBucket(options.maxRps)
+		this.random = options.random ?? Math.random
 	}
 
 	/** Waits for room under the origin-wide ceiling, when one is set. */
@@ -74,17 +90,30 @@ export class RateLimiter {
 			return tagged
 		}
 		const category = implicitCategory(method)
-		const until = performance.now() + Math.max(0, waitMs)
-		this.implicitUntil.set(category, Math.max(this.implicitUntil.get(category) ?? 0, until))
+		const now = performance.now()
+		const until = now + Math.max(0, waitMs)
+		const open = this.implicitUntil.get(category)
+		/* A 429 inside an open cooldown extends it from when it opened; one after it lapsed opens anew. */
+		this.implicitUntil.set(
+			category,
+			open !== undefined && now < open.until
+				? { openedAt: open.openedAt, until: Math.max(open.until, until) }
+				: { openedAt: now, until },
+		)
 		return implicitRuleFor(category)
 	}
 
-	/** Wait out an implicit 429 cooldown. Returns `false` when the caller had to wait. */
+	/**
+	 * Wait out an implicit 429 cooldown, and then a random part of its spread. Returns `false` when the
+	 * caller had to wait.
+	 */
 	async waitImplicit(method: string): Promise<boolean> {
-		const until = this.implicitUntil.get(implicitCategory(method)) ?? 0
+		const cooldown = this.implicitUntil.get(implicitCategory(method))
 		const now = performance.now()
-		if (now >= until) return true
-		await new Promise<void>((resolve) => setTimeout(resolve, until - now))
+		if (cooldown === undefined || now >= cooldown.until) return true
+		const spread = Math.min(cooldown.until - cooldown.openedAt, IMPLICIT_RELEASE_SPREAD_MS)
+		const leaves = cooldown.until + this.random() * spread
+		await new Promise<void>((resolve) => setTimeout(resolve, leaves - now))
 		return false
 	}
 
