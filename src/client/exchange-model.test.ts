@@ -23,6 +23,7 @@ function bearer(value: string, refresh: () => Promise<Resolution>): Resolution {
 	return {
 		block: () => undefined,
 		kind: "sends",
+		lapsed: () => false,
 		principal: "alpha",
 		refresh,
 		schemes: ["bearer"],

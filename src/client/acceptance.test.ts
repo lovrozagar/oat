@@ -157,7 +157,7 @@ describe("every value a recipe extracts is a secret before its answer is recorde
 })
 
 describe("bar 5: refresh is single-flight", () => {
-	it("renews once for 10 parallel 401s, and retries each request once", async () => {
+	it("renews once for 10 parallel 401s, and each request sends the renewal once", async () => {
 		let issued = 0
 		const { ports, recorded } = fakePorts({
 			run: async () => ({ answer: answerOf({ token: `token-${++issued}` }), scope: {} }),
@@ -168,8 +168,11 @@ describe("bar 5: refresh is single-flight", () => {
 		const exchanges = await Promise.all(requests)
 		expect(exchanges.map((exchange) => exchange.status)).toEqual(Array(10).fill(200))
 		expect(recorded.runs).toHaveLength(2)
-		expect(sent).toHaveLength(20)
-		expect(client.transcript.filter((exchange) => exchange.superseded === true)).toHaveLength(10)
+		/* A request still waiting for a slot when the renewal began sends the renewal without a 401 first. */
+		const carried = (token: string) => sent.filter((request) => request.headers["Authorization"] === `Bearer ${token}`)
+		expect(carried("token-2")).toHaveLength(10)
+		expect(carried("token-1").length + carried("token-2").length).toBe(sent.length)
+		expect(client.transcript.filter((exchange) => exchange.superseded === true)).toHaveLength(carried("token-1").length)
 	})
 
 	it("refreshes at most once per request, and answers the second 401 as it is", async () => {

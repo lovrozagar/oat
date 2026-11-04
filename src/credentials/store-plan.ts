@@ -39,13 +39,47 @@ export interface Revoking {
 	record?: CredentialRecord
 }
 
+/**
+ * The store's entries by plan id: each one's issue as it was last set, and what that issue settled
+ * to once it has. The settled side answers without awaiting, so a request holding a client slot can
+ * ask whether its credential lapsed without waiting on a renewal that needs a slot itself.
+ */
+export class Entries {
+	private readonly pending = new Map<string, Promise<Settled>>()
+	private readonly done = new Map<string, Settled>()
+
+	get(id: string): Promise<Settled> | undefined {
+		return this.pending.get(id)
+	}
+
+	set(id: string, issue: Promise<Settled>): void {
+		this.pending.set(id, issue)
+		this.done.delete(id)
+		issue.then(
+			(settled) => {
+				if (this.pending.get(id) === issue) this.done.set(id, settled)
+			},
+			() => undefined,
+		)
+	}
+
+	values(): IterableIterator<Promise<Settled>> {
+		return this.pending.values()
+	}
+
+	/** What the entry's latest issue settled to; undefined while it is still pending, or when there is none. */
+	settled(id: string): Settled | undefined {
+		return this.done.get(id)
+	}
+}
+
 export interface StoreCtx {
 	options: StoreOptions
 	/** The config's principals and the ones the run enrolled. */
 	principals: PrincipalsConfig
 	now: () => number
 	bufferMs: number
-	entries: Map<string, Promise<Settled>>
+	entries: Entries
 	/** Principal × scheme pairs a failed refresh blocked. */
 	blocked: Map<string, Blocked>
 	/** Identity credentials bound, by principal. */
@@ -80,7 +114,7 @@ export function storeCtx(options: StoreOptions): StoreCtx {
 		bound: new Map(),
 		bufferMs: options.refreshBufferMs ?? DEFAULT_REFRESH_BUFFER_MS,
 		dedicated: new Set(),
-		entries: new Map(),
+		entries: new Entries(),
 		now: options.now ?? Date.now,
 		options,
 		principals: { ...options.principals },

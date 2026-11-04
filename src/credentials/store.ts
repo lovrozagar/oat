@@ -71,6 +71,7 @@ export function createStore(options: StoreOptions): CredentialStore {
 	return {
 		acquire: (key) => acquire(ctx, key),
 		acquireDedicated: (key, use) => acquireDedicated(ctx, key, use),
+		lapsed: (key, value) => lapsed(ctx, key, value),
 		adopt: (input) => adopt(ctx, input),
 		block: (key, reason) => {
 			ctx.blocked.set(pairOf(key), { blocked: reason })
@@ -100,6 +101,23 @@ async function acquire(ctx: StoreCtx, key: CredentialKey): Promise<Held> {
 	const fresh = { expiresAt: held.credential.expiresAt, issuedAt: held.issuedAt }
 	if (!isStale(fresh, { bufferMs: ctx.bufferMs, now: ctx.now() })) return held.credential
 	return renewEntry(ctx, plan, held)
+}
+
+/*
+ * Whether `value` is no longer the key's current credential: a renewal is pending, a newer value is
+ * held, or the held one is stale. Never awaits, so a caller holding a client slot can ask.
+ */
+function lapsed(ctx: StoreCtx, key: CredentialKey, value: string): boolean {
+	const plan = planOf(ctx, key)
+	if ("blocked" in plan) return false
+	const held = ctx.entries.settled(plan.id)
+	if (held === undefined) return ctx.entries.get(plan.id) !== undefined
+	if ("blocked" in held) return false
+	if (held.credential.value !== value) return true
+	return isStale(
+		{ expiresAt: held.credential.expiresAt, issuedAt: held.issuedAt },
+		{ bufferMs: ctx.bufferMs, now: ctx.now() },
+	)
 }
 
 async function refresh(ctx: StoreCtx, request: CredentialKey & { sentValue: string }): Promise<Held> {

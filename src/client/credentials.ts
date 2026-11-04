@@ -30,6 +30,8 @@ export interface CredentialStorePort {
 	acquire(key: CredentialKey): Promise<Held>
 	refresh(request: CredentialKey & { sentValue: string }): Promise<Held>
 	block(key: CredentialKey, reason: string): void
+	/** Whether `value`, placed for `key`, is no longer current; never awaits. */
+	lapsed(key: CredentialKey, value: string): boolean
 }
 
 export interface CredentialSourceOptions {
@@ -116,9 +118,14 @@ interface Settling {
 /* Acquires, or renews, every scheme of the alternative, and places what the store holds. */
 async function settle(ctx: CredentialSourceOptions, settling: Settling): Promise<Resolution> {
 	const { alternative, principal, renew } = settling
+	const keys = alternative.map((requirement) => ({
+		principal,
+		scheme: primaryOf(ctx, requirement.scheme) as string,
+		scopes: requirement.scopes,
+	}))
 	const held = await Promise.all(
-		alternative.map((requirement) => {
-			const key = { principal, scheme: primaryOf(ctx, requirement.scheme) as string, scopes: requirement.scopes }
+		alternative.map((requirement, index) => {
+			const key = keys[index] as (typeof keys)[number]
 			const sentValue = renew?.[requirement.scheme]
 			return sentValue === undefined ? ctx.store.acquire(key) : ctx.store.refresh({ ...key, sentValue })
 		}),
@@ -130,6 +137,7 @@ async function settle(ctx: CredentialSourceOptions, settling: Settling): Promise
 			}
 		},
 		kind: "sends",
+		lapsed: () => keys.some((key, index) => ctx.store.lapsed(key, (held[index] as Credential).value)),
 		/* A dedicated credential is the owner's own account: the exchange names the owner, never the probe. */
 		principal: probeOwner(principal),
 		refresh: () => settle(ctx, { alternative, principal, renew: sending.sentValues }),

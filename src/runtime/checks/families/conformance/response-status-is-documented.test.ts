@@ -101,6 +101,7 @@ describe("response.status-is-documented and a dedicated credential", () => {
 				credentials: fixedSource({
 					block: () => undefined,
 					kind: "sends",
+					lapsed: () => false,
 					principal: "alpha",
 					schemes: [],
 					secrets: { cookies: [], headers: [], query: [], values: [] },

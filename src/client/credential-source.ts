@@ -62,6 +62,8 @@ export interface Sending {
 	secrets: PlacedSecrets
 	/** Renews what this resolution sent, single-flight across every request that sent it. */
 	refresh(): Promise<Resolution>
+	/** Whether what it sent is no longer current in the store (renewed since, or stale); never awaits. */
+	lapsed(): boolean
 	/** BLOCKS every scheme this resolution sent, for the rest of the run, with `reason`. */
 	block(reason: string): void
 }

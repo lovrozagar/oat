@@ -2,7 +2,17 @@ import { describe, expect, it } from "vitest"
 import { fakePorts, NOW } from "./__fixtures__/ports.ts"
 import { PRINCIPALS, SCHEMES, SECURITY } from "./__fixtures__/store.ts"
 import type { Issued } from "./recipes/types.ts"
-import { acquireCtx, blockedBy, identityOf, type Plan, planOf, record, storeCtx } from "./store-plan.ts"
+import {
+	acquireCtx,
+	blockedBy,
+	Entries,
+	identityOf,
+	type Plan,
+	planOf,
+	record,
+	type Settled,
+	storeCtx,
+} from "./store-plan.ts"
 
 /* The store's internals: a key planned against the config, and an issued credential taken in. */
 
@@ -90,5 +100,46 @@ describe("blockedBy and acquireCtx", () => {
 		expect(identityOf(ctx, "nobody")).toEqual({})
 		ctx.principals["viewer"] = { email: "v@x.io", readOnly: true }
 		expect(identityOf(ctx, "viewer")).toEqual({ email: "v@x.io" })
+	})
+})
+
+const blocked = (reason: string): Settled => ({ blocked: reason })
+
+/* An issue the test settles when it chooses. */
+function deferred(): { issue: Promise<Settled>; settle: (settled: Settled) => void } {
+	let settle!: (settled: Settled) => void
+	const issue = new Promise<Settled>((resolve) => {
+		settle = resolve
+	})
+	return { issue, settle }
+}
+
+describe("Entries", () => {
+	it("answers what an issue settled to only once it has, and only while it is the latest", async () => {
+		const entries = new Entries()
+		const first = Promise.resolve(blocked("first"))
+		entries.set("id", first)
+		expect(entries.settled("id")).toBeUndefined()
+		await first
+		expect(entries.settled("id")).toEqual(blocked("first"))
+		const second = deferred()
+		entries.set("id", second.issue)
+		expect(entries.settled("id")).toBeUndefined()
+		second.settle(blocked("second"))
+		await second.issue
+		expect(entries.settled("id")).toEqual(blocked("second"))
+	})
+
+	it("never takes an issue a later one replaced, and leaves a rejected issue unsettled for its awaiter", async () => {
+		const entries = new Entries()
+		const replaced = Promise.resolve(blocked("replaced"))
+		const failed = Promise.reject(new Error("issue threw"))
+		entries.set("id", replaced)
+		entries.set("other", failed)
+		const latest = Promise.resolve(blocked("latest"))
+		entries.set("id", latest)
+		await Promise.allSettled([replaced, failed, latest])
+		expect([entries.settled("id"), entries.settled("other")]).toEqual([blocked("latest"), undefined])
+		await expect(entries.get("other")).rejects.toThrow("issue threw")
 	})
 })

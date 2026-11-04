@@ -227,6 +227,7 @@ describe("resolveHeaders", () => {
 		const live: Resolution = {
 			block: () => undefined,
 			kind: "sends",
+			lapsed: () => false,
 			principal: "alpha",
 			refresh: async () => live,
 			schemes: ["bearer"],

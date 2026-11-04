@@ -34,6 +34,7 @@ function fakeStore(
 		block: (key, reason) => {
 			calls.push(`block ${key.principal} ${key.scheme}: ${reason}`)
 		},
+		lapsed: () => false,
 		refresh: async (request) => {
 			calls.push(`refresh ${request.principal} ${request.scheme} ${request.sentValue}`)
 			issued.set(request.scheme, (issued.get(request.scheme) ?? 1) + 1)

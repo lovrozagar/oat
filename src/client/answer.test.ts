@@ -219,6 +219,7 @@ describe("an exchange sent as a probe", () => {
 				credentials: fixedSource({
 					block: () => undefined,
 					kind: "sends",
+					lapsed: () => false,
 					principal: "alpha",
 					schemes: [],
 					secrets: { cookies: [], headers: [], query: [], values: [] },

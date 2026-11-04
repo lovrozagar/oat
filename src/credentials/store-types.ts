@@ -106,6 +106,12 @@ export interface CredentialStore {
 	 * token grant, under a probe principal the store enrolls. Static and hook recipes cannot issue one.
 	 */
 	acquireDedicated(key: CredentialKey, use?: DedicatedUse): Promise<DedicatedHeld | Blocked>
+	/**
+	 * Whether `value`, which a request placed for `key`, is no longer current: a renewal is pending,
+	 * a newer value is held, or it is stale. Answers without awaiting. A blocked key never lapses:
+	 * its next resolution says why.
+	 */
+	lapsed(key: CredentialKey, value: string): boolean
 	/** Renews the credential a refused request carried, once however many requests were refused. */
 	refresh(request: CredentialKey & { sentValue: string }): Promise<Held>
 	/**

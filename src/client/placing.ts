@@ -2,7 +2,8 @@
  * One request's credential: resolved for every attempt, placed on it, and renewed at most once.
  *
  * Every attempt asks the source again, so a credential that went stale during a wait is renewed by the
- * store before it is sent. A 401 renews what that attempt sent, once per request, and the retry sends
+ * store before it is sent; one that lapses during the attempt's own slot and rate waits is resolved
+ * once more after them (`lapsed`, in `request.ts`). A 401 renews what that attempt sent, once per request, and the retry sends
  * the renewal; a renewal that failed leaves the 401 as the answer. A value a renewal issued is never
  * renewed again: its refusal goes to the run's control read (`control.ts`). A probe expects the
  * refusal, and a forged value is one, so neither is renewed. What a principal's credential places
@@ -38,6 +39,8 @@ export interface RequestCredential {
 	next(): Promise<Placement>
 	/** After a 401: renews what the last attempt sent, once per request. Whether the request should be sent again. */
 	renew(): Promise<boolean>
+	/** Whether what the last attempt placed is no longer current (renewed since, or stale); never for a probe. Never awaits. */
+	lapsed(): boolean
 	/** The request was refused: when it carried a value a renewal issued, `send` sends the control read, once per value. */
 	refused(send: (read: ControlRead) => Promise<Exchange>): Promise<void>
 }
@@ -72,6 +75,8 @@ export function requestCredential(
 			renewal = undefined
 			return placementOf(last, { actor: acting.actor, redactor: wire.redactor })
 		},
+		/* A probe sends what it resolved, as it renews nothing: the refusal it expects is the answer. */
+		lapsed: () => !probe && last?.kind === "sends" && last.lapsed(),
 		refused: async (send) => {
 			/* Only a value a renewal issued is judged: any other refusal is the answer as it stands. */
 			if (last?.kind === "sends" && wire.controls.renewal(last)) await wire.controls.confirm(last, send)

@@ -21,6 +21,7 @@ export function sendingHeaders(
 	return {
 		block: () => undefined,
 		kind: "sends",
+		lapsed: () => false,
 		principal: more.principal ?? "alpha",
 		refresh: more.refresh ?? (async () => ({ kind: "anonymous" })),
 		schemes: ["jwt"],

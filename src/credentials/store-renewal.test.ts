@@ -106,3 +106,42 @@ describe("createStore: an adopted credential its refresh cannot renew", () => {
 		expect(steps().map(([operation]) => operation)).toEqual(["auth.login", "auth.refresh"])
 	})
 })
+
+describe("createStore: whether a placed value lapsed", () => {
+	const key = { principal: "ann", scheme: "jwt" }
+
+	it("answers false for the value it holds while fresh, and true once it is within the buffer of lapsing", async () => {
+		const { clock, store } = rotating()
+		const held = valueOf(await store.acquire(key))
+		expect(store.lapsed(key, held)).toBe(false)
+		clock.now += 31_000
+		expect(store.lapsed(key, held)).toBe(true)
+	})
+
+	it("answers true for a value a renewal replaced, and false for the renewal", async () => {
+		const { store } = rotating()
+		const first = valueOf(await store.acquire(key))
+		const renewed = valueOf(await store.refresh({ ...key, sentValue: first }))
+		expect([store.lapsed(key, first), store.lapsed(key, renewed)]).toEqual([true, false])
+	})
+
+	it("answers true while the key's issue is pending, without awaiting it", async () => {
+		const { store } = rotating()
+		const pending = store.acquire(key)
+		expect(store.lapsed(key, "ann-1")).toBe(true)
+		expect(store.lapsed(key, valueOf(await pending))).toBe(false)
+	})
+
+	it("never lapses a key whose login failed: its next resolution says why", async () => {
+		const { ports } = fakePorts({ run: () => Promise.reject(new Error("auth step 1 answered 401")) })
+		const store = createStore({ ports, principals: { ann: {} }, schemes: new Map([["jwt", BEARER]]), security: LOGIN })
+		expect(await store.acquire(key)).toHaveProperty("blocked")
+		expect(store.lapsed(key, "ann-1")).toBe(false)
+	})
+
+	it("never lapses a blocked key: its next resolution says why", () => {
+		const { store } = rotating()
+		store.block(key, "refused")
+		expect(store.lapsed(key, "ann-1")).toBe(false)
+	})
+})

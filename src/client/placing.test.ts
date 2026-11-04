@@ -31,6 +31,7 @@ function sendingOf(value: string, refreshed: Resolution = { kind: "anonymous" },
 	return {
 		block: (reason) => blocked.push(reason),
 		kind: "sends",
+		lapsed: () => false,
 		principal: "alpha",
 		refresh: async () => refreshed,
 		schemes: ["jwt"],

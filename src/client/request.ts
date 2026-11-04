@@ -58,9 +58,35 @@ export function prepare(ctx: Wire, method: string, path: string, options: Reques
 
 /**
  * One attempt. Its credential is resolved first, so a request whose security cannot be met sends
- * nothing. A network failure is recorded as an exchange with status 0 and raised as a `NetworkError`.
+ * nothing, and the fence sees the placed headers before any wait. When the slot and rate waits
+ * outlast the credential (a renewal elsewhere replaced it, or it went stale), the attempt gives its
+ * slot back and runs once more from the credential: a renewal sends through these same slots, so it
+ * never runs while the attempt holds one. A network failure is recorded as an exchange with status
+ * 0 and raised as a `NetworkError`.
  */
 export async function sendAttempt(request: Prepared, attempt: number, wire: Wire): Promise<Exchange> {
+	const pacing = pacingOf(request, wire.rateLimiter)
+	for (let round = 1; ; round += 1) {
+		const going = await placedAttempt(request, attempt, wire)
+		await wire.slots.acquire()
+		let landed: Timed
+		try {
+			const room = await paced(pacing, request.method, wire.rateLimiter)
+			if (round === 1 && request.credential.lapsed()) continue
+			landed = await onTheWire(going.sent, { ...going, room }, wire)
+		} finally {
+			wire.slots.release()
+		}
+		return answered(landed, { ...going.sent, pacing }, wire)
+	}
+}
+
+/* The attempt with its credential placed and its first hop fenced: what goes on the wire once the waits are over. */
+async function placedAttempt(
+	request: Prepared,
+	attempt: number,
+	wire: Wire,
+): Promise<{ sent: Sent; fence: FenceAsk; hopHeaders: Record<string, string> }> {
 	const { options } = request
 	const placement = await request.credential.next()
 	const { headers, url } = placeOn(placement, await unplaced(request, { placement, wire }))
@@ -71,17 +97,7 @@ export async function sendAttempt(request: Prepared, attempt: number, wire: Wire
 	const fenced = { headers: hopHeaders, operationId: request.operationId, placement, purpose: options.context?.purpose }
 	const fence = fenceAsker(wire.fence, fenced)
 	await fence(url, request.method, options.body)
-	const sent: Sent = { attempt, body, headers, placement, request, url }
-	const pacing = pacingOf(request, wire.rateLimiter)
-	await wire.slots.acquire()
-	let landed: Timed
-	try {
-		const room = await paced(pacing, request.method, wire.rateLimiter)
-		landed = await onTheWire(sent, { fence, hopHeaders, room }, wire)
-	} finally {
-		wire.slots.release()
-	}
-	return answered(landed, { ...sent, pacing }, wire)
+	return { fence, hopHeaders, sent: { attempt, body, headers, placement, request, url } }
 }
 
 /**
