@@ -74,6 +74,8 @@ export interface RequestOptions {
 	as: Actor
 	/** The request expects a refusal: a 401 is its answer, never refreshed or retried. A forged actor is always one. */
 	probe?: boolean
+	/** Set only on the client's own control read (`control.ts`): its answer is the verdict, never renewed or judged. */
+	control?: true
 	/** Non-credential headers only: one under a name the credential is placed in is a `CredentialCollision`. */
 	headers?: Record<string, string> | (() => Record<string, string>)
 	/**

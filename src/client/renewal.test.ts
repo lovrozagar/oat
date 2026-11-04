@@ -131,6 +131,9 @@ const ROWS_DOC = {
 		"/auth/session": {
 			get: { operationId: "auth.session", responses: { "200": { description: "a session" } }, security: [] },
 		},
+		"/items": {
+			get: { operationId: "item.list", responses: { "200": { description: "items" } }, security: [{ jwt: [] }] },
+		},
 		"/rows/{id}": {
 			delete: { operationId: "row.delete", responses: { "200": { description: "gone" } }, security: [{ jwt: [] }] },
 		},
@@ -170,7 +173,12 @@ function issuing(through?: () => Promise<unknown>): CredentialPorts {
 	}
 }
 
-const ROUTES: Record<string, string> = { "DELETE /rows/1": "row.delete", "GET /auth/session": "auth.session" }
+const ROUTES: Record<string, string> = {
+	"DELETE /rows/1": "row.delete",
+	"DELETE /rows/2": "row.delete",
+	"GET /auth/session": "auth.session",
+	"GET /items": "item.list",
+}
 
 interface Held {
 	client: Client
@@ -282,5 +290,123 @@ describe("a held request meant to send exactly what it was handed", () => {
 		await vi.advanceTimersByTimeAsync(HOLD_MS + 1_000)
 		expect((await deleted).status).toBe(401)
 		expect(held.sent()).toEqual([carried])
+	})
+})
+
+/* A jwt whose expiry the server never states, issued by a login and renewed by a refresh. */
+const UNSTATED: SecurityConfig = {
+	jwt: {
+		login: { from: "$.token", steps: [{ operationId: "auth.login" }] },
+		refresh: { from: "$.token", steps: [{ operationId: "auth.refresh" }] },
+	},
+}
+
+interface Judged {
+	client: Client
+	/** The tokens the server accepts on /items; every other route also asks `rows`. */
+	valid: Set<string>
+	/** Whether the server lets a valid token delete rows. */
+	rows: { open: boolean }
+	issued: () => number
+	sent: (path: string) => string[]
+}
+
+/* alpha's client over the real store; the server accepts a token while it is in `valid`, and refuses every issue after `issues`. */
+function judgedClient(issues = Number.POSITIVE_INFINITY): Judged {
+	const model = buildModel(ROWS_DOC)
+	const principals = { alpha: {} }
+	const valid = new Set<string>()
+	const rows = { open: true }
+	let issued = 0
+	const ports: CredentialPorts = {
+		...issuing(),
+		steps: {
+			run: async () => {
+				if (issued >= issues) throw new Error("auth.refresh answered 401")
+				issued += 1
+				return { answer: { body: { token: `token-${issued}` }, cookies: {}, headers: {}, status: 200 }, scope: {} }
+			},
+		},
+	}
+	const wire = transport((sent) => {
+		const token = bearerOf(sent.headers).replace("Bearer ", "")
+		const open = sent.url.endsWith("/items") || rows.open
+		return json({}, valid.has(token) && open ? 200 : 401)
+	})
+	const store = createStore({ ports, principals, schemes: model.schemes, security: UNSTATED })
+	const client = new Client({
+		baseUrl: "http://api.test",
+		credentials: createCredentialSource({ model, principals, security: UNSTATED, store }),
+		network: { fetchImpl: wire.fetch },
+		operationResolver: (method, path) => {
+			const operationId = ROUTES[`${method} ${path}`]
+			return operationId === undefined ? null : { operationId, template: path }
+		},
+		redactor: new Redactor(),
+	})
+	const sent = (path: string) =>
+		wire.sent.filter((one) => one.url.endsWith(path)).map((one) => bearerOf(one.headers).replace("Bearer ", ""))
+	return { client, issued: () => issued, rows, sent, valid }
+}
+
+const asAlpha = { as: { principal: "alpha" } } as const
+
+/* token-1 is refused on its first read, so alpha's credential becomes token-2, a renewal, which /items accepts. */
+async function acceptedRenewal(judged: Judged): Promise<void> {
+	judged.valid.add("token-2")
+	expect((await judged.client.get("/items", asAlpha)).status).toBe(200)
+	expect(judged.sent("/items")).toEqual(["token-1", "token-2"])
+}
+
+describe("a renewed credential refused later", () => {
+	it("renews once when it lapsed after it was accepted, and every refused request resends the next one", async () => {
+		const judged = judgedClient()
+		await acceptedRenewal(judged)
+		/* The server drops token-2, as it does a token past an expiry it never stated. */
+		judged.valid.clear()
+		judged.valid.add("token-3")
+		const answers = await Promise.all([
+			judged.client.request("DELETE", "/rows/1", asAlpha),
+			judged.client.request("DELETE", "/rows/2", asAlpha),
+		])
+		expect(answers.map((answer) => answer.status)).toEqual([200, 200])
+		expect([judged.sent("/rows/1"), judged.sent("/rows/2"), judged.issued()]).toEqual([
+			["token-2", "token-3"],
+			["token-2", "token-3"],
+			3,
+		])
+		expect((await judged.client.get("/items", asAlpha)).status).toBe(200)
+	})
+
+	it("still blocks the principal when a renewal is refused on its first use, and the control read too", async () => {
+		const judged = judgedClient()
+		judged.valid.add("token-1")
+		expect((await judged.client.get("/items", asAlpha)).status).toBe(200)
+		judged.valid.clear()
+		expect((await judged.client.request("DELETE", "/rows/1", asAlpha)).status).toBe(401)
+		expect([judged.sent("/rows/1"), judged.sent("/items"), judged.issued()]).toEqual([
+			["token-1", "token-2"],
+			["token-1", "token-2"],
+			2,
+		])
+		await expect(judged.client.get("/items", asAlpha)).rejects.toBeInstanceOf(UnsatisfiedSecurity)
+	})
+
+	it("renews nothing for a route that refuses the principal while the control read accepts it", async () => {
+		const judged = judgedClient()
+		await acceptedRenewal(judged)
+		judged.rows.open = false
+		expect((await judged.client.request("DELETE", "/rows/1", asAlpha)).status).toBe(401)
+		expect((await judged.client.request("DELETE", "/rows/2", asAlpha)).status).toBe(401)
+		expect([judged.sent("/rows/1"), judged.sent("/rows/2"), judged.issued()]).toEqual([["token-2"], ["token-2"], 2])
+	})
+
+	it("blocks the principal, sending nothing more, when it lapsed after it was accepted and its renewal is refused", async () => {
+		const judged = judgedClient(2)
+		await acceptedRenewal(judged)
+		judged.valid.clear()
+		expect((await judged.client.request("DELETE", "/rows/1", asAlpha)).status).toBe(401)
+		expect(judged.sent("/rows/1")).toEqual(["token-2"])
+		await expect(judged.client.get("/items", asAlpha)).rejects.toBeInstanceOf(UnsatisfiedSecurity)
 	})
 })

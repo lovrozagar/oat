@@ -178,8 +178,8 @@ export class Client {
 		const send = (): Promise<Exchange> => resilient((attempt) => sendAttempt(request, attempt, this.wire), policy)
 		const supersede = (exchange: Exchange): void => this.journal.supersede(exchange)
 		/* A renewal refused too: the control re-sends the last read that accepted the credential, as any request. */
-		const refused = (): Promise<void> =>
-			request.credential.refused((read) => this.request(read.method, read.path, read.options))
+		const refused = (): Promise<boolean> =>
+			request.credential.refused((read) => this.request(read.method, read.path, { ...read.options, control: true }))
 		const reauthorized = (exchange: Exchange): Promise<Exchange> =>
 			afterUnauthorized(exchange, { refused, renew: request.credential.renew, send, supersede })
 		const exchange = await untilAnswered(await reauthorized(await send()), {
@@ -195,7 +195,8 @@ export class Client {
 			method: request.method,
 			reauthorized,
 		})
-		const { probe: _probe, ...control } = options
+		if (exchange.status >= 200 && exchange.status < 300) request.credential.accepted()
+		const { control: _control, probe: _probe, ...control } = options
 		this.wire.controls.note(exchange, {
 			method: request.method,
 			operationId: request.operationId,

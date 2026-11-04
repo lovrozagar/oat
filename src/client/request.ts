@@ -46,7 +46,7 @@ export function prepare(ctx: Wire, method: string, path: string, options: Reques
 			return { ...(typeof raw === "function" ? raw() : raw) }
 		},
 		callerQuery,
-		credential: requestCredential(ctx, { actor, operationId, probe: options.probe, route }),
+		credential: requestCredential(ctx, { actor, control: options.control, operationId, probe: options.probe, route }),
 		method: verb,
 		operationId,
 		options,

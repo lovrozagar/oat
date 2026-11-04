@@ -18,6 +18,7 @@ describe("afterUnauthorized", () => {
 			},
 			refused: async () => {
 				events.push("refused")
+				return false
 			},
 			supersede: (exchange) => events.push(`supersede ${exchange.seq}`),
 		})
@@ -31,6 +32,7 @@ describe("afterUnauthorized", () => {
 		const result = await afterUnauthorized(answer(401), {
 			refused: async (exchange) => {
 				events.push(`refused ${exchange.seq}`)
+				return false
 			},
 			renew: async () => true,
 			send: async () => refusedAgain,
@@ -46,6 +48,7 @@ describe("afterUnauthorized", () => {
 			renew: async () => (renewals.push("asked"), false),
 			refused: async (exchange: Exchange) => {
 				renewals.push(`refused ${exchange.seq}`)
+				return false
 			},
 			send: () => Promise.reject(new Error("sent")),
 			supersede: () => {
@@ -56,5 +59,20 @@ describe("afterUnauthorized", () => {
 		const ok = answer(200)
 		expect(await afterUnauthorized(ok, never)).toBe(ok)
 		expect(renewals).toEqual(["asked", "refused 1"])
+	})
+})
+
+describe("afterUnauthorized, when the control judged the refused value lapsed", () => {
+	it("sends once more when the control judged the refused value lapsed and renewed it, and only once", async () => {
+		const events: string[] = []
+		const refusedAgain = answer(401, 2)
+		const result = await afterUnauthorized(answer(401), {
+			refused: async (exchange) => (events.push(`refused ${exchange.seq}`), true),
+			renew: async () => false,
+			send: async () => (events.push("send"), refusedAgain),
+			supersede: (exchange) => events.push(`supersede ${exchange.seq}`),
+		})
+		expect(result).toBe(refusedAgain)
+		expect(events).toEqual(["refused 1", "supersede 1", "send", "refused 2"])
 	})
 })

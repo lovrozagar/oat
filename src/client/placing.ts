@@ -1,13 +1,14 @@
 /**
  * One request's credential: resolved for every attempt, placed on it, and renewed at most once.
  *
- * Every attempt asks the source again, so a credential that went stale during a wait is renewed by the
- * store before it is sent; one that lapses during the attempt's own slot and rate waits is resolved
- * once more after them (`lapsed`, in `request.ts`). A 401 renews what that attempt sent, once per request, and the retry sends
- * the renewal; a renewal that failed leaves the 401 as the answer. A value a renewal issued is never
- * renewed again: its refusal goes to the run's control read (`control.ts`). A probe expects the
- * refusal, and a forged value is one, so neither is renewed. What a principal's credential places
- * registers on the run's redactor; a forged value is no secret.
+ * Every attempt asks the source again, so a credential that went stale during a wait is renewed by
+ * the store before it is sent; one that lapses during the attempt's own slot and rate waits is
+ * resolved once more after them (`lapsed`, in `request.ts`). A 401 renews what that attempt sent,
+ * once per request, and the retry sends the renewal; a renewal that failed leaves the 401 as the
+ * answer. A refusal of a value a renewal issued goes to the run's control read (`control.ts`)
+ * instead, and is renewed only when the control judges it lapsed. A probe expects the refusal, and
+ * a forged value is one, so neither is renewed, and the control read's own answer is its verdict.
+ * What a principal's credential places registers on the run's redactor; a forged value is no secret.
  */
 
 import type { Exchange } from "../runtime/exchange.ts"
@@ -41,8 +42,14 @@ export interface RequestCredential {
 	renew(): Promise<boolean>
 	/** Whether what the last attempt placed is no longer current (renewed since, or stale); never for a probe. Never awaits. */
 	lapsed(): boolean
-	/** The request was refused: when it carried a value a renewal issued, `send` sends the control read, once per value. */
-	refused(send: (read: ControlRead) => Promise<Exchange>): Promise<void>
+	/**
+	 * The request was refused and not renewed: when it carried a value a renewal issued, the control
+	 * read (`send`, once per value) judges it. Whether it should be sent again: the value lapsed after
+	 * it was accepted, and its renewal, shared with every request refused on it, issued a credential.
+	 */
+	refused(send: (read: ControlRead) => Promise<Exchange>): Promise<boolean>
+	/** The request was answered 2xx: a value a renewal issued that it carried is proven, so a later refusal may be a lapse. */
+	accepted(): void
 }
 
 /** A request's actor, as the client hands it to the source. */
@@ -52,6 +59,8 @@ export interface Acting {
 	route: string
 	operationId?: string | undefined
 	probe?: boolean | undefined
+	/** The client's own control read: its answer is the verdict, so it is never renewed or judged. */
+	control?: true | undefined
 }
 
 /** The credential of one request, over the client's source. */
@@ -69,7 +78,22 @@ export function requestCredential(
 	let last: Resolution | undefined
 	let renewal: Resolution | undefined
 	let renewed = false
+	/* Renews what `sent` carried and places the renewal on the next attempt; false when the store blocked it. */
+	const renewFrom = async (sent: Resolution & { kind: "sends" }): Promise<boolean> => {
+		renewed = true
+		const next = await sent.refresh()
+		/* A renewal the store BLOCKED sends nothing more: the refusal this request got is its answer. */
+		if (next.kind !== "sends") return false
+		wire.controls.renewed(next)
+		renewal = next
+		return true
+	}
+	const judged = (sent: Resolution | undefined): sent is Resolution & { kind: "sends" } =>
+		acting.control !== true && sent?.kind === "sends" && wire.controls.renewal(sent)
 	return {
+		accepted: () => {
+			if (judged(last)) wire.controls.accepted(last)
+		},
 		next: async () => {
 			last = renewal ?? (await resolveWith(wire.credentials, request))
 			renewal = undefined
@@ -79,17 +103,14 @@ export function requestCredential(
 		lapsed: () => !probe && last?.kind === "sends" && last.lapsed(),
 		refused: async (send) => {
 			/* Only a value a renewal issued is judged: any other refusal is the answer as it stands. */
-			if (last?.kind === "sends" && wire.controls.renewal(last)) await wire.controls.confirm(last, send)
+			if (!judged(last)) return false
+			const verdict = await wire.controls.confirm(last, send)
+			return verdict === "lapsed" && !renewed && !probe && renewFrom(last)
 		},
 		renew: async () => {
-			if (renewed || probe || last?.kind !== "sends" || wire.controls.renewal(last)) return false
-			renewed = true
-			const next = await last.refresh()
-			/* A renewal the store BLOCKED sends nothing more: the refusal this request got is its answer. */
-			if (next.kind !== "sends") return false
-			wire.controls.renewed(next)
-			renewal = next
-			return true
+			if (renewed || probe || acting.control === true || last?.kind !== "sends" || wire.controls.renewal(last))
+				return false
+			return renewFrom(last)
 		},
 	}
 }

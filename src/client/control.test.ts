@@ -3,9 +3,10 @@ import type { Exchange } from "../runtime/exchange.ts"
 import { type ControlRead, createControls, type Sent } from "./control.ts"
 
 /*
- * A freshly renewed credential that is refused is sent once more on the last read that accepted its
- * principal × scheme. Refused there too, the pair is BLOCKED; accepted, the refusal is the route's own;
- * with no such read, nothing is decided. One verdict per renewed value.
+ * A credential a renewal issued that is refused is sent once more on the last read that accepted its
+ * principal × scheme. Refused there too, the pair is BLOCKED, unless a request accepted the value
+ * first: then it lapsed. Accepted, the refusal is the route's own; with no such read, nothing is
+ * decided. One verdict per renewed value.
  */
 
 const accepted = (over: Partial<Exchange> = {}, without?: "principal" | "schemes"): Exchange => {
@@ -56,8 +57,22 @@ describe("createControls", () => {
 		const controls = createControls()
 		const refused = sent()
 		const control = answering(401)
-		await controls.confirm(refused, control.send)
+		expect(await controls.confirm(refused, control.send)).toBe("undecided")
 		expect([control.reads, refused.blocked]).toEqual([[], []])
+	})
+
+	it.each([
+		[200, false, "route"],
+		[401, false, "blocked"],
+		[200, true, "route"],
+		[401, true, "lapsed"],
+	] as const)("answers a control %i, on a value accepted first: %s, with %s", async (status, proven, verdict) => {
+		const controls = createControls()
+		controls.note(accepted(), READ)
+		if (proven) controls.accepted(sent())
+		const refused = sent()
+		expect(await controls.confirm(refused, answering(status).send)).toBe(verdict)
+		expect(refused.blocked).toHaveLength(verdict === "blocked" ? 1 : 0)
 	})
 })
 
@@ -66,8 +81,8 @@ describe("createControls: what it keeps", () => {
 		const controls = createControls()
 		controls.note(accepted(), READ)
 		const control = answering(401)
-		await Promise.all([controls.confirm(sent(), control.send), controls.confirm(sent(), control.send)])
-		expect(control.reads).toHaveLength(1)
+		const verdicts = await Promise.all([controls.confirm(sent(), control.send), controls.confirm(sent(), control.send)])
+		expect([control.reads.length, verdicts]).toEqual([1, ["blocked", "blocked"]])
 	})
 
 	it("knows a value a renewal issued, so a refusal of it goes to the control and never renews it", () => {
