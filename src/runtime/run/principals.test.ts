@@ -84,6 +84,17 @@ describe("resolvePrincipals", () => {
 		expect(principals.peerOf(principals.alpha)).toBeUndefined()
 	})
 
+	it("takes as a peer only a principal with a tenant of its own, not one that holds none", async () => {
+		const principals = await signedIn(notesApi(), {
+			principals: { admin: {}, alpha: { tenant: "t1" }, beta: { tenant: "t2" } },
+			writer: "alpha",
+		})
+		expect([principals.all.map((one) => one.id), principals.peerOf(principals.alpha)?.id]).toEqual([
+			["alpha", "admin", "beta"],
+			"beta",
+		])
+	})
+
 	it("carries a principal the config marks read-only, which never becomes identity data", async () => {
 		const principals = await signedIn(notesApi(), {
 			principals: { alpha: { tenant: "t1" }, viewer: { readOnly: true, tenant: "t1" } },

@@ -14,11 +14,6 @@ export async function actorsOf(run: EntityRun, world: World): Promise<[Actor, ..
 	return actors
 }
 
-/** The first actor of a tenant other than the first's: what the isolation checks read and write across. */
-export function peerOf(actors: readonly [Actor, ...Actor[]]): Actor | undefined {
-	return actors.find((candidate) => candidate.tenant !== actors[0].tenant)
-}
-
 /**
  * A principal in a scope of its own: the parents the collection path names, created as this principal
  * so they are removed as it. A principal that cannot make them acts within its own scope alone.

@@ -1,7 +1,7 @@
 import type { OperationModel } from "../../../spec/graph/types.ts"
 import { type Actor, checkMemo, type WriteContext } from "../../checks/core/context.ts"
 import { ownRecordsOf } from "../own-records.ts"
-import { peerOf } from "./actors.ts"
+import { peerOf } from "../peer.ts"
 import { queryOf } from "./capabilities.ts"
 import type { EntityRun, World } from "./state.ts"
 

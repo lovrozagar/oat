@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest"
 import type { OpenApiDocument } from "../../../spec/types.ts"
 import type { PrincipalEntry } from "../../../config/types/security.ts"
 import { contextOf, entityRunOf, notesApi, optionsFor } from "../__fixtures__/api.ts"
-import { actorsOf, peerOf } from "./actors.ts"
+import { peerOf } from "../peer.ts"
+import { actorsOf } from "./actors.ts"
 import type { World } from "./state.ts"
 
 /*
@@ -136,5 +137,16 @@ describe("peerOf", () => {
 	it("finds no other tenant among principals of one", async () => {
 		const ctx = await contextOf(optionsFor(notesApi(), { principals: { admin: member("o1"), alpha: member("o1") } }))
 		expect(peerOf(await actorsOf(entityRunOf(ctx), world))).toBeUndefined()
+	})
+
+	it("crosses only into a principal that holds a tenant of its own, wherever the config lists it", async () => {
+		const principals = { admin: {}, alpha: member("o1"), beta: member("o2") }
+		const ctx = await contextOf(optionsFor(notesApi(), { principals, writer: "alpha" }))
+		const actors = await actorsOf(entityRunOf(ctx), world)
+		expect([actors.map((one) => one.id), peerOf(actors)?.id]).toEqual([["alpha", "admin", "beta"], "beta"])
+		const alone = await contextOf(
+			optionsFor(notesApi(), { principals: { admin: {}, alpha: member("o1") }, writer: "alpha" }),
+		)
+		expect(peerOf(await actorsOf(entityRunOf(alone), world))).toBeUndefined()
 	})
 })

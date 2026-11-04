@@ -10,6 +10,7 @@ import type { Owner } from "../teardown/types.ts"
 import type { Planned, RunPrincipal, RunPrincipals } from "./context.ts"
 import { provision } from "./fresh.ts"
 import { boundOf } from "./identity.ts"
+import { peerOf } from "./peer.ts"
 
 /*
  * The principals stage, at run start. A fresh principal is signed up first (D7). Then every login a
@@ -133,7 +134,7 @@ function runPrincipals(planned: Planned, signed: { all: RunPrincipal[]; blocked:
 				.map(ownerOf)
 		},
 		ownerOf,
-		peerOf: (principal) => all.find((other) => !sameTenant(principal, other)),
+		peerOf: (principal) => peerOf([principal, ...all]),
 		recordCreated: (created, principal) => {
 			const sender = principal === undefined ? undefined : byId.get(principal)
 			ledger.record(created, ownerOf(sender ?? alpha))
