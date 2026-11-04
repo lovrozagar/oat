@@ -50,3 +50,4 @@ pnpm-debug.log*
 # Third-party files the real-API targets fetch by pinned commit and sha256 (tests/targets/*/target.ts).
 tests/targets/crapi/keys/
 tests/targets/vampi/openapi3.yml
+.worktrees/
