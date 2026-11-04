@@ -85,33 +85,36 @@ export interface StatusRetry {
 
 /** The backend's final answer, after the waits it asked for and one more try past a gateway's 5xx. */
 export async function untilAnswered(first: Exchange, retry: StatusRetry): Promise<Exchange> {
-	const limited = await afterTooMany(first, retry)
-	const available = await afterUnavailable(limited, retry)
-	return afterGateway(available, retry)
+	return afterGateway(await afterWaits(first, retry), retry)
 }
 
-/* 429 is reactive: the first one is never a seed/check failure. Tags pace proactively; this path
- * honors the server even when the op has no x-rate-limit at all. A wait past the limit stands, and
- * never reaches the limiter, where it would hold back every request that shares the route's bucket. */
-async function afterTooMany(first: Exchange, retry: StatusRetry): Promise<Exchange> {
+/*
+ * The waits the backend asks for, in whatever order it asks: a backend may shed load with a 503 and
+ * then rate-limit the retry with a 429, and each answer is followed as it comes. Each status keeps its
+ * own retries across the alternation, so the two together still end; a wait past the limit stands.
+ *
+ * 429 is reactive: the first one is never a seed/check failure. Tags pace proactively; this path
+ * honors the server even when the op has no x-rate-limit at all, and a wait past the limit never
+ * reaches the limiter, where it would hold back every request that shares the route's bucket.
+ * A 503 that names when to come back is a cue a well-behaved client follows; one that names no wait
+ * stands as the verdict.
+ */
+async function afterWaits(first: Exchange, retry: StatusRetry): Promise<Exchange> {
 	let exchange = first
-	for (let attempt = 0; exchange.status === 429 && attempt < MAX_429_RETRIES; attempt++) {
-		if (exchange.retryAfterExceeded !== undefined) break
-		const waitMs = retryWaitMs(headerValue(exchange.responseHeaders, "retry-after"), attempt)
-		retry.backedOff(waitMs)
-		if (waitMs > 0) await sleep(waitMs)
-		exchange = await retry.reauthorized(await retry.again(exchange))
-	}
-	return exchange
-}
-
-/* A 503 that names when to come back is a cue a well-behaved client follows: wait, ask again. One
- * that names no wait, or a wait past the limit, stands as the verdict. */
-async function afterUnavailable(first: Exchange, retry: StatusRetry): Promise<Exchange> {
-	let exchange = first
-	for (let attempt = 0; exchange.status === 503 && attempt < MAX_UNAVAILABLE_RETRIES; attempt++) {
-		const waitMs = parseRetryAfter(headerValue(exchange.responseHeaders, "retry-after"))
-		if (waitMs === null || exchange.retryAfterExceeded !== undefined) break
+	let limited = 0
+	let unavailable = 0
+	while (exchange.retryAfterExceeded === undefined) {
+		const header = headerValue(exchange.responseHeaders, "retry-after")
+		if (exchange.status === 429 && limited < MAX_429_RETRIES) {
+			const waitMs = retryWaitMs(header, limited++)
+			retry.backedOff(waitMs)
+			if (waitMs > 0) await sleep(waitMs)
+			exchange = await retry.reauthorized(await retry.again(exchange))
+			continue
+		}
+		const waitMs = exchange.status === 503 ? parseRetryAfter(header) : null
+		if (waitMs === null || unavailable >= MAX_UNAVAILABLE_RETRIES) break
+		unavailable++
 		await sleep(waitMs)
 		exchange = await retry.again(exchange)
 	}

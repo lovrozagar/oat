@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { Exchange } from "../runtime/exchange.ts"
 import { DEFAULT_NETWORK_RETRIES } from "../runtime/network/policy.ts"
 import { NetworkError, type NetworkKind } from "../errors/network.ts"
-import { MAX_429_RETRIES } from "../runtime/rate-limit/retry-after.ts"
+import { MAX_429_RETRIES, MAX_UNAVAILABLE_RETRIES } from "../runtime/rate-limit/retry-after.ts"
 import { type Resending, resilient, type StatusRetry, untilAnswered } from "./retry.ts"
 
 const answer = (status: number, headers: Record<string, string> = {}): Exchange =>
@@ -179,6 +179,37 @@ describe("untilAnswered", () => {
 		const query = retrying([])
 		expect((await settled(untilAnswered(answer(502), { ...query, method: "QUERY" }))).status).toBe(502)
 		expect([...write.log, ...fine.log, ...query.log]).toEqual([])
+	})
+})
+
+/* A backend that sheds load with a 503 and then rate-limits the retry with a 429 (anyrow's D1 under a
+ * teardown burst): each answer names its wait, and oat follows whichever one came last. */
+const shed = (): Exchange => answer(503, { "retry-after": "1" })
+const throttled = (): Exchange => answer(429, { "retry-after": "1" })
+describe("untilAnswered when a 503 and a 429 follow each other", () => {
+	it("waits out a 429 that answers a 503's retry", async () => {
+		const retry = retrying([answer(429, { "retry-after": "1" }), answer(200)], "DELETE")
+		const final = await settled(untilAnswered(answer(503, { "retry-after": "1" }), retry))
+		expect(final.status).toBe(200)
+		expect(retry.log).toEqual(["again after 503", "backoff 1000", "again after 429", "reauthorized 200"])
+	})
+
+	it("waits out a 503 that answers a 429's retry", async () => {
+		const retry = retrying([answer(503, { "retry-after": "1" }), answer(200)], "DELETE")
+		const final = await settled(untilAnswered(answer(429, { "retry-after": "1" }), retry))
+		expect(final.status).toBe(200)
+		expect(retry.log).toEqual(["backoff 1000", "again after 429", "reauthorized 503", "again after 503"])
+	})
+
+	it("stops at each status's own retries when the two alternate without end", async () => {
+		const answers = Array.from({ length: 40 }, (_, i) => (i % 2 === 0 ? throttled() : shed()))
+		const retry = retrying(answers, "DELETE")
+		const final = await settled(untilAnswered(shed(), retry))
+		const after = (status: number) => retry.log.filter((line) => line === `again after ${status}`).length
+		/* a 503 opens and the two alternate, so the 503's cap ends it with as many 429s waited out */
+		expect(after(503)).toBe(MAX_UNAVAILABLE_RETRIES)
+		expect(after(429)).toBe(MAX_UNAVAILABLE_RETRIES)
+		expect(final).toBe(answers[after(503) + after(429) - 1])
 	})
 })
 
