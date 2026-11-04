@@ -1,6 +1,6 @@
 /**
  * What a passing request step keeps: its call, the values it saves into scope, the claims it reads
- * from a token, and the observation each of its asserts makes.
+ * from a token, the account those values descend from, and the observation each of its asserts makes.
  */
 
 import type { ScenarioAssert, ScenarioRequestStep } from "../../config/types/steps.ts"
@@ -12,6 +12,7 @@ import type { Exchange } from "../exchange.ts"
 import type { PassEvidence } from "../grades.ts"
 import { readPath } from "../../client/read-path.ts"
 import { blamed, StepFailure } from "./failure.ts"
+import { keep, tagOf } from "./lineage.ts"
 import type { ScenarioRun } from "./types.ts"
 import { shownValue, type Want } from "./want.ts"
 
@@ -29,6 +30,7 @@ export function record(run: ScenarioRun, passed: Passed): void {
 	if (stepOp !== undefined && !run.observations.has(stepOp)) run.calls.set(stepOp, passed.exchange)
 	saveValues(run, passed)
 	saveClaims(run, passed)
+	keep(run.lineage, passed.step, tagOf(run.lineage, passed.step, run.input.accounts?.madeBy(passed.exchange)))
 	if (passed.wants.length === 0) return
 	observe(run, passed)
 }

@@ -35,6 +35,7 @@ export function startScenario(
 			...(input.outOfBand === undefined ? {} : { outOfBand: input.outOfBand }),
 		},
 		input,
+		lineage: new Map(),
 		objects,
 		observations: new Map(),
 		principal,

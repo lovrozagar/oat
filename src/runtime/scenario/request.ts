@@ -8,6 +8,7 @@ import type { ScenarioRequestStep } from "../../config/types/steps.ts"
 import { resolveRequest } from "../steps/request.ts"
 import type { Exchange } from "../exchange.ts"
 import { blamed, ScenarioStopped, StepFailure } from "./failure.ts"
+import { selfDeleted } from "./lineage.ts"
 import { durationMs, nextPollWait } from "./poll.ts"
 import { record } from "./record.ts"
 import { principalOf } from "./state.ts"
@@ -58,6 +59,8 @@ async function send(
 		...(request.redirect === undefined ? {} : { redirect: request.redirect }),
 	})
 	run.sent.push(exchange)
+	/* An accepted delete removed the account, whatever the step then asserts of its answer. */
+	selfDeleted(run.lineage, { accounts: run.input.accounts, exchange, step })
 	return { exchange, request }
 }
 

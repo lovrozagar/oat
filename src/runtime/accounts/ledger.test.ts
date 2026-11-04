@@ -54,6 +54,16 @@ describe("AccountLedger", () => {
 		expect(ledger.signUpOf(made)).toBeUndefined()
 		expect(ledger.entries()).toHaveLength(4)
 	})
+
+	it("names the entry a sign-up's own answer made, and none for any other exchange", () => {
+		const ledger = new AccountLedger()
+		const first = ledger.sending("auth.signup", { email: "a@x.test" })
+		const second = ledger.sending("auth.signup", { email: "b@x.test" })
+		const [one, two, other] = [answer(201), answer(201), answer(201)]
+		ledger.answered(first, one)
+		ledger.answered(second, two)
+		expect([ledger.madeBy(one), ledger.madeBy(two), ledger.madeBy(other)]).toEqual([first, second, undefined])
+	})
 })
 
 describe("names", () => {

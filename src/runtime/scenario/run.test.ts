@@ -1,5 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { UnsatisfiedSecurity } from "../../client/credential-source.ts"
+import type { ScenarioRequestStep, ScenarioStep } from "../../config/types/steps.ts"
+import {
+	accountsApi,
+	accountsModel,
+	accountsPort,
+	deleteThroughSession,
+	refresh,
+	signUp,
+} from "./__fixtures__/accounts.ts"
 import { notes, notesApi, scenario, stage } from "./__fixtures__/stage.ts"
 import { runScenarios } from "./run.ts"
 
@@ -164,5 +173,92 @@ describe("runScenarios: a scenario the profile leaves out", () => {
 			}),
 		])
 		expect(input.grades.evidence.has("notes.list")).toBe(false)
+	})
+})
+
+/* The reauth flow over the accounts API, its port, and the scenario's steps in place of the default ones. */
+function selfDelete(steps: ScenarioStep[], answers: Parameters<typeof accountsApi>[0] = {}) {
+	const accounts = accountsPort()
+	const { input } = stage(accountsApi(answers), {
+		accounts: accounts.port,
+		model: accountsModel,
+		scenarios: [scenario(steps, { covers: ["auth.deleteAccount"] })],
+	})
+	return { ...accounts, input }
+}
+
+describe("runScenarios: a self delete sent through the scenario's session", () => {
+	it("settles the account whose sign-up the session descends from", async () => {
+		const { deleted, input } = selfDelete([signUp, refresh, deleteThroughSession])
+		await runScenarios(input)
+		expect(deleted.map(({ entry, exchange }) => [entry.n, exchange.operationId, exchange.status])).toEqual([
+			[1, "auth.deleteAccount", 204],
+		])
+	})
+
+	it("settles it when the delete was accepted but an assert on it was unmet", async () => {
+		const { deleted, input } = selfDelete(
+			[signUp, refresh, { ...deleteThroughSession, assert: { equals: "yes", from: "$.gone" } }],
+			{ "DELETE /account": { body: { gone: "no" }, status: 200 } },
+		)
+		await runScenarios(input)
+		expect(input.findings.findings.map(({ verdict }) => verdict)).toEqual(["BACKEND_BUG"])
+		expect(deleted.map(({ entry }) => entry.n)).toEqual([1])
+	})
+
+	it("settles nothing when the delete is refused", async () => {
+		const { deleted, input } = selfDelete([signUp, refresh, { ...deleteThroughSession, expect: [403] }], {
+			"DELETE /account": { status: 403 },
+		})
+		await runScenarios(input)
+		expect(deleted).toEqual([])
+	})
+
+	it("settles nothing for a delete that sends only a value no sign-up answered", async () => {
+		const { deleted, input } = selfDelete([
+			signUp,
+			{ ...deleteThroughSession, headers: { authorization: "Bearer {org}" } },
+		])
+		await runScenarios(input)
+		expect(deleted).toEqual([])
+	})
+
+	it("settles nothing for a delete sent as the scenario's principal, whose account the watch settles", async () => {
+		const { anonymous: _anonymous, ...asPrincipal } = deleteThroughSession as ScenarioRequestStep
+		const { deleted, input } = selfDelete([signUp, refresh, asPrincipal])
+		await runScenarios(input)
+		expect(deleted).toEqual([])
+	})
+})
+
+describe("runScenarios: which sign-up a session descends from", () => {
+	const second: ScenarioStep = { ...signUp, saveAs: { other: "$.refresh" } }
+
+	it("settles nothing for a session made from two accounts' values", async () => {
+		const both = { ...refresh, body: { refresh: "{refreshToken}", token: "{other}" } }
+		const { deleted, input } = selfDelete([signUp, second, both, deleteThroughSession])
+		await runScenarios(input)
+		expect(input.findings.findings).toEqual([])
+		expect(deleted).toEqual([])
+	})
+
+	it("settles nothing once the session's name is rebound by a step that sent no account's value", async () => {
+		const rebound = { ...refresh, body: { refresh: "{org}" } }
+		const { deleted, input } = selfDelete([signUp, refresh, rebound, deleteThroughSession])
+		await runScenarios(input)
+		expect(deleted).toEqual([])
+	})
+
+	it("settles the account of the sign-up answer that passed, when the sign-up was polled", async () => {
+		let answers = 0
+		const polled = { ...signUp, assert: { equals: "t2", from: "$.token" }, poll: { everyMs: 1, within: "5s" } }
+		const register = () => {
+			answers += 1
+			return { body: { refresh: `r${answers}`, token: `t${answers}` }, status: 201 }
+		}
+		const { deleted, input } = selfDelete([polled, refresh, deleteThroughSession], { "POST /register": register })
+		await runScenarios(input)
+		expect(answers).toBe(2)
+		expect(deleted.map(({ entry }) => entry.n)).toEqual([2])
 	})
 })

@@ -7,6 +7,7 @@ import type { Exchange } from "../exchange.ts"
 import type { FindingCollector } from "../finding.ts"
 import type { BackoffConfig } from "../poll.ts"
 import type { GradeLedger, PassEvidence } from "../grades.ts"
+import type { Lineage, ScenarioAccounts } from "./lineage.ts"
 
 /** A configured principal as a scenario sends as it, `as: { principal: id }`: the parameters bound for it. */
 export interface ScenarioPrincipal {
@@ -33,6 +34,8 @@ export interface ScenarioInput {
 	skipped?: (scenario: Scenario) => string | null
 	outOfBand?: Partial<BackoffConfig>
 	originClients?: ReadonlyMap<string, OriginClient>
+	/** The run's account ledger, which a self delete sent through a session settles, when the document has one. */
+	accounts?: ScenarioAccounts
 	sleep?: (ms: number) => Promise<void>
 }
 
@@ -57,4 +60,6 @@ export interface ScenarioRun {
 	/** What this scenario sent, so a value delivered outside HTTP finds the request it answers. */
 	sent: Exchange[]
 	observations: Map<string, PassEvidence["observation"]>
+	/** The account each scope name descends from. */
+	lineage: Lineage
 }

@@ -42,6 +42,8 @@ export class AccountLedger {
 	private readonly list: AccountEntry[] = []
 	/* By entry: what each sign-up sent, then answered. */
 	private readonly sent = new WeakMap<AccountEntry, SignUp>()
+	/* By answer: the entry whose sign-up it answered. */
+	private readonly answers = new WeakMap<Exchange, AccountEntry>()
 
 	/** `file`, when given, is rewritten with every change. */
 	constructor(private readonly file?: string) {}
@@ -84,7 +86,13 @@ export class AccountLedger {
 		if (ok && id !== undefined && id !== "") entry.id = id
 		/* Only a sign-up the ledger saw sent is answered. */
 		;(this.sent.get(entry) as SignUp).answer = exchange
+		this.answers.set(exchange, entry)
 		this.persist()
+	}
+
+	/** The entry whose sign-up `exchange` answered, if it answered one. */
+	madeBy(exchange: Exchange): AccountEntry | undefined {
+		return this.answers.get(exchange)
 	}
 
 	/** Teardown's verdict on it. */

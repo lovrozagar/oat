@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { ProgressSnapshot } from "../progress/types.ts"
-import { contextOf, notesApi, optionsFor } from "./__fixtures__/api.ts"
+import { accountsApi, accountsState } from "./__fixtures__/accounts.ts"
+import { contextOf, EMAIL_LOGIN, notesApi, optionsFor } from "./__fixtures__/api.ts"
 import { scenarios } from "./scenarios.ts"
 
 describe("scenarios", () => {
@@ -71,5 +72,50 @@ describe("scenarios, as whom", () => {
 		const ctx = await contextOf(options)
 		await scenarios(ctx)
 		expect(options.seen.at(-1)?.headers["authorization"]).toBe("Bearer tok-b@x.test")
+	})
+})
+
+describe("scenarios: an account that deletes itself through the scenario's session", () => {
+	it("is settled during the run by the ledger, once, not left for teardown", async () => {
+		const state = accountsState()
+		const ctx = await contextOf(
+			optionsFor(accountsApi(state), {
+				principals: { alpha: { email: "alpha@x.test" } },
+				scenarios: [
+					{
+						covers: ["me.delete"],
+						id: "self-delete",
+						steps: [
+							{
+								anonymous: true,
+								body: { email: "s@x.test", password: "pw-123456" },
+								operationId: "auth.signup",
+								saveAs: { session: "$.access_token" },
+							},
+							{
+								anonymous: true,
+								headers: { authorization: "Bearer {session}" },
+								operationId: "me.read",
+								saveAs: { who: "$.email" },
+							},
+							{ anonymous: true, headers: { authorization: "Bearer t-{who}" }, operationId: "me.delete" },
+							{ anonymous: true, headers: { authorization: "Bearer t-{who}" }, operationId: "me.delete" },
+						],
+					},
+				] as never,
+				security: EMAIL_LOGIN,
+			}),
+		)
+		await scenarios(ctx)
+		const made = ctx.accounts.entries().filter((entry) => entry.identity["email"] === "s@x.test")
+		const [first, again] = ctx.client.transcript.filter((sent) => sent.operationId === "me.delete")
+		expect(state.removed).toEqual(["s@x.test", "s@x.test"])
+		expect(again?.status).toBe(204)
+		expect(made).toHaveLength(1)
+		expect(made[0]).toMatchObject({
+			note: `deleted itself during the run (me.delete #${first?.seq})`,
+			status: "removed",
+		})
+		expect(ctx.accounts.owed()).not.toContain(made[0])
 	})
 })

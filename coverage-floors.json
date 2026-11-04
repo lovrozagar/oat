@@ -1455,6 +1455,7 @@
 	"src/runtime/runs.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/scenario/failure.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/scenario/grade.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+	"src/runtime/scenario/lineage.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/scenario/poll.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/scenario/record.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
 	"src/runtime/scenario/request.ts": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },

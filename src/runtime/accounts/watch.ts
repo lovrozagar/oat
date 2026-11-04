@@ -70,9 +70,14 @@ function deletedItself(
 	const theirs = (entry: AccountEntry): boolean => names(entry, identity)
 	for (const entry of watch.ledger.owed().filter(theirs)) {
 		watch.ledger.settle(entry, {
-			note: `deleted itself during the run (${operationId} #${exchange.seq})`,
+			note: deletedDuringRun(operationId, exchange.seq),
 			principal,
 			status: "removed",
 		})
 	}
+}
+
+/** How the ledger notes an account that deleted itself during the run. */
+export function deletedDuringRun(operationId: string, seq: number): string {
+	return `deleted itself during the run (${operationId} #${seq})`
 }
