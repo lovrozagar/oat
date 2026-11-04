@@ -17,6 +17,7 @@ async function lapsedTeardown(login: Login, hook: Hook = async () => undefined) 
 	let lapsed = false
 	const answer = withSignup(() => ({ status: 201 }))
 	const handed: string[] = []
+	const stale: Array<string | undefined> = []
 	const ctx = await contextOf(
 		optionsFor(
 			(method, path, request) =>
@@ -27,6 +28,7 @@ async function lapsedTeardown(login: Login, hook: Hook = async () => undefined) 
 				hooks: {
 					teardownPrincipal: async (_address, held) => {
 						handed.push(held.credential)
+						stale.push(held.stale)
 						await hook(held.credential)
 					},
 				},
@@ -40,7 +42,7 @@ async function lapsedTeardown(login: Login, hook: Hook = async () => undefined) 
 	vi.setSystemTime(Date.now() + 600_000)
 	await teardownAccounts(ctx)
 	const email = String(ctx.principals.byId.get("fresh")?.identity["email"])
-	return { email, entry: ctx.accounts.entries()[0], failed: ctx.state.teardown?.failed ?? [], handed }
+	return { email, entry: ctx.accounts.entries()[0], failed: ctx.state.teardown?.failed ?? [], handed, stale }
 }
 
 describe("teardownAccounts, by the hook, once the account's credential has lapsed", () => {
@@ -48,20 +50,23 @@ describe("teardownAccounts, by the hook, once the account's credential has lapse
 	afterEach(() => vi.useRealTimers())
 
 	it("hands the hook a renewed credential", async () => {
-		const { email, entry, handed } = await lapsedTeardown((who, lapsed) => ({
+		const { email, entry, handed, stale } = await lapsedTeardown((who, lapsed) => ({
 			body: { access_token: `${lapsed ? "renewed" : "held"}-${who}` },
 			status: 200,
 		}))
 		expect(entry?.status).toBe("removed")
 		expect(handed).toEqual([`renewed-${email}`])
+		expect(stale).toEqual([undefined])
 	})
 
-	it("hands the hook the credential it holds when renewing it fails", async () => {
-		const { email, failed, handed } = await lapsedTeardown((who, lapsed) =>
+	it("hands the hook the credential it holds, marked stale with why, when renewing it fails", async () => {
+		const { email, failed, handed, stale } = await lapsedTeardown((who, lapsed) =>
 			lapsed ? { body: {}, status: 500 } : { body: { access_token: `held-${who}` }, status: 200 },
 		)
 		expect(failed).toEqual([])
 		expect(handed).toEqual([`held-${email}`])
+		/* told the credential is stale, and why, so it can take another way in instead of sending it */
+		expect(stale).toEqual([expect.stringMatching(/^refresh for fresh\/bearer: /)])
 	})
 
 	it("says renewing was blocked when the hook handed the credential it holds fails too", async () => {

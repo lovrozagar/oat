@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest"
-import { modelOf } from "../../spec/graph/__fixtures__/operations.ts"
-import type { SpecModel } from "../../spec/graph/types.ts"
+import { modelOf } from "./graph/__fixtures__/operations.ts"
+import type { SpecModel } from "./graph/types.ts"
 import { body, OPEN } from "./__fixtures__/open.ts"
-import { unmarkedSignUp } from "./unmarked.ts"
+import { accountMakersOf, unmarkedSignUp } from "./sign-up.ts"
 
 /* An account-making operation the document does not tag: an open POST named as a sign-up, or one taking a password. */
 
@@ -82,5 +82,19 @@ describe("unmarkedSignUp by body", () => {
 		for (const id of ["token.create", "users.reset", "notes.create", "blobs.create"]) {
 			expect([id, signsUp(model, id)]).toEqual([id, false])
 		}
+	})
+})
+
+describe("accountMakersOf", () => {
+	it("lists every operation that makes an account, marked or not, as the store matches a login step against it", () => {
+		const model = modelOf({
+			"/v1/login": { post: { operationId: "auth.login", ...OPEN } },
+			"/v1/register": { post: { operationId: "auth.register", ...OPEN } },
+			"/v1/invites": { post: { operationId: "invite.accept", ...OPEN, "x-fresh-principal": true } },
+		})
+		expect(accountMakersOf(model)).toEqual([
+			{ method: "POST", operationId: "auth.register", path: "/v1/register" },
+			{ method: "POST", operationId: "invite.accept", path: "/v1/invites" },
+		])
 	})
 })

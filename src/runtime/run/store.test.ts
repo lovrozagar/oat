@@ -11,6 +11,7 @@ import {
 	notesApi,
 	optionsFor,
 	overriding,
+	unmarkedSignupDoc,
 	unreachable,
 	withLogin,
 	withSignup,
@@ -84,6 +85,40 @@ describe("runStore: steps", () => {
 			blocked: "renewing alpha/bearer would sign up again; declare a refresh",
 		})
 		expect(signups).toBe(1)
+	})
+})
+
+describe("runStore: a refused refresh of a signup login", () => {
+	it("blocks a refused refresh of a signup login the document leaves unmarked, never signing up again", async () => {
+		for (const doc of [unmarkedSignupDoc, undefined]) {
+			let signups = 0
+			const signup = () => ({ body: { access_token: `made-${++signups}`, refresh_token: "r1" }, status: 201 })
+			const body = { email: "a@x.test", password: "secret-pw", tenant: "t1" }
+			const security: SecurityConfig = {
+				bearer: {
+					login: {
+						from: "$.access_token",
+						steps: [{ body, operationId: "auth.signup", saveAs: { refreshToken: "$.refresh_token" } }],
+					},
+					/* the server no longer takes the refresh token: rotated, or its session revoked */
+					refresh: {
+						from: "$.access_token",
+						steps: [{ body: { refresh_token: "{refreshToken}" }, method: "POST", path: "/refresh" }],
+					},
+				},
+			}
+			const ctx = await connected(optionsFor(withSignup(signup, doc), { security }))
+			await ctx.store.acquire({ principal: "alpha", scheme: "bearer" })
+			const renewed = await ctx.store.refresh({ principal: "alpha", scheme: "bearer", sentValue: "made-1" })
+			expect([renewed, signups]).toEqual([
+				{
+					blocked: expect.stringMatching(
+						/^the refresh for alpha\/bearer was refused, and acquiring afresh would sign up again: \S/,
+					),
+				},
+				1,
+			])
+		}
 	})
 })
 

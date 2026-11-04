@@ -1,4 +1,4 @@
-import { signupOf } from "../../src/credentials/signup.ts"
+import { accountMakersOf } from "../../src/spec/sign-up.ts"
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
@@ -286,7 +286,14 @@ function stackOf(harness: Harness, recipe: Recipe): Stack {
 		tokens: { post: unused },
 	}
 	let now = Date.now()
-	const store = createStore({ now: () => now, ports, principals, schemes: model.schemes, security, ...signupOf(model) })
+	const store = createStore({
+		now: () => now,
+		ports,
+		principals,
+		schemes: model.schemes,
+		security,
+		signups: accountMakersOf(model),
+	})
 	wired.client = new Client({
 		baseUrl: harness.url,
 		credentials: createCredentialSource({ model, principals, security, store }),

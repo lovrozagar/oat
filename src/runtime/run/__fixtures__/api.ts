@@ -219,7 +219,8 @@ const signupBody = {
 }
 
 /** The notes document with a login, and a signup it marks `x-fresh-principal`. */
-export const signupDoc = notesDoc({
+/* The login and signup routes, the signup marked `x-fresh-principal` or left for oat to recognize. */
+const signupPaths = (marked: boolean) => ({
 	"/login": { post: { operationId: "auth.login", responses: { "200": { description: "ok" } }, security: [] } },
 	"/signup": {
 		post: {
@@ -227,17 +228,22 @@ export const signupDoc = notesDoc({
 			requestBody: { required: true, ...json(signupBody) },
 			responses: { "201": { description: "made" } },
 			security: [],
-			"x-fresh-principal": true,
+			...(marked ? { "x-fresh-principal": true } : {}),
 		},
 	},
 })
+
+export const signupDoc = notesDoc(signupPaths(true))
+
+/** `signupDoc` with its signup unmarked: an account maker only by its name and its open POST. */
+export const unmarkedSignupDoc = notesDoc(signupPaths(false))
 
 /**
  * The notes API behind `signupDoc`: a signup answers what `signup` makes of the body it was sent,
  * and a login answers `login-<email>`.
  */
-export function withSignup(signup: (body: Record<string, unknown>) => Answer): Responder {
-	const notes = notesApi(signupDoc)
+export function withSignup(signup: (body: Record<string, unknown>) => Answer, doc = signupDoc): Responder {
+	const notes = notesApi(doc)
 	return (method, path, request) => {
 		const body = (request.body ?? {}) as Record<string, unknown>
 		if (path === "/signup") return signup(body)

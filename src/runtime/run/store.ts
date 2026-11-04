@@ -4,8 +4,8 @@
  * principal sending the `with` scheme, an OAuth 2 grant posts its form as nobody, and
  * `hooks.resolveCredential` answers a `{ hook: true }` recipe. A minted key's record is judged gone
  * from the primary client's transcript, or read back through it. An identity value a recipe sends
- * registers on the run's redactor. The document's `x-fresh-principal` operation is the store's
- * signup, which a login without a refresh never re-runs. The ports send through the run's clients,
+ * registers on the run's redactor. Every operation of the document that makes an account is a
+ * signup the store never renews a login through. The ports send through the run's clients,
  * which are built over the store, so they reach them only once the run is connected.
  */
 
@@ -13,10 +13,10 @@ import type { Client } from "../../client/client.ts"
 import type { CredentialPorts, Hop, StepAnswer } from "../../credentials/ports.ts"
 import { type OriginSchemes, recipeSchemes } from "../../credentials/origin-recipes.ts"
 import { createStore, type CredentialStore } from "../../credentials/store.ts"
-import { signupOf } from "../../credentials/signup.ts"
 import { isNetworkError } from "../../errors/network.ts"
 import type { Redactor } from "../../security/redact.ts"
 import type { OperationModel } from "../../spec/graph/types.ts"
+import { accountMakersOf } from "../../spec/sign-up.ts"
 import { fillPath } from "../fill-path.ts"
 import { resolveBackoff } from "../poll.ts"
 import { answerOf } from "../steps/engine.ts"
@@ -61,7 +61,7 @@ export function runStore(loaded: Loaded, wiring: StoreWiring): CredentialStore {
 		/* A recipe only an origin's scheme uses is acquired by that scheme. */
 		schemes: recipeSchemes(model.schemes, originSchemes(loaded)),
 		security: options.security ?? {},
-		...signupOf(model),
+		signups: accountMakersOf(model),
 	})
 	return store
 }

@@ -17,7 +17,7 @@ import type { OperationModel, SpecModel } from "../spec/graph/types.ts"
 import { SAFE } from "../spec/methods.ts"
 import { type CredentialRecord, heldCredential } from "./credential-records.ts"
 import type { Exchange } from "./exchange.ts"
-import { SELF_IDENTITY } from "./self/operations.ts"
+import { SELF_IDENTITY } from "../spec/sign-up.ts"
 
 /** What the run knows to guard its principals' own records with. */
 export interface OwnRecords {

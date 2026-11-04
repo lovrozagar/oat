@@ -6,9 +6,9 @@
  */
 
 import type { EntityModel, SpecModel } from "../../spec/graph/types.ts"
+import { SELF_IDENTITY } from "../../spec/sign-up.ts"
 import type { CheckId } from "../check-ids.ts"
 
-export const SELF_IDENTITY = "self"
 export const SELF_CHECK_ID: Extract<CheckId, "auth.self-is-the-caller"> = "auth.self-is-the-caller"
 
 export function selfReadIds(entity: EntityModel): string[] {

@@ -15,7 +15,8 @@ hooks: {
     if (mail === null || (since !== undefined && mail.receivedAt < since)) return null
     return mail.link // URL or token string
   },
-  // Remove a principal this run provisioned. `sends` places its last live credential as its scheme does.
+  // Remove a principal this run provisioned. `sends` places its last live credential as its scheme does;
+  // `stale` says why it could not be renewed, when it could not.
   teardownPrincipal: async (address, { credential, sends }) => {
     await fetch(`https://api.example.com/v1/auth/account`, { method: "DELETE", headers: sends.headers })
   },
@@ -91,7 +92,7 @@ outOfBand: { attempts: 20, initialMs: 1000, maxMs: 8000 }
 
 Worst-case wait is `sum_{i=0}^{attempts-1} min(initialMs × 2^i, maxMs)`. `worstCaseWaitMs()` from the package computes it. Existing configs that omit `outOfBand` do not slow down.
 
-Without `teardownPrincipal`, an account no delete removes is reported as a leftover rather than cascade-deleted. Per-record DELETE still runs for seeded rows when a delete (or `x-cleanup`) exists. The hook is called with the last live credential (`ctx.credential`, and `ctx.sends`: its headers, query and cookies as the scheme places them), not an already-cleared one, so authenticated delete-account is expressible without a tester-key god route. One-argument JavaScript callbacks still run.
+Without `teardownPrincipal`, an account no delete removes is reported as a leftover rather than cascade-deleted. Per-record DELETE still runs for seeded rows when a delete (or `x-cleanup`) exists. The hook is called with the last live credential (`ctx.credential`, and `ctx.sends`: its headers, query and cookies as the scheme places them), not an already-cleared one, so authenticated delete-account is expressible without a tester-key god route. Teardown renews that credential first. When it cannot (a refused refresh, or a login that would sign the account up again), the hook still gets the one the run held, with `ctx.stale` set to why. That credential has likely lapsed, so a hook that can reach the account another way, by its password or an admin, should take that way. One-argument JavaScript callbacks still run.
 
 ### Proving a record gone
 

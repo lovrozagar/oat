@@ -100,7 +100,8 @@ describe("createStore: an adopted credential its refresh cannot renew", () => {
 		await store.acquire({ principal: "ann", scheme: "jwt" })
 		clock.now += 120_000
 		expect(await store.acquire({ principal: "ann", scheme: "jwt" })).toEqual({
-			blocked: "refresh for ann/jwt: auth step 1 answered 401",
+			blocked:
+				"the refresh for ann/jwt was refused, and acquiring afresh would sign up again: auth step 1 answered 401",
 		})
 		expect(steps().map(([operation]) => operation)).toEqual(["auth.login", "auth.refresh"])
 	})

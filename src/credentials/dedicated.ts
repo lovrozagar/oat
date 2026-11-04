@@ -66,7 +66,7 @@ async function issueDedicated(ctx: StoreCtx, key: CredentialKey): Promise<Dedica
 async function refusal(ctx: StoreCtx, owner: Plan): Promise<Blocked | undefined> {
 	const kind = recipeKind(owner.recipe)
 	if (kind === "static" || kind === "hook") return { blocked: `${kind} recipes cannot issue a dedicated credential` }
-	if (signsUp(owner.recipe, ctx.options.signup)) {
+	if (signsUp(owner.recipe, ctx.options.signups ?? [])) {
 		return { blocked: `a second login for ${owner.principal}/${owner.scheme} would sign it up again` }
 	}
 	const settled = await ctx.entries.get(owner.id)

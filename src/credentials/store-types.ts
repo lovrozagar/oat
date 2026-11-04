@@ -3,7 +3,7 @@
 import type { PrincipalEntry, PrincipalsConfig, SecurityConfig } from "../config/types/security.ts"
 import type { Secrets } from "./placement.ts"
 import type { CredentialPorts, Sends } from "./ports.ts"
-import type { SignupOperation } from "./signup.ts"
+import type { SignupOperation } from "../spec/sign-up.ts"
 import type { SecurityScheme } from "../spec/security/schemes.ts"
 
 export interface StoreOptions {
@@ -16,8 +16,8 @@ export interface StoreOptions {
 	now?: () => number
 	/** How long before it lapses a credential is renewed. Default: 30 s. */
 	refreshBufferMs?: number
-	/** The document's `x-fresh-principal` operation: a login calling it with no `refresh` is never re-run. */
-	signup?: SignupOperation
+	/** The document's account makers (`accountMakersOf`): a login that calls one is never renewed by running it again. */
+	signups?: readonly SignupOperation[]
 }
 
 /** Which credential: whose, for which scheme, carrying which scopes. */

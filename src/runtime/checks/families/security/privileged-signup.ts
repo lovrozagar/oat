@@ -18,12 +18,12 @@ import { propertySchema } from "../../../../spec/extensions/privileged.ts"
 import type { OperationModel, SpecModel } from "../../../../spec/graph/types.ts"
 import type { JsonSchema, OperationObject } from "../../../../spec/types.ts"
 import { accountIdentity } from "../../../accounts/identity.ts"
-import { unmarkedSignUp } from "../../../accounts/unmarked.ts"
+import { makesAccount, SELF_IDENTITY } from "../../../../spec/sign-up.ts"
 import type { Exchange } from "../../../exchange.ts"
 import { fillPath } from "../../../fill-path.ts"
 import { ASSERTED, type Outcome, standDown } from "../../../finding.ts"
 import { buildCohort, type CohortMember } from "../../../fixture.ts"
-import { SELF_IDENTITY, selfReadIds } from "../../../self/operations.ts"
+import { selfReadIds } from "../../../self/operations.ts"
 import { recordOf, recordsFromList } from "../../../world/records.ts"
 import type { Actor } from "../../core/context.ts"
 import type { OperationContext, OperationWriteContext, Probed } from "../../core/operation-context.ts"
@@ -52,7 +52,7 @@ export interface SignUpProbe {
 
 /** Whether the operation signs an account up: marked x-fresh-principal, or a sign-up the document leaves unmarked. */
 export function isSignUp(ctx: Pick<OperationContext, "model" | "operation">): boolean {
-	return ctx.operation.freshPrincipal || unmarkedSignUp(ctx.operation, ctx.model)
+	return makesAccount(ctx.operation, ctx.model)
 }
 
 /** What the sign-up probe sends and reads; a stand-down naming what is missing, before anything is sent. */

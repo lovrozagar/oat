@@ -11,6 +11,7 @@ import {
 	notesApi,
 	optionsFor,
 	planned,
+	unmarkedSignupDoc,
 	unreachable,
 	withLogin,
 	withSignup,
@@ -340,6 +341,25 @@ describe("createdByRun", () => {
 			},
 		)
 		expect(createdByRun(await planned(options), "alpha")).toBe(false)
+	})
+})
+
+describe("createdByRun on a signup the document leaves unmarked", () => {
+	it("is a principal whose login registers it, and not one whose login only signs in", async () => {
+		const run = await planned(
+			optionsFor(
+				withSignup(() => ({ status: 201 }), unmarkedSignupDoc),
+				{
+					principals: {
+						plain: { email: "p@x.test" },
+						registered: { email: "g@x.test", security: registering({ operationId: "auth.signup", ...signup }) },
+					},
+					security: EMAIL_LOGIN,
+				},
+			),
+		)
+		const made = Object.keys(run.store.principals).filter((principal) => createdByRun(run, principal))
+		expect(made).toEqual(["registered"])
 	})
 })
 

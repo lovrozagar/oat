@@ -2,8 +2,9 @@ import { describe, expect, it } from "vitest"
 import { buildModel } from "../../spec/graph/build.ts"
 import { accountsDoc } from "../run/__fixtures__/accounts.ts"
 import { modelOf } from "../../spec/graph/__fixtures__/operations.ts"
-import { accountOps, makesAccount } from "./ops.ts"
-import { OPEN } from "./__fixtures__/open.ts"
+import { OPEN } from "../../spec/__fixtures__/open.ts"
+import { makesAccount } from "../../spec/sign-up.ts"
+import { accountOps } from "./ops.ts"
 
 /* Which operations make an account, and which remove one: as itself, or by an admin, by id. */
 

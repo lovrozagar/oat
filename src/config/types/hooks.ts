@@ -30,6 +30,11 @@ export interface TeardownPrincipalContext {
 	credential: string
 	/** Where that credential goes, as its scheme places it, ready to send on the removing request. */
 	sends: Sends
+	/**
+	 * Why the credential could not be renewed, when it could not: it is the one the run last held, and
+	 * has likely lapsed. A hook that can reach the account another way (its password, an admin) should.
+	 */
+	stale?: string
 }
 
 /** The principal `hooks.resolveCredential` gets a credential for: its id and its identity data. */

@@ -3,7 +3,7 @@ import type { SecurityScheme } from "../../spec/security/schemes.ts"
 import { probeOwner } from "../probe-principal.ts"
 import { createStore } from "../store.ts"
 import type { CredentialRecord } from "../ports.ts"
-import type { SignupOperation } from "../signup.ts"
+import type { SignupOperation } from "../../spec/sign-up.ts"
 import { jwtOf } from "./jwt.ts"
 import { answerOf, BEARER, fakePorts, NOW, type RunCall } from "./ports.ts"
 
@@ -116,7 +116,7 @@ export function harness(faults: Faults = {}) {
 		principals: PRINCIPALS,
 		schemes: SCHEMES,
 		security: SECURITY,
-		...(faults.signup === undefined ? {} : { signup: faults.signup }),
+		...(faults.signup === undefined ? {} : { signups: [faults.signup] }),
 	})
 	const mintCalls = () => recorded.calls.filter((call) => call.operationId === "apiKey.create")
 	return { clock, mintCalls, recorded, store }

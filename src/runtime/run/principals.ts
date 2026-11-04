@@ -1,11 +1,11 @@
 import type { PrincipalEntry } from "../../config/types/security.ts"
-import type { AuthStep } from "../../config/types/steps.ts"
 import { effectiveRecipe } from "../../credentials/effective.ts"
+import { signsUp } from "../../credentials/signup.ts"
 import type { CredentialStore } from "../../credentials/store.ts"
 import { recipeKind } from "../../credentials/recipes/acquire.ts"
 import { isNetworkError } from "../../errors/network.ts"
 import type { RunFindingId } from "../check-ids.ts"
-import type { OperationModel } from "../../spec/graph/types.ts"
+import { accountMakersOf } from "../../spec/sign-up.ts"
 import type { Owner } from "../teardown/types.ts"
 import type { Planned, RunPrincipal, RunPrincipals } from "./context.ts"
 import { provision } from "./fresh.ts"
@@ -77,26 +77,18 @@ export async function logIn(planned: Planned, id: string, entry: PrincipalEntry)
 
 /**
  * Whether the run made this principal's account, so teardown removes it: a `fresh` one, one declared
- * `created`, or one whose login recipe registers it through the operation the document marks
- * `x-fresh-principal`. Never a configured account, whatever its login binds or answers.
+ * `created`, or one whose login recipe registers it through an operation that makes an account
+ * (`accountMakersOf`). Never a configured account, whatever its login binds or answers.
  */
 export function createdByRun(planned: Pick<Planned, "model" | "options" | "store">, id: string): boolean {
 	const entry = planned.store.principals[id] as PrincipalEntry
 	if (entry.fresh === true || entry.created === true) return true
-	const signup = planned.model.operations.find((op) => op.freshPrincipal)
-	if (signup === undefined) return false
+	const makers = accountMakersOf(planned.model)
 	const security = planned.options.security ?? {}
 	return [...new Set([...Object.keys(security), ...Object.keys(entry.security ?? {})])].some((scheme) => {
 		const recipe = effectiveRecipe(security[scheme], entry.security?.[scheme])
-		return recipe?.login?.steps.some((step) => calls(step, signup)) === true
+		return recipe !== undefined && signsUp(recipe, makers)
 	})
-}
-
-/* A step sends `op` by its operationId, or by its method and path on the primary origin. */
-function calls(step: AuthStep, op: OperationModel): boolean {
-	if ("operationId" in step) return step.operationId === op.operationId
-	if (!("path" in step) || step.origin !== undefined) return false
-	return step.method.toUpperCase() === op.method.toUpperCase() && step.path === op.path
 }
 
 /** The principal as the store holds it, once its logins bound their claims. */

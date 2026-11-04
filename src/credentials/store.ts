@@ -132,7 +132,7 @@ async function renewEntry(ctx: StoreCtx, plan: Plan, held: Entry): Promise<Held>
  */
 async function renewal(ctx: StoreCtx, plan: Plan, held: Entry): Promise<Settled> {
 	const created = recipeKind(plan.recipe) === "login" && own(ctx.principals, plan.principal)?.created === true
-	const signup = created || signsUp(plan.recipe, ctx.options.signup)
+	const signup = created || signsUp(plan.recipe, ctx.options.signups ?? [])
 	if (held.issued.refresh === undefined && signup) {
 		return blockPair(ctx, plan, `renewing ${plan.principal}/${plan.scheme} would sign up again; declare a refresh`)
 	}
@@ -140,11 +140,18 @@ async function renewal(ctx: StoreCtx, plan: Plan, held: Entry): Promise<Settled>
 		const renew = held.issued.refresh ?? (() => acquireRecipe(acquireCtx(ctx, plan), plan.recipe))
 		return record(ctx, plan, await renew())
 	} catch (error) {
-		if (held.issued.refresh === undefined || signup) return blockPair(ctx, plan, blockedBy("refresh", plan, error))
+		if (held.issued.refresh === undefined) return blockPair(ctx, plan, blockedBy("refresh", plan, error))
+		if (signup) return blockPair(ctx, plan, refusedSignup(plan, error))
 		/* A refused declared refresh falls back to one fresh login, shared by concurrent callers; only its failure blocks. */
 		const settled = await issue(ctx, plan, { refused: error })
 		return "blocked" in settled ? blockPair(ctx, plan, settled.blocked) : settled
 	}
+}
+
+/* A refused refresh of a login that signs up: acquiring afresh would make a second account. */
+function refusedSignup(plan: Plan, error: unknown): string {
+	const why = blockedBy("refresh", plan, error).slice(`refresh for ${plan.principal}/${plan.scheme}: `.length)
+	return `the refresh for ${plan.principal}/${plan.scheme} was refused, and acquiring afresh would sign up again: ${why}`
 }
 
 /* A renewal that failed blocks the principal × scheme for every scope set, for the rest of the run. */

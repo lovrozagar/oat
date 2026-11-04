@@ -1,15 +1,30 @@
 /**
- * An account-making operation the document does not tag `x-fresh-principal`: an open POST named
- * as a sign-up, or an open collection create that takes a password and resets, recovers or changes
- * none. oat ledgers what it sends there like any sign-up, so an account it makes on an untagged
- * document is named, never left silent. Tagging the operation lets oat sign in as the account and
- * remove it.
+ * The operations that make an account, the one rule every reader of it shares: the operation the
+ * document marks `x-fresh-principal`, a create of the `identity: self` entity, and a sign-up the
+ * document leaves unmarked. The ledger records what is sent there, teardown removes it, and the
+ * credential store never renews a login by calling one again.
+ *
+ * An unmarked sign-up is an open POST named as a sign-up, or an open collection create that takes a
+ * password and resets, recovers or changes none. oat ledgers what it sends there like any sign-up,
+ * so an account it makes on an untagged document is named, never left silent. Tagging the
+ * operation lets oat sign in as the account and remove it.
  */
 
-import { requestSchema } from "../../spec/collection/request.ts"
-import type { OperationModel, SpecModel } from "../../spec/graph/types.ts"
-import { SIGN_IN } from "../../spec/sign-in.ts"
-import type { OperationObject } from "../../spec/types.ts"
+import { requestSchema } from "./collection/request.ts"
+import type { OperationModel, SpecModel } from "./graph/types.ts"
+import { SIGN_IN } from "./sign-in.ts"
+import type { OperationObject } from "./types.ts"
+
+/** `x-entity.identity: self`: the signed-up caller is the record. */
+export const SELF_IDENTITY = "self"
+
+/** An operation that makes an account, as the credential store matches a login step against it. */
+export interface SignupOperation {
+	operationId: string
+	method: string
+	/** Its path template, below the primary base URL. */
+	path: string
+}
 
 /* A name's words, in order: split on `-`, `_`, `/`, `.`, spaces and camelCase, lowercased. */
 function words(name: string): string {
@@ -57,4 +72,16 @@ export function unmarkedSignUp(op: OperationModel, model: SpecModel): boolean {
 	if (names.some((name) => PASSWORD_ONLY.test(words(name)))) return false
 	/* Every operation of a built model has its raw operation. */
 	return takesPassword(requestSchema(model.rawOperations.get(op.operationId) as OperationObject))
+}
+
+/** Whether sending `op` can make an account. */
+export function makesAccount(op: OperationModel, model: SpecModel): boolean {
+	return op.freshPrincipal || (op.action === "create" && op.identity === SELF_IDENTITY) || unmarkedSignUp(op, model)
+}
+
+/** Every operation of the document that can make an account, in document order. */
+export function accountMakersOf(model: Pick<SpecModel, "operations" | "rawOperations">): SignupOperation[] {
+	return model.operations
+		.filter((op) => makesAccount(op, model as SpecModel))
+		.map((op) => ({ method: op.method, operationId: op.operationId, path: op.path }))
 }

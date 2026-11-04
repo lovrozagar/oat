@@ -12,7 +12,7 @@ import type { EntityModel, OperationModel, SpecModel } from "../spec/graph/types
 import type { Exchange } from "./exchange.ts"
 import { FencedError } from "./fence.ts"
 import { createdId } from "./proven-id.ts"
-import { SELF_IDENTITY } from "./self/operations.ts"
+import { SELF_IDENTITY } from "../spec/sign-up.ts"
 import type { Ledger } from "./teardown/ledger.ts"
 import { readPathOf } from "./teardown/routes.ts"
 import type { Created } from "./teardown/types.ts"

@@ -17,11 +17,10 @@ import { type AccountOps, accountOps } from "../accounts/ops.ts"
 import { fillPath } from "../fill-path.ts"
 import type { TeardownReport } from "../teardown/types.ts"
 import { messageOf } from "../../errors/message.ts"
-import { effectiveRecipe } from "../../credentials/effective.ts"
-import { recipeKind } from "../../credentials/recipes/acquire.ts"
-import { signsUp, signupOf } from "../../credentials/signup.ts"
-import type { Credential, HeldCredential } from "../../credentials/store-types.ts"
+import { signsUp } from "../../credentials/signup.ts"
+import { accountMakersOf } from "../../spec/sign-up.ts"
 import type { RunContext } from "./context.ts"
+import { borrowed, hookRemoves } from "./account-hook.ts"
 import { bindSignUp } from "./fresh.ts"
 import { createdByRun, logIn } from "./principals.ts"
 import { merged } from "./teardown.ts"
@@ -153,29 +152,6 @@ export async function borrowedFor(ctx: RunContext, principal: string, op: Operat
 	)
 }
 
-/*
- * Why these values `principal` sends are not its own account's, if they are not: one from a static
- * recipe is the configured principals' own, and one another principal holds too is that principal's.
- */
-async function borrowed(
-	ctx: RunContext,
-	principal: string,
-	sent: ReadonlyArray<{ scheme: string; value: string }>,
-): Promise<string | undefined> {
-	const entry = ctx.store.principals[principal]
-	for (const { scheme } of sent) {
-		const recipe = effectiveRecipe(ctx.options.security?.[scheme], entry?.security?.[scheme])
-		if (recipe !== undefined && recipeKind(recipe) === "static") {
-			return `its ${scheme} credential comes from a static recipe, the configured principals' own`
-		}
-	}
-	const values = new Set(sent.map((one) => one.value))
-	const shared = (await ctx.store.snapshot()).find(
-		(one) => one.principal !== principal && values.has(one.credential.value),
-	)
-	return shared === undefined ? undefined : `its credential is ${shared.principal}'s`
-}
-
 /* The principal the run holds this account as, by the names it was made with. */
 export function holder(ctx: RunContext, entry: AccountEntry): string | undefined {
 	if (entry.principal !== undefined) return entry.principal
@@ -198,8 +174,8 @@ export async function signIn(ctx: RunContext, entry: AccountEntry): Promise<stri
 	const id = `account-${entry.n}`
 	await bindSignUp(ctx, { body: body as Record<string, unknown>, entry: {}, id, signup: signUp.answer })
 	if ((await ctx.store.snapshot()).some((held) => held.principal === id)) return id
-	const { signup } = signupOf(ctx.model)
-	if (Object.values(ctx.options.security ?? {}).some((recipe) => signsUp(recipe, signup))) return undefined
+	const makers = accountMakersOf(ctx.model)
+	if (Object.values(ctx.options.security ?? {}).some((recipe) => signsUp(recipe, makers))) return undefined
 	return (await logIn(ctx, id, {})) === undefined ? id : undefined
 }
 
@@ -247,54 +223,6 @@ async function sendAs(
 		return sent
 	} catch (error) {
 		tried.push(`${op.operationId} as ${who} was not sent: ${messageOf(error)}`)
-		return undefined
-	}
-}
-
-/*
- * The held credential as a request would send it now: teardown comes long after sign-up, when a
- * short-lived token has lapsed, so it is renewed first. One that cannot be renewed is handed as held,
- * with why, so a hook that then fails says the credential it was handed was stale.
- */
-async function liveCredential(
-	ctx: RunContext,
-	held: HeldCredential,
-): Promise<{ credential: Credential; renewal?: string }> {
-	const { principal, scheme, scopes } = held
-	const renewed = await ctx.store.acquire({ principal, scheme, scopes })
-	return "blocked" in renewed ? { credential: held.credential, renewal: renewed.blocked } : { credential: renewed }
-}
-
-async function hookRemoves(
-	ctx: RunContext,
-	entry: AccountEntry,
-	principal: string | undefined,
-	tried: string[],
-): Promise<Verdict | undefined> {
-	const teardown = ctx.hooks.teardownPrincipal
-	if (teardown === undefined) return undefined
-	const address = accountLabel(entry.identity)
-	const held = (await ctx.store.snapshot()).find((one) => principal !== undefined && one.principal === principal)
-	if (address === undefined || principal === undefined || held === undefined) {
-		tried.push(
-			`hooks.teardownPrincipal needs ${address === undefined ? "an address to name it by" : "a credential the run holds for it"}`,
-		)
-		return undefined
-	}
-	const { credential, renewal } = await liveCredential(ctx, held)
-	/* A hook handed another principal's credential as this account's would remove that account. */
-	const why = await borrowed(ctx, principal, [{ scheme: held.scheme, value: credential.value }])
-	if (why !== undefined) {
-		tried.push(`hooks.teardownPrincipal was not called: ${why}, and it is handed the account's own credential`)
-		return undefined
-	}
-	try {
-		await teardown(address, { credential: credential.value, sends: credential.sends })
-		return { note: "removed by hooks.teardownPrincipal", principal, status: "removed" }
-	} catch (error) {
-		const stale =
-			renewal === undefined ? "" : `, handed the credential it holds because renewing it was blocked: ${renewal}`
-		tried.push(`hooks.teardownPrincipal threw: ${messageOf(error)}${stale}`)
 		return undefined
 	}
 }

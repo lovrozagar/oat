@@ -244,7 +244,7 @@ function signingUp(steps: SecurityConfig[string] & object, signup: typeof SIGNUP
 		principals: { ann: {} },
 		schemes: SCHEMES,
 		security,
-		...(signup === null ? {} : { signup }),
+		...(signup === null ? {} : { signups: [signup] }),
 	})
 	return { recorded, store }
 }
@@ -274,10 +274,10 @@ describe("createStore: a login that signs up", () => {
 				refresh: { from: "$.t", steps: [{ operationId: "auth.refresh" }] },
 			},
 		}
-		const store = createStore({ ports, principals: { ann: {} }, schemes: SCHEMES, security, signup: SIGNUP })
+		const store = createStore({ ports, principals: { ann: {} }, schemes: SCHEMES, security, signups: [SIGNUP] })
 		await store.acquire({ principal: "ann", scheme: "jwt" })
 		expect(await store.refresh({ principal: "ann", scheme: "jwt", sentValue: "t1" })).toEqual({
-			blocked: "refresh for ann/jwt: refresh token revoked",
+			blocked: "the refresh for ann/jwt was refused, and acquiring afresh would sign up again: refresh token revoked",
 		})
 		expect(recorded.runs).toHaveLength(2)
 	})

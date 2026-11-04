@@ -1,15 +1,9 @@
 import { describe, expect, it } from "vitest"
 import { modelOf } from "../checks/__fixtures__/harness.ts"
 import type { EntityModel } from "../../spec/graph/types.ts"
+import { SELF_IDENTITY } from "../../spec/sign-up.ts"
 import { me } from "./__fixtures__/me.ts"
-import {
-	entityIsSelf,
-	SELF_CHECK_ID,
-	SELF_IDENTITY,
-	selfActionIds,
-	selfOperationIds,
-	selfReadIds,
-} from "./operations.ts"
+import { entityIsSelf, SELF_CHECK_ID, selfActionIds, selfOperationIds, selfReadIds } from "./operations.ts"
 
 /* The entity without the given operations, as a document that lacks them would model it. */
 const omit = <T extends object>(value: T, ...keys: Array<keyof T>): T =>
